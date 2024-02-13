@@ -3,7 +3,7 @@ import pandas as pd
 import geopandas as gpd
 from pathlib import Path
 
-from geodataset.geodata.geodata import BaseGeoData
+from geodataset.geodata.base_geodata import BaseGeoData
 
 
 class DetectionLabels:
