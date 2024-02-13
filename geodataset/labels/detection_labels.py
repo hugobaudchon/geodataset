@@ -3,14 +3,16 @@ import pandas as pd
 import geopandas as gpd
 from pathlib import Path
 
-from geodataset.geodata.base_geodata import BaseGeoData
+from geodataset.geodata import Raster
 
 
-class DetectionLabels:
-    def __init__(self, path: Path, associated_geo_data: BaseGeoData):
+class RasterDetectionLabels:
+    def __init__(self, path: Path, associated_geo_data: Raster, scale_factor: float):
         self.path = path
         self.ext = path.suffix
         self.associated_geo_data = associated_geo_data
+        self.scale_factor = scale_factor
+
         (self.labels,
          self.categories,
          self.agb) = self._load_labels()
