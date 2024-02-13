@@ -1,1 +1,1 @@
-from .tilerizer import Tilerizer
+from .tilerizer import RasterDetectionTilerizer

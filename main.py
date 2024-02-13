@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from geodataset.tilerize.tilerizer_new import RasterDetectionTilerizer
+from geodataset.tilerize import RasterDetectionTilerizer
 
 tilerizer = RasterDetectionTilerizer(dataset_name='Z1_quebec_trees_0.5',
                                      raster_path=Path('/home/hugobaudchon/Documents/Data/raw/quebec_trees_dataset_2021-09-02/2021-09-02/zone1/2021-09-02-sbl-z1-rgb-cog.tif'),

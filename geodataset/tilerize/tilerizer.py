@@ -19,9 +19,9 @@ class RasterDetectionTilerizer:
             path to the raster (.tif, .png...)
         labels_path: Path,
             path to the labels (.geojson, .gpkg, .csv...)
-        output_path: Pathlib
+        output_path: Path,
             path to parent folder where to save the image tiles and associated labels
-        scale_factor: int
+        scale_factor: float
             Rescaling the data (change pixel resolution)
         """
         self.dataset_name = dataset_name
@@ -50,7 +50,6 @@ class RasterDetectionTilerizer:
         dataset_paths.to_csv(self.tiles_path.parent / file_name, index=False)
 
     def create_tiles(self, tile_size=1024, overlap=0, start_counter_tile=0):
-        print(self.raster.metadata)
         width = self.raster.metadata['width']
         height = self.raster.metadata['height']
         print('Desired tile size: ', tile_size)
@@ -58,9 +57,8 @@ class RasterDetectionTilerizer:
         print('Saving tiles')
         samples = []
         for row in range(0, width, int((1 - overlap) * tile_size)):
-            print(f'  row {row}...')
+            print(f'\t Row {row}/{width}')
             for col in range(0, height, int((1 - overlap) * tile_size)):
-                print(f'  column {col}...')
                 window = rasterio.windows.Window(col, row, tile_size, tile_size)
                 raster = self.raster.data[
                          :,
