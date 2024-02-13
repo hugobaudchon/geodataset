@@ -34,7 +34,10 @@ def read_point_cloud(path: Path, ext: str):
     else:
         raise Exception(f'Data format {ext} not supported yet.')
 
-    crs = None              # TODO
-    transform = None        # TODO
+    crs = None
+    transform = None
+    for vlr in data.vlrs:
+        if isinstance(vlr, laspy.vlrs.known.WktCoordinateSystemVlr):
+            crs = vlr.parse_crs()
 
     return data, crs, transform
