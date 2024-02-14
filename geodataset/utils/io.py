@@ -84,7 +84,6 @@ def load_tile(path: Path):
                         f'\'{TILE_NAME_REGEX_CONVENTION}\'.')
 
     with rasterio.open(path) as src:
-        # resample data to target shape
         data = src.read()
         metadata = src.profile
 
