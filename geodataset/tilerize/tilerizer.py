@@ -14,7 +14,9 @@ class RasterDetectionTilerizer:
                  raster_path: Path,
                  labels_path: Path,
                  output_path: Path,
-                 scale_factor=1.0):
+                 scale_factor: float = 1.0,
+                 min_intersection_ratio: float = 0.9,
+                 ignore_mostly_black_or_white_tiles: bool = True):
         """
         raster_path: Path,
             path to the raster (.tif, .png...)
