@@ -7,11 +7,17 @@ from geodataset.geodata import Raster
 
 
 class RasterDetectionLabels:
-    def __init__(self, path: Path, associated_geo_data: Raster, scale_factor: float):
+    def __init__(self,
+                 path: Path,
+                 associated_raster: Raster,
+                 scale_factor: float):
         self.path = path
         self.ext = path.suffix
-        self.associated_geo_data = associated_geo_data
+        self.associated_raster = associated_raster
         self.scale_factor = scale_factor
+
+        assert self.associated_raster.scale_factor == self.scale_factor, \
+            "The scale factor is different is different for the labels and the raster, this would render them unaligned."
 
         (self.labels,
          self.categories,
@@ -49,28 +55,35 @@ class RasterDetectionLabels:
         categories = None
         agb = None
 
+        if self.scale_factor != 1.0:
+            labels = self._scale_pixel_labels(labels)
+
         return labels, categories, agb
 
     def _load_csv_labels(self):
         annots = pd.read_csv(self.path)
 
-        file_name_prefix = self.associated_geo_data.name.split('.')[-2]
+        file_name_prefix = self.associated_raster.name.split('.')[-2]
 
         if 'img_name' in annots and 'Xmin' in annots and file_name_prefix in set(annots['img_name']):
             annots = annots[annots['img_name'] == file_name_prefix]
             labels = annots[['Xmin', 'Ymin', 'Xmax', 'Ymax']].values.tolist()
         else:
-            annots = annots[annots['img_path'] == self.associated_geo_data.path]
+            annots = annots[annots['img_path'] == self.associated_raster.path]
             labels = annots[['xmin', 'ymin', 'xmax', 'ymax']].values.tolist()
 
         if 'group' in annots.columns:
             categories = annots['group'].to_numpy()
         else:
             categories = None
+
         if 'AGB' in annots.columns:
             agb = annots['AGB'].to_numpy()
         else:
-            categories = None
+            agb = None
+
+        if self.scale_factor != 1.0:
+            labels = self._scale_pixel_labels(labels)
 
         return labels, categories, agb
 
@@ -86,8 +99,8 @@ class RasterDetectionLabels:
         - A GeoDataFrame with polygons converted to pixel coordinates based on the TIFF file's CRS.
         """
 
-        assert self.associated_geo_data.transform is not None, f"A {self.ext} label file was specified but the associated_geo_data does not contain a Transform."
-        assert self.associated_geo_data.crs is not None, f"A {self.ext} label file was specified but the associated_geo_data does not contain a CRS."
+        assert self.associated_raster.transform is not None, f"A {self.ext} label file was specified but the associated_geo_data does not contain a Transform."
+        assert self.associated_raster.crs is not None, f"A {self.ext} label file was specified but the associated_geo_data does not contain a CRS."
 
         # Load polygons
         if self.ext in ['.geojson', '.gpkg', '.shp']:
@@ -95,20 +108,46 @@ class RasterDetectionLabels:
         else:
             raise ValueError("Unsupported file format for polygons. Please use GeoJSON (.geojson), GPKG (.gpkg) or Shapefile (.shp).")
 
-        # Convert polygons to the same CRS as the TIFF
-        if polygons.crs != self.associated_geo_data.crs:
-            polygons = polygons.to_crs(self.associated_geo_data.crs)
+        # Convert polygons to the same CRS as the Raster
+        if polygons.crs != self.associated_raster.crs:
+            polygons = polygons.to_crs(self.associated_raster.crs)
 
-        # Calculate bounding box for each polygon and convert to pixel coordinates
-        def get_pixel_bbox(geom):
-            minx, miny, maxx, maxy = geom.bounds
-            # Convert the bounding box corners to pixel coordinates
-            top_left = ~self.associated_geo_data.transform * (minx, maxy)
-            bottom_right = ~self.associated_geo_data.transform * (maxx, miny)
-            return [top_left[0], bottom_right[1], bottom_right[0], top_left[1]]
+        # Calculate bounding box for each polygon and convert to pixel coordinates.
+        # It also takes care of the scaling_factor automatically since the transform in self.Raster
+        # should already have been updated with the scaling_factor.
+        labels_bounds = polygons.geometry.apply(self._get_pixel_bbox).tolist()
+        labels_pixel_bounds = self._apply_transform_with_scaling_factor(labels_bounds)
 
-        labels_pixel_bounds = polygons.geometry.apply(get_pixel_bbox).tolist()
         categories = None
         agb = None
 
         return labels_pixel_bounds, categories, agb
+
+    @staticmethod
+    def _get_pixel_bbox(geom):
+        minx, miny, maxx, maxy = geom.bounds
+        return [minx, miny, maxx, maxy]
+
+    def _apply_transform_with_scaling_factor(self, labels):
+        transformed_labels = []
+        for label in labels:
+            minx, miny, maxx, maxy = label
+            # Convert the bounding box corners to pixel coordinates
+            top_left = ~self.associated_raster.transform * (minx, maxy)
+            bottom_right = ~self.associated_raster.transform * (maxx, miny)
+
+            minx = min(top_left[0], bottom_right[0])
+            maxx = max(top_left[0], bottom_right[0])
+            miny = min(top_left[1], bottom_right[1])
+            maxy = max(top_left[1], bottom_right[1])
+
+            transformed_labels.append([minx, miny, maxx, maxy])
+        return transformed_labels
+
+    def _scale_pixel_labels(self, labels):
+        rescaled_polygons = []
+        for polygon in labels:
+            rescaled_polygon = [(x * self.scale_factor, y * self.scale_factor) for x, y in polygon]
+            rescaled_polygons.append(rescaled_polygon)
+
+        return rescaled_polygons
