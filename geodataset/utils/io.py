@@ -7,8 +7,8 @@ import rasterio
 from rasterio.enums import Resampling
 
 
-TILE_NAME_PLACEHOLDERS_STRING = 'tile_{}_{}_{}_{}.tif'      # don't modify
-TILE_NAME_REGEX_CONVENTION = r'tile_([a-zA-Z0-9]+)_([a-zA-Z0-9]+)_(\d+)_(\d+)\.tif'     # don't modify
+TILE_NAME_PLACEHOLDERS_STRING = 'tile_{}_{}_{}.tif'      # don't modify
+TILE_NAME_REGEX_CONVENTION = r'tile_([a-zA-Z0-9]+)_(\d+)_(\d+)\.tif'     # don't modify
 
 
 def read_raster(path: Path, scale_factor: float = 1.0):
@@ -62,14 +62,13 @@ def save_tile(output_folder: Path,
               tile_metadata: dict,
               row: int,
               col: int,
-              dataset_name: str,
-              fold: str):
+              dataset_name: str):
     assert output_folder.exists(), f"The output folder {output_folder} doesn't exist yet."
 
-    tile_name = TILE_NAME_PLACEHOLDERS_STRING.format(dataset_name, fold, row, col)
+    tile_name = TILE_NAME_PLACEHOLDERS_STRING.format(dataset_name, row, col)
     assert re.match(TILE_NAME_REGEX_CONVENTION, tile_name), \
         (f'The generated tile_name \n\t\'{tile_name}\'\n doesn\'t respect the convention \n\t\'{TILE_NAME_REGEX_CONVENTION}\'.\n'
-         f' Please make sure the dataset_name \'{dataset_name}\' and fold \'{fold}\' only consists of characters and numbers.')
+         f' Please make sure the dataset_name \'{dataset_name}\' only consists of characters and numbers.')
 
     print(output_folder / tile_name)
 
@@ -93,6 +92,6 @@ def load_tile(path: Path):
         data = src.read()
         metadata = src.profile
 
-    dataset_name, fold, row, col = name.split("_")[1:-1]
+    dataset_name, row, col = name.split("_")[1:-1]
 
-    return data, metadata, dataset_name, fold, row, col
+    return data, metadata, dataset_name, row, col

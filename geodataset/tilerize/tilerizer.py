@@ -87,6 +87,7 @@ class RasterDetectionTilerizer:
                         continue
 
                 associated_labels = self._find_associated_labels(window=window)
+
                 if self.ignore_tiles_without_labels and not associated_labels:
                     continue
 
@@ -107,8 +108,7 @@ class RasterDetectionTilerizer:
                           tile_metadata=tile_metadata,
                           row=row,
                           col=col,
-                          dataset_name=self.dataset_name,
-                          fold='TEST')
+                          dataset_name=self.dataset_name)
 
         tile_id += 1
 
