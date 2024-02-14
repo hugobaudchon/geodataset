@@ -136,10 +136,10 @@ class RasterDetectionLabels:
             top_left = ~self.associated_raster.transform * (minx, maxy)
             bottom_right = ~self.associated_raster.transform * (maxx, miny)
 
-            minx = min(top_left[0], bottom_right[0])
-            maxx = max(top_left[0], bottom_right[0])
-            miny = min(top_left[1], bottom_right[1])
-            maxy = max(top_left[1], bottom_right[1])
+            minx = int(min(top_left[0], bottom_right[0]))
+            maxx = int(max(top_left[0], bottom_right[0]))
+            miny = int(min(top_left[1], bottom_right[1]))
+            maxy = int(max(top_left[1], bottom_right[1]))
 
             transformed_labels.append([minx, miny, maxx, maxy])
         return transformed_labels
