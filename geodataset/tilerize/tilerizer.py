@@ -102,7 +102,7 @@ class RasterDetectionTilerizer:
                     'transform': window_transform
                 }
 
-                save_tile(output_folder=self.output_path,
+                save_tile(output_folder=self.tiles_path,
                           tile=tile,
                           tile_metadata=tile_metadata,
                           row=row,
