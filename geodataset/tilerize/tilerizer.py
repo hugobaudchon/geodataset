@@ -129,7 +129,6 @@ class RasterDetectionTilerizer:
 
     def _find_associated_labels(self, window: rasterio.windows.Window):
         crop_region = self._window_to_bbox(window)
-        print(crop_region)
         intersecting_cropped_polygons = []
         for poly in self.labels.labels:
             # Calculate intersection
@@ -146,10 +145,23 @@ class RasterDetectionTilerizer:
 
                 # Check intersection ratio
                 if ratio >= self.min_intersection_ratio:
+                    # Adjust coordinates to be relative to the tile
+                    rel_intersect_minx = intersect_minx - crop_region[0]
+                    rel_intersect_miny = intersect_miny - crop_region[1]
+                    rel_intersect_maxx = intersect_maxx - crop_region[0]
+                    rel_intersect_maxy = intersect_maxy - crop_region[1]
+
                     # If the polygon needs to be cropped
                     if ratio < 1:
-                        intersecting_cropped_polygons.append([intersect_minx, intersect_miny, intersect_maxx, intersect_maxy])
+                        intersecting_cropped_polygons.append(
+                            [rel_intersect_minx, rel_intersect_miny, rel_intersect_maxx, rel_intersect_maxy])
                     else:
-                        intersecting_cropped_polygons.append(poly)
+                        # For a polygon covering the entire crop region, adjust the original polygon coordinates as well
+                        rel_poly_minx = poly[0] - crop_region[0]
+                        rel_poly_miny = poly[1] - crop_region[1]
+                        rel_poly_maxx = poly[2] - crop_region[0]
+                        rel_poly_maxy = poly[3] - crop_region[1]
+                        intersecting_cropped_polygons.append(
+                            [rel_poly_minx, rel_poly_miny, rel_poly_maxx, rel_poly_maxy])
 
         return intersecting_cropped_polygons
