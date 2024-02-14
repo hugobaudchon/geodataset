@@ -16,27 +16,31 @@ class RasterDetectionTilerizer:
                  output_path: Path,
                  scale_factor: float = 1.0,
                  min_intersection_ratio: float = 0.9,
+                 ignore_tiles_without_labels: bool = False,
                  ignore_mostly_black_or_white_tiles: bool = True):
         """
         raster_path: Path,
-            path to the raster (.tif, .png...)
+            Path to the raster (.tif, .png...).
         labels_path: Path,
-            path to the labels (.geojson, .gpkg, .csv...)
+            Path to the labels (.geojson, .gpkg, .csv...).
         output_path: Path,
-            path to parent folder where to save the image tiles and associated labels
-        scale_factor: float
-            Rescaling the data (change pixel resolution)
+            Path to parent folder where to save the image tiles and associated labels.
+        scale_factor: float,
+            Scale factor for rescaling the data (change pixel resolution).
         intersection_ratio: float,
             When finding the associated labels to a tile, this ratio will specify the minimal required intersection
             ratio between a candidate polygon and the tile in order to keep this polygon as a label for that tile.
+        ignore_tiles_without_labels: bool,
+            Whether to ignore (skip) tiles that don't have any associated labels.
         ignore_mostly_black_or_white_tiles: bool,
-            Whether to ignore (skip) mostly black or white (>50%) tiles
+            Whether to ignore (skip) mostly black or white (>50%) tiles.
         """
         self.dataset_name = dataset_name
         self.raster_path = raster_path
         self.labels_path = labels_path
         self.scale_factor = scale_factor
         self.min_intersection_ratio = min_intersection_ratio
+        self.ignore_tiles_without_labels = ignore_tiles_without_labels
         self.ignore_mostly_black_or_white_tiles = ignore_mostly_black_or_white_tiles
 
         self.output_path = output_path
@@ -83,6 +87,8 @@ class RasterDetectionTilerizer:
                         continue
 
                 associated_labels = self._find_associated_labels(window=window)
+                if self.ignore_tiles_without_labels and not associated_labels:
+                    continue
 
                 window_transform = rasterio.windows.transform(window, self.raster.metadata['transform'])
 
