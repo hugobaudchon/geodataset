@@ -44,19 +44,19 @@ class RasterDetectionLabels:
         labels = []
         if isinstance(annotation['annotation']['object'], list):
             for bbox in annotation['annotation']['object']:
-                xmin = bbox['bndbox']['xmin']
-                ymin = bbox['bndbox']['ymin']
-                xmax = bbox['bndbox']['xmax']
-                ymax = bbox['bndbox']['ymax']
+                xmin = int(bbox['bndbox']['xmin'])
+                ymin = int(bbox['bndbox']['ymin'])
+                xmax = int(bbox['bndbox']['xmax'])
+                ymax = int(bbox['bndbox']['ymax'])
 
                 label = PolygonLabel.from_bbox(bbox=[xmin, ymin, xmax, ymax], category=None)
                 label.apply_scale_factor(self.scale_factor)
                 labels.append(label)
         else:
-            xmin = annotation['annotation']['object']['bndbox']['xmin']
-            ymin = annotation['annotation']['object']['bndbox']['ymin']
-            xmax = annotation['annotation']['object']['bndbox']['xmax']
-            ymax = annotation['annotation']['object']['bndbox']['ymax']
+            xmin = int(annotation['annotation']['object']['bndbox']['xmin'])
+            ymin = int(annotation['annotation']['object']['bndbox']['ymin'])
+            xmax = int(annotation['annotation']['object']['bndbox']['xmax'])
+            ymax = int(annotation['annotation']['object']['bndbox']['ymax'])
 
             label = PolygonLabel.from_bbox(bbox=[xmin, ymin, xmax, ymax], category=None)
             label.apply_scale_factor(self.scale_factor)
@@ -92,7 +92,7 @@ class RasterDetectionLabels:
             label.apply_scale_factor(self.scale_factor)
             labels.append(label)
 
-        return labels,
+        return labels
 
     def _load_geopandas_labels(self):
         """
