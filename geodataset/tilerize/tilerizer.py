@@ -62,11 +62,6 @@ class RasterDetectionTilerizer:
                                        scale_factor=self.scale_factor)
         return raster, labels
 
-    def _write_paths(self, sample_paths):
-        dataset_paths = pd.DataFrame(sample_paths, columns=['paths'])
-        file_name = self.dataset_name + '_paths.csv'
-        dataset_paths.to_csv(self.tiles_path.parent / file_name, index=False)
-
     def create_tiles(self, tile_size=1024, overlap=0) -> List[Tuple[Tile, List[PolygonLabel]]]:
         width = self.raster.metadata['width']
         height = self.raster.metadata['height']
