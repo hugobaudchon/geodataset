@@ -1,9 +1,14 @@
+import json
+from typing import Tuple, List
+
 import numpy as np
 import pandas as pd
 import rasterio
 from pathlib import Path
 
 from geodataset.geodata import Raster
+from geodataset.geodata.label import PolygonLabel
+from geodataset.geodata.tile import Tile
 from geodataset.labels import RasterDetectionLabels
 
 
@@ -62,12 +67,11 @@ class RasterDetectionTilerizer:
         file_name = self.dataset_name + '_paths.csv'
         dataset_paths.to_csv(self.tiles_path.parent / file_name, index=False)
 
-    def create_tiles(self, tile_size=1024, overlap=0, start_counter_tile=0):
+    def create_tiles(self, tile_size=1024, overlap=0) -> List[Tuple[Tile, List[PolygonLabel]]]:
         width = self.raster.metadata['width']
         height = self.raster.metadata['height']
         print('Raster size: ', (width, height))
         print('Desired tile size: ', tile_size)
-        tile_id = start_counter_tile
         print('Saving tiles')
         samples = []
         for row in range(0, width, int((1 - overlap) * tile_size)):
@@ -89,6 +93,69 @@ class RasterDetectionTilerizer:
                 if self.ignore_tiles_without_labels and not associated_labels:
                     continue
 
-                tile.save(output_folder=self.tiles_path)
+                samples.append((tile, associated_labels))
 
-        tile_id += 1
+        return samples
+
+    def _generate_coco_categories(self):
+        """
+        Generate COCO categories from the unique label categories in the dataset.
+        """
+        unique_categories = set(label.category for label in self.labels.labels)  # Assuming self.labels.labels is a list of PolygonLabel objects
+        categories = [{'id': i + 1, 'name': category, 'supercategory': ''} for i, category in enumerate(unique_categories)]
+        self.category_id_map = {category: i + 1 for i, category in enumerate(unique_categories)}  # For mapping category names to IDs
+        return categories
+
+    def _generate_coco_images_annotations(self, tiles_info, start_image_id=1):
+        images_coco = []
+        annotations_coco = []
+        annotation_id = 1
+
+        for image_id, (tile, associated_labels) in enumerate(tiles_info, start=start_image_id):
+            # Directly generate COCO image data from the Tile object
+            images_coco.append(tile.to_coco(image_id=image_id))
+
+            for label in associated_labels:
+                # Generate COCO annotation data from each associated label
+                coco_annotation = label.to_coco(image_id=image_id, category_id_map=self.category_id_map)
+                coco_annotation['id'] = annotation_id
+                annotations_coco.append(coco_annotation)
+                annotation_id += 1
+
+        return images_coco, annotations_coco
+
+    def generate_coco_dataset(self, tile_size=1024, overlap=0, start_counter_tile=0):
+        samples = self.create_tiles(tile_size=tile_size, overlap=overlap)
+
+        categories_coco = self._generate_coco_categories()
+        images_coco, annotations_coco = self._generate_coco_images_annotations(samples)
+
+        # Assemble the COCO dataset
+        coco_dataset = {
+            "info": {
+                "description": f"{self.dataset_name} Dataset",
+                "version": "1.0",
+                "year": 2023,
+                "contributor": "Contributor Name",
+                "date_created": "2023-01-01"
+            },
+            "licenses": [{
+                "id": 1,
+                "name": "CC-BY-4.0",
+                "url": "http://creativecommons.org/licenses/by/4.0/"
+            }],
+            "images": images_coco,
+            "annotations": annotations_coco,
+            "categories": categories_coco
+        }
+
+        # Save the tile images
+        for tile, labels in samples:
+            tile.save(output_folder=self.tiles_path)
+
+        # Save the COCO dataset to a JSON file
+        coco_json_path = self.output_path / f'{self.dataset_name}_coco.json'
+        with coco_json_path.open('w') as f:
+            json.dump(coco_dataset, f, ensure_ascii=False, indent=2)
+
+        print(f"COCO dataset has been saved to {coco_json_path}")
