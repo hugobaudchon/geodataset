@@ -5,7 +5,6 @@ from pathlib import Path
 
 from geodataset.geodata import Raster
 from geodataset.labels import RasterDetectionLabels
-from geodataset.utils.io import save_tile
 
 
 class RasterDetectionTilerizer:
