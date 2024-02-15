@@ -11,6 +11,8 @@ from geodataset.geodata.label import PolygonLabel
 from geodataset.geodata.tile import Tile
 from geodataset.labels import RasterDetectionLabels
 
+from datetime import date
+
 
 class RasterDetectionTilerizer:
     def __init__(self,
@@ -129,16 +131,14 @@ class RasterDetectionTilerizer:
         coco_dataset = {
             "info": {
                 "description": f"{self.dataset_name} Dataset",
+                "dataset_name": self.dataset_name,
                 "version": "1.0",
-                "year": 2023,
-                "contributor": "Contributor Name",
-                "date_created": "2023-01-01"
+                "year": str(date.today().year),
+                "date_created": str(date.today())
             },
-            "licenses": [{
-                "id": 1,
-                "name": "CC-BY-4.0",
-                "url": "http://creativecommons.org/licenses/by/4.0/"
-            }],
+            "licenses": [
+                # add license?
+            ],
             "images": images_coco,
             "annotations": annotations_coco,
             "categories": categories_coco
