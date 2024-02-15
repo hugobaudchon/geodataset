@@ -1,9 +1,13 @@
+from typing import List
+
+import rasterio
 import xmltodict
 import pandas as pd
 import geopandas as gpd
 from pathlib import Path
 
 from geodataset.geodata import Raster
+from geodataset.geodata.label import PolygonLabel
 
 
 class RasterDetectionLabels:
@@ -17,23 +21,22 @@ class RasterDetectionLabels:
         self.scale_factor = scale_factor
 
         assert self.associated_raster.scale_factor == self.scale_factor, \
-            "The scale factor is different is different for the labels and the raster, this would render them unaligned."
+            ("The specified labels scale factor is different than the one used for the raster,"
+             " this would render them unaligned.")
 
-        (self.labels,
-         self.categories,
-         self.agb) = self._load_labels()
+        self.labels = self._load_labels()
 
     def _load_labels(self):
         if self.ext.lower() == '.xml':
-            labels, categories, agb = self._load_xml_labels()
+            labels = self._load_xml_labels()
         elif self.ext == '.csv':
-            labels, categories, agb = self._load_csv_labels()
+            labels = self._load_csv_labels()
         elif self.ext in ['.geojson', '.gpkg', '.shp']:
-            labels, categories, agb = self._load_geopandas_labels()
+            labels = self._load_geopandas_labels()
         else:
             raise Exception('Annotation format {} not supported yet.'.format(self.ext))
 
-        return labels, categories, agb
+        return labels
 
     def _load_xml_labels(self):
         with open(self.path, 'r') as annotation_file:
@@ -45,20 +48,21 @@ class RasterDetectionLabels:
                 ymin = bbox['bndbox']['ymin']
                 xmax = bbox['bndbox']['xmax']
                 ymax = bbox['bndbox']['ymax']
-                labels.append([float(xmin), float(ymin), float(xmax), float(ymax)])
+
+                label = PolygonLabel.from_bbox(bbox=[xmin, ymin, xmax, ymax], category=None)
+                label.apply_scale_factor(self.scale_factor)
+                labels.append(label)
         else:
             xmin = annotation['annotation']['object']['bndbox']['xmin']
             ymin = annotation['annotation']['object']['bndbox']['ymin']
             xmax = annotation['annotation']['object']['bndbox']['xmax']
             ymax = annotation['annotation']['object']['bndbox']['ymax']
-            labels.append([float(xmin), float(ymin), float(xmax), float(ymax)])
-        categories = None
-        agb = None
 
-        if self.scale_factor != 1.0:
-            labels = self._scale_pixel_labels(labels)
+            label = PolygonLabel.from_bbox(bbox=[xmin, ymin, xmax, ymax], category=None)
+            label.apply_scale_factor(self.scale_factor)
+            labels.append(label)
 
-        return labels, categories, agb
+        return labels
 
     def _load_csv_labels(self):
         annots = pd.read_csv(self.path)
@@ -67,25 +71,28 @@ class RasterDetectionLabels:
 
         if 'img_name' in annots and 'Xmin' in annots and file_name_prefix in set(annots['img_name']):
             annots = annots[annots['img_name'] == file_name_prefix]
-            labels = annots[['Xmin', 'Ymin', 'Xmax', 'Ymax']].values.tolist()
+            labels_bbox = annots[['Xmin', 'Ymin', 'Xmax', 'Ymax']].values.tolist()
         else:
             annots = annots[annots['img_path'] == self.associated_raster.path]
-            labels = annots[['xmin', 'ymin', 'xmax', 'ymax']].values.tolist()
+            labels_bbox = annots[['xmin', 'ymin', 'xmax', 'ymax']].values.tolist()
 
         if 'group' in annots.columns:
             categories = annots['group'].to_numpy()
         else:
-            categories = None
+            categories = [None] * len(labels_bbox)
 
         if 'AGB' in annots.columns:
             agb = annots['AGB'].to_numpy()
         else:
             agb = None
 
-        if self.scale_factor != 1.0:
-            labels = self._scale_pixel_labels(labels)
+        labels = []
+        for label_bbox, category in zip(labels_bbox, categories):
+            label = PolygonLabel.from_bbox(bbox=label_bbox, category=category)
+            label.apply_scale_factor(self.scale_factor)
+            labels.append(label)
 
-        return labels, categories, agb
+        return labels,
 
     def _load_geopandas_labels(self):
         """
@@ -108,46 +115,33 @@ class RasterDetectionLabels:
         else:
             raise ValueError("Unsupported file format for polygons. Please use GeoJSON (.geojson), GPKG (.gpkg) or Shapefile (.shp).")
 
-        # Convert polygons to the same CRS as the Raster
-        if polygons.crs != self.associated_raster.crs:
-            polygons = polygons.to_crs(self.associated_raster.crs)
+        labels = []
+        for _, polygon in polygons.iterrows():
+            label = PolygonLabel(polygon=polygon['geometry'],
+                                 category=polygon['Label'] if 'Label' in polygon else None,
+                                 crs=polygons.crs)
+            label.apply_crs(self.associated_raster.crs)
+            # No need to call label.apply_scale_factor(...) as the raster transform already contains the scale_factor
+            label.apply_crs_to_pixel_transform(self.associated_raster.transform)
+            labels.append(label)
 
-        # Calculate bounding box for each polygon and convert to pixel coordinates.
-        # It also takes care of the scaling_factor automatically since the transform in self.Raster
-        # should already have been updated with the scaling_factor.
-        labels_bounds = polygons.geometry.apply(self._get_pixel_bbox).tolist()
-        labels_pixel_bounds = self._apply_transform_with_scaling_factor(labels_bounds)
-
-        categories = None
-        agb = None
-
-        return labels_pixel_bounds, categories, agb
+        return labels
 
     @staticmethod
     def _get_pixel_bbox(geom):
         minx, miny, maxx, maxy = geom.bounds
         return [minx, miny, maxx, maxy]
 
-    def _apply_transform_with_scaling_factor(self, labels):
-        transformed_labels = []
-        for label in labels:
-            minx, miny, maxx, maxy = label
-            # Convert the bounding box corners to pixel coordinates
-            top_left = ~self.associated_raster.transform * (minx, maxy)
-            bottom_right = ~self.associated_raster.transform * (maxx, miny)
+    def find_associated_labels(self,
+                               window: rasterio.windows.Window,
+                               min_intersection_ratio: float):
+        intersecting_cropped_polygons = []
+        for label in self.labels:
+            # Calling label.is_bbox_in_window and get_cropped_bbox_polygon_label
+            # instead of is_in_window and get_cropped_polygon_label as we are in a detection task and only care about bbox.
+            # Those methods are much faster (about x5) than their counterparts.
 
-            minx = int(min(top_left[0], bottom_right[0]))
-            maxx = int(max(top_left[0], bottom_right[0]))
-            miny = int(min(top_left[1], bottom_right[1]))
-            maxy = int(max(top_left[1], bottom_right[1]))
+            if label.is_bbox_in_window(window=window, min_intersection_ratio=min_intersection_ratio):
+                intersecting_cropped_polygons.append(label.get_cropped_bbox_polygon_label(window=window))
 
-            transformed_labels.append([minx, miny, maxx, maxy])
-        return transformed_labels
-
-    def _scale_pixel_labels(self, labels):
-        rescaled_polygons = []
-        for polygon in labels:
-            rescaled_polygon = [(x * self.scale_factor, y * self.scale_factor) for x, y in polygon]
-            rescaled_polygons.append(rescaled_polygon)
-
-        return rescaled_polygons
+        return intersecting_cropped_polygons
