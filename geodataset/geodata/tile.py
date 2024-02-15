@@ -52,10 +52,13 @@ class Tile:
 
         return data, metadata, dataset_name, row, col
 
+    def _get_tile_file_name(self):
+        return Tile.TILE_NAME_PLACEHOLDERS_STRING.format(self.dataset_name, self.row, self.col)
+
     def save(self, output_folder: Path):
         assert output_folder.exists(), f"The output folder {output_folder} doesn't exist yet."
 
-        tile_name = Tile.TILE_NAME_PLACEHOLDERS_STRING.format(self.dataset_name, self.row, self.col)
+        tile_name = self._get_tile_file_name()
 
         assert re.match(Tile.TILE_NAME_REGEX_CONVENTION, tile_name), \
             (f'The generated tile_name \'{tile_name}\' doesn\'t respect the convention \'{Tile.TILE_NAME_REGEX_CONVENTION}\'.'
@@ -66,4 +69,35 @@ class Tile:
                 'w',
                 **self.metadata) as tile_raster:
             tile_raster.write(self.data)
+
+    def to_coco(self, image_id: int):
+        """
+        Generate a COCO-format dictionary for the tile image.
+
+        Args:
+            image_id (int): A unique identifier for the image in the COCO dataset.
+
+        Returns:
+            dict: A dictionary formatted according to COCO specifications for an image.
+        """
+
+        # Extract width and height from the metadata
+        width = self.metadata['width']
+        height = self.metadata['height']
+
+        # Generate file name using the internal method
+        file_name = self._get_tile_file_name()
+
+        # Construct the COCO representation for the image
+        coco_image = {
+            "id": image_id,
+            "width": width,
+            "height": height,
+            "file_name": file_name,
+            # Additional fields like "license" and "date_captured" could be added here,
+            # but would require additional attributes or parameters.
+        }
+
+        return coco_image
+
 

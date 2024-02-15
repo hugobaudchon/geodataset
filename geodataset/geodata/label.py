@@ -183,4 +183,46 @@ class PolygonLabel:
         intersection_area = intersection_polygon.area
         return intersection_polygon, intersection_area
 
+    def to_coco(self, image_id: int, category_id_map: dict):
+        """
+        Convert the polygon label to a COCO-format dictionary.
+
+        Args:
+            image_id (int): The ID of the image this polygon is associated with.
+            category_id_map (dict): A mapping from category names or IDs used in this class to the corresponding COCO category IDs.
+
+        Returns:
+            dict: A dictionary formatted according to COCO specifications.
+        """
+
+        # Ensure the category ID is mapped correctly for COCO
+        if self.category in category_id_map:
+            category_id = category_id_map[self.category]
+        else:
+            raise ValueError(f"Category '{self.category}' not found in category ID map.")
+
+        # Convert the polygon's exterior coordinates to the format expected by COCO.
+        # COCO expects a flat list of coordinates for segmentation: [x1, y1, x2, y2, ..., xn, yn]
+        segmentation = [coord for xy in self.polygon.exterior.coords for coord in xy]
+
+        # Calculate the area of the polygon
+        area = self.polygon.area
+
+        # Get the bounding box in COCO format: [x, y, width, height]
+        bbox = list(self.get_bbox())
+        bbox_coco_format = [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]]
+
+        # Construct the COCO representation
+        coco_annotation = {
+            "segmentation": [segmentation],  # COCO expects a list of polygons, each a list of coordinates
+            "area": area,
+            "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
+            "image_id": image_id,
+            "bbox": bbox_coco_format,
+            "category_id": category_id,
+            "id": None  # ID should be assigned externally if tracking specific annotations
+        }
+
+        return coco_annotation
+
 
