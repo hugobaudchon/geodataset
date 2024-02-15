@@ -74,16 +74,14 @@ class RasterDetectionTilerizer:
             print(f'\t Row {row}/{width}')
             for col in range(0, height, int((1 - overlap) * tile_size)):
                 window = rasterio.windows.Window(col, row, tile_size, tile_size)
-                tile = self.raster.data[
-                         :,
-                         window.row_off:window.row_off + window.height,
-                         window.col_off:window.col_off + window.width]
+                tile = self.raster.get_tile(window=window,
+                                            dataset_name=self.dataset_name)
 
                 if self.ignore_mostly_black_or_white_tiles:
                     # If it's >50% black pixels or white pixels, just continue. No point segmenting it.
-                    if np.sum(tile == 0) / (tile_size * tile_size * self.raster.metadata['count']) > 0.5:
+                    if np.sum(tile.data == 0) / (tile_size * tile_size * self.raster.metadata['count']) > 0.5:
                         continue
-                    if np.sum(tile == 255) / (tile_size * tile_size * self.raster.metadata['count']) > 0.5:
+                    if np.sum(tile.data == 255) / (tile_size * tile_size * self.raster.metadata['count']) > 0.5:
                         continue
 
                 associated_labels = self._find_associated_labels(window=window)
@@ -91,24 +89,7 @@ class RasterDetectionTilerizer:
                 if self.ignore_tiles_without_labels and not associated_labels:
                     continue
 
-                window_transform = rasterio.windows.transform(window, self.raster.metadata['transform'])
-
-                tile_metadata = {
-                    'driver': 'GTiff',
-                    'height': tile_size,
-                    'width': tile_size,
-                    'count': self.raster.metadata['count'],
-                    'dtype': self.raster.metadata['dtype'],
-                    'crs': self.raster.metadata['crs'],
-                    'transform': window_transform
-                }
-
-                save_tile(output_folder=self.tiles_path,
-                          tile=tile,
-                          tile_metadata=tile_metadata,
-                          row=row,
-                          col=col,
-                          dataset_name=self.dataset_name)
+                tile.save(output_folder=self.tiles_path)
 
         tile_id += 1
 

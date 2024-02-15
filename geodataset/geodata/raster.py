@@ -1,7 +1,9 @@
 import warnings
 from pathlib import Path
+import rasterio.windows
 
 from geodataset.geodata.base_geodata import BaseGeoData
+from geodataset.geodata.tile import Tile
 from geodataset.utils.io import read_raster
 
 
@@ -36,4 +38,30 @@ class Raster(BaseGeoData):
             transform = metadata['transform']
 
         return data, crs, transform, metadata
+
+    def get_tile(self,
+                 window: rasterio.windows.Window,
+                 dataset_name: str) -> Tile or None:
+        tile_data = self.data[
+                       :,
+                       window.row_off:window.row_off + window.height,
+                       window.col_off:window.col_off + window.width]
+
+        window_transform = rasterio.windows.transform(window, self.metadata['transform'])
+
+        tile_metadata = {
+            'driver': 'GTiff',
+            'height': window.height,
+            'width': window.width,
+            'count': self.metadata['count'],
+            'dtype': self.metadata['dtype'],
+            'crs': self.metadata['crs'],
+            'transform': window_transform
+        }
+
+        tile = Tile(data=tile_data, metadata=tile_metadata, dataset_name=dataset_name,
+                    row=window.row_off, col=window.col_off)
+
+        return tile
+
 
