@@ -1,1 +1,1 @@
-from .detection_dataset import LabeledDetectionRasterDataset
+from .dataset import LabeledRasterDataset
