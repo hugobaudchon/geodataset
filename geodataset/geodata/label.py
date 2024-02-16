@@ -203,6 +203,7 @@ class PolygonLabel:
 
         # Convert the polygon's exterior coordinates to the format expected by COCO.
         # COCO expects a flat list of coordinates for segmentation: [x1, y1, x2, y2, ..., xn, yn]
+
         segmentation = [coord for xy in self.polygon.exterior.coords for coord in xy]
 
         # Calculate the area of the polygon

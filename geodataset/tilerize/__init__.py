@@ -1,1 +1,1 @@
-from .tilerizer import RasterDetectionTilerizer
+from .tilerizer import RasterLabeledTilerizer

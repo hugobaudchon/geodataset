@@ -1,1 +1,1 @@
-from .detection_labels import RasterDetectionLabels
+from .detection_labels import RasterDetectionLabels, RasterSegmentationLabels
