@@ -10,6 +10,42 @@ This package provide essential tools for cutting rasters and their labels into s
 pip install git+ssh://git@github.com/hugobaudchon/geodataset.git
 ```
 
+## Basic usage
+
+### Detection with .tif raster and .csv labels
+```python
+tilerizer = RasterLabeledTilerizer(dataset_name='CarlosVeraArteaga',
+                                   raster_path=Path('Data/raw/wwf_ecuador/RGB Orthomosaics/Carlos Vera Arteaga RGB.tif'),
+                                   labels_path=Path('Data/raw/wwf_ecuador/annotations/cleaned/clean_annotations.csv'),
+                                   output_path=Path('Data/pre_processed/test/carlos_vera_arteaga'),
+                                   scale_factor=0.2,
+                                   task='detection',
+                                   min_intersection_ratio=0.9,               # optional
+                                   ignore_tiles_without_labels=False,        # optional
+                                   ignore_mostly_black_or_white_tiles=True   # optional
+                                   )
+                                   
+tilerizer.generate_coco_dataset(tile_size=1024, overlap=0.5, start_counter_tile=0)
+```
+
+### Segmentation with .tif raster and .gpkg labels
+```python
+tilerizer = RasterLabeledTilerizer(dataset_name='quebectreesZ1',
+                                   raster_path=Path('Data/raw/quebec_trees_dataset_2021-09-02/2021-09-02/zone1/2021-09-02-sbl-z1-rgb-cog.tif'),
+                                   labels_path=Path('Data/raw/quebec_trees_dataset_2021-09-02/Z1_polygons.gpkg'),
+                                   output_path=Path('Data/pre_processed/test/Z1_quebec_trees'),
+                                   scale_factor=0.5,
+                                   task='segmentation',
+                                   min_intersection_ratio=0.9,               # optional
+                                   ignore_tiles_without_labels=False,        # optional
+                                   ignore_mostly_black_or_white_tiles=True   # optional
+                                   )
+                                   
+tilerizer.generate_coco_dataset(tile_size=1024, overlap=0.5, start_counter_tile=0)
+```
+
+
+
 
 ## TODO Features needed:
 
