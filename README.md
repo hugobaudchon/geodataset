@@ -12,7 +12,9 @@ pip install git+ssh://git@github.com/hugobaudchon/geodataset.git
 
 ## Basic usage
 
-### Detection with .tif raster and .csv labels
+### Detection
+The class RasterLabeledTilerizer can tilerize a raster and its labels (.csv, .xml, .gpkg, .geojson and .shp). The COCO dataset generated with task='detection' will only contain bbox labels, even if the labels from the source file are polygons. 
+#### Detection with .tif raster and .csv labels
 ```python
 tilerizer = RasterLabeledTilerizer(dataset_name='CarlosVeraArteaga',
                                    raster_path=Path('Data/raw/wwf_ecuador/RGB Orthomosaics/Carlos Vera Arteaga RGB.tif'),
@@ -27,8 +29,10 @@ tilerizer = RasterLabeledTilerizer(dataset_name='CarlosVeraArteaga',
                                    
 tilerizer.generate_coco_dataset(tile_size=1024, overlap=0.5, start_counter_tile=0)
 ```
+### Segmentation
+The class RasterLabeledTilerizer can tilerize a raster and its labels (.gpkg, .geojson and .shp). The COCO dataset generated with task='segmentation' will contain mask polygons.
 
-### Segmentation with .tif raster and .gpkg labels
+#### Segmentation with .tif raster and .gpkg labels
 ```python
 tilerizer = RasterLabeledTilerizer(dataset_name='quebectreesZ1',
                                    raster_path=Path('Data/raw/quebec_trees_dataset_2021-09-02/2021-09-02/zone1/2021-09-02-sbl-z1-rgb-cog.tif'),
