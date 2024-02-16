@@ -89,6 +89,8 @@ class RasterLabels(ABC):
 
 
 class RasterDetectionLabels(RasterLabels):
+    TASK = 'detection'
+
     def __init__(self,
                  path: Path,
                  associated_raster: Raster,
@@ -103,7 +105,7 @@ class RasterDetectionLabels(RasterLabels):
         elif self.ext in ['.geojson', '.gpkg', '.shp']:
             labels = self._load_geopandas_labels()
         else:
-            raise Exception('Annotation format {} not supported yet.'.format(self.ext))
+            raise Exception(f'Annotation format {self.ext} not supported yet for task {self.TASK}.')
 
         return labels
 
@@ -179,6 +181,8 @@ class RasterDetectionLabels(RasterLabels):
 
 
 class RasterSegmentationLabels(RasterLabels):
+    TASK = 'segmentation'
+
     def __init__(self,
                  path: Path,
                  associated_raster: Raster,
@@ -189,7 +193,7 @@ class RasterSegmentationLabels(RasterLabels):
         if self.ext in ['.geojson', '.gpkg', '.shp']:
             labels = self._load_geopandas_labels()
         else:
-            raise Exception('Annotation format {} not supported yet.'.format(self.ext))
+            raise Exception(f'Annotation format {self.ext} not supported yet for task {self.TASK}.')
 
         return labels
 
