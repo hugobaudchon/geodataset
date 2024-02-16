@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from geodataset.tilerize import RasterDetectionTilerizer
+from geodataset.tilerize import RasterLabeledTilerizer
 
-tilerizer = RasterDetectionTilerizer(dataset_name='quebectreesZ1',
+tilerizer = RasterLabeledTilerizer(dataset_name='quebectreesZ1',
                                      raster_path=Path('/home/hugobaudchon/Documents/Data/raw/quebec_trees_dataset_2021-09-02/2021-09-02/zone1/2021-09-02-sbl-z1-rgb-cog.tif'),
                                      labels_path=Path('/home/hugobaudchon/Documents/Data/raw/quebec_trees_dataset_2021-09-02/Z1_polygons.gpkg'),
                                      output_path=Path('/home/hugobaudchon/Documents/Data/pre_processed/test/Z1_quebec_trees'),

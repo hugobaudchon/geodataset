@@ -1,25 +1,28 @@
 import json
 from typing import Tuple, List
-
 import numpy as np
 import pandas as pd
 import rasterio
 from pathlib import Path
+from abc import ABC, abstractmethod
 
 from geodataset.geodata import Raster
 from geodataset.geodata.label import PolygonLabel
 from geodataset.geodata.tile import Tile
-from geodataset.labels import RasterDetectionLabels
+from geodataset.labels import RasterDetectionLabels, RasterSegmentationLabels
 
 from datetime import date
 
 
-class RasterDetectionTilerizer:
+class RasterLabeledTilerizer:
+    SUPPORTED_TASKS = ['detection', 'segmentation']
+
     def __init__(self,
                  dataset_name: str,
                  raster_path: Path,
                  labels_path: Path,
                  output_path: Path,
+                 task: str,
                  scale_factor: float = 1.0,
                  min_intersection_ratio: float = 0.9,
                  ignore_tiles_without_labels: bool = False,
@@ -48,6 +51,9 @@ class RasterDetectionTilerizer:
         self.min_intersection_ratio = min_intersection_ratio
         self.ignore_tiles_without_labels = ignore_tiles_without_labels
         self.ignore_mostly_black_or_white_tiles = ignore_mostly_black_or_white_tiles
+        self.task = task
+
+        assert task in self.SUPPORTED_TASKS, f'The task {task} is not in the supported tasks {self.SUPPORTED_TASKS}.'
 
         self.output_path = output_path
         self.tiles_path = self.output_path / 'tiles'
@@ -59,9 +65,18 @@ class RasterDetectionTilerizer:
     def _load_data(self):
         raster = Raster(path=self.raster_path,
                         scale_factor=self.scale_factor)
-        labels = RasterDetectionLabels(path=self.labels_path,
-                                       associated_raster=raster,
-                                       scale_factor=self.scale_factor)
+
+        if self.task == 'detection':
+            labels = RasterDetectionLabels(path=self.labels_path,
+                                           associated_raster=raster,
+                                           scale_factor=self.scale_factor)
+        elif self.task == 'segmentation':
+            labels = RasterSegmentationLabels(path=self.labels_path,
+                                              associated_raster=raster,
+                                              scale_factor=self.scale_factor)
+        else:
+            raise NotImplementedError('An unsupported \'task\' value was provided.')
+
         return raster, labels
 
     def create_tiles(self, tile_size=1024, overlap=0) -> List[Tuple[Tile, List[PolygonLabel]]]:
