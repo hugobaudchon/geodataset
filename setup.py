@@ -22,4 +22,5 @@ setup(
                 ' useful for machine learning tasks. Also provides datasets compatible with pytorch.',
     author='Hugo Baudchon',
     author_email='hugo@baudchon.com',
+    license='MIT'
 )
