@@ -1,7 +1,18 @@
- # Geo Dataset #
- 
+# Geo Dataset
 
-TODO Features needed:
+## Description
+
+This package provide essential tools for cutting rasters and their labels into smaller tiles, useful for machine learning tasks. Also provides datasets compatible with pytorch.
+
+## Installation
+
+```bash
+pip install git+ssh://git@github.com/hugobaudchon/geodataset.git
+```
+
+
+## TODO Features needed:
+
 1) load rasters from:
    1) .tif
    2) .png
