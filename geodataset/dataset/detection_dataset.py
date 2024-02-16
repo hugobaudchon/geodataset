@@ -1,5 +1,5 @@
 from geodataset.geodata.base_geodata import BaseGeoData
-from geodataset.labels.detection_labels import DetectionLabels
+from geodataset.labels.raster_labels import RasterDetectionLabels
 
 
 class DetectionRasterDataset:
@@ -8,6 +8,6 @@ class DetectionRasterDataset:
 
 
 class LabeledDetectionRasterDataset(DetectionRasterDataset):
-    def __init__(self, data: BaseGeoData, labels: DetectionLabels):
+    def __init__(self, data: BaseGeoData, labels: RasterDetectionLabels):
         super().__init__(data=data)
         self.labels = labels
