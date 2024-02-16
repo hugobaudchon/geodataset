@@ -140,7 +140,7 @@ class RasterLabeledTilerizer:
         samples = self.create_tiles(tile_size=tile_size, overlap=overlap)
 
         categories_coco = self._generate_coco_categories()
-        images_coco, annotations_coco = self._generate_coco_images_annotations(samples)
+        images_coco, annotations_coco = self._generate_coco_images_annotations(samples, start_image_id=start_counter_tile)
 
         # Assemble the COCO dataset
         coco_dataset = {
