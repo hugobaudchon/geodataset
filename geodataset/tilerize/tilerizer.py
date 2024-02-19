@@ -14,7 +14,7 @@ from geodataset.labels import RasterDetectionLabels, RasterSegmentationLabels
 from datetime import date
 
 
-class RasterLabeledTilerizer:
+class LabeledRasterTilerizer:
     SUPPORTED_TASKS = ['detection', 'segmentation']
 
     def __init__(self,
