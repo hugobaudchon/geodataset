@@ -1,1 +1,2 @@
-from .tilerizer import LabeledRasterTilerizer
+from .raster_tilerizer import RasterTilerizer
+from .labeled_raster_tilerizer import LabeledRasterTilerizer

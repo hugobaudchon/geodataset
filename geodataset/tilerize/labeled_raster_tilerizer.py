@@ -56,7 +56,7 @@ class LabeledRasterTilerizer:
         assert task in self.SUPPORTED_TASKS, f'The task \'{task}\' is not in the supported tasks {self.SUPPORTED_TASKS}.'
 
         self.output_path = output_path
-        self.tiles_path = self.output_path / 'tiles'
+        self.tiles_path = self.output_path / self.dataset_name / 'tiles'
         self.tiles_path.mkdir(parents=True, exist_ok=True)
 
         (self.raster,
