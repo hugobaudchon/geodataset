@@ -81,9 +81,11 @@ class Tile:
             dict: A dictionary formatted according to COCO specifications for an image.
         """
 
-        # Extract width and height from the metadata
+        # Extract entries from the metadata
         width = self.metadata['width']
         height = self.metadata['height']
+        crs = self.metadata['crs']
+        transform = self.metadata['transform']
 
         # Generate file name using the internal method
         file_name = self._get_tile_file_name()
@@ -94,8 +96,11 @@ class Tile:
             "width": width,
             "height": height,
             "file_name": file_name,
-            # Additional fields like "license" and "date_captured" could be added here,
-            # but would require additional attributes or parameters.
+            "crs": {
+                "format": ("EPSG" if crs.to_epsg() else "WKT") if crs else None,
+                "value": (crs.to_epsg() if crs.to_epsg() else crs.to_wkt()) if crs else None
+            },
+            "affine_transform": tuple(transform) if transform else None
         }
 
         return coco_image
