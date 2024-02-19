@@ -132,14 +132,14 @@ class LabeledRasterTilerizer:
                 coco_annotation = label.to_coco(image_id=image_id,
                                                 category_id_map=self.category_id_map,
                                                 use_rle=self.use_rle_for_labels,
-                                                associated_image_size=(tile.metadata['height'], tile.metadata['width']))
+                                                associated_tile=tile)
                 coco_annotation['id'] = annotation_id
                 annotations_coco.append(coco_annotation)
                 annotation_id += 1
 
         return images_coco, annotations_coco
 
-    def generate_coco_dataset(self, tile_size=1024, overlap=0, start_counter_tile=0):
+    def generate_coco_dataset(self, tile_size=1024, overlap=0, start_counter_tile=1):
         samples = self._create_tiles(tile_size=tile_size, overlap=overlap)
 
         categories_coco = self._generate_coco_categories()

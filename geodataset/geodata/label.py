@@ -1,5 +1,5 @@
 import base64
-from typing import List, Tuple
+from typing import List
 import cv2
 import numpy as np
 import shapely
@@ -7,9 +7,12 @@ import pyproj
 from pyproj import Transformer
 from shapely import Polygon, box
 from shapely.ops import transform
+from shapely.affinity import translate
 import rasterio
 from functools import partial
 from pycocotools import mask as mask_utils
+
+from geodataset.geodata.tile import Tile
 
 
 class PolygonLabel:
@@ -133,13 +136,14 @@ class PolygonLabel:
 
     def get_cropped_polygon_label(self, window: rasterio.windows.Window):
         intersection_polygon, _ = self._get_intersection_with_window(window)
+        adjusted_polygon = translate(intersection_polygon, xoff=-window.col_off, yoff=-window.row_off)
 
-        cropped_polygon_label = PolygonLabel(
-            polygon=intersection_polygon,
-            category=self.category,
-            crs=self.crs)
-        cropped_polygon_label.affine_transform = self.affine_transform
+        cropped_polygon_label = PolygonLabel(polygon=adjusted_polygon,
+                                             category=self.category,
+                                             crs=self.crs)
         cropped_polygon_label.scale_factor = self.scale_factor
+        if self.affine_transform:
+            cropped_polygon_label.affine_transform = rasterio.windows.transform(window, self.affine_transform)
 
         return cropped_polygon_label
 
@@ -173,10 +177,17 @@ class PolygonLabel:
                 (rel_intersect_bbox[2], rel_intersect_bbox[3]),
                 (rel_intersect_bbox[2], rel_intersect_bbox[1])
             ])
-            return PolygonLabel(polygon=cropped_polygon, category=self.category, crs=self.crs)
+
+            cropped_bbox_polygon_label = PolygonLabel(polygon=cropped_polygon,
+                                                      category=self.category,
+                                                      crs=self.crs)
+            cropped_bbox_polygon_label.scale_factor = self.scale_factor
+            if self.affine_transform:
+                cropped_bbox_polygon_label.affine_transform = rasterio.windows.transform(window, self.affine_transform)
+
+            return cropped_bbox_polygon_label
         else:
-            # No meaningful intersection; could return None or handle differently based on your requirements
-            return None
+            raise Exception("The window is outside of the label polygon.")
 
     def _get_intersection_with_window(self, window: rasterio.windows.Window):
         win_bounds = self.window_to_bbox(window=window)
@@ -186,7 +197,10 @@ class PolygonLabel:
         intersection_area = intersection_polygon.area
         return intersection_polygon, intersection_area
 
-    def polygon_to_rle_mask(self, image_size: tuple) -> dict:
+    def _polygon_to_coco_coordinates(self):
+        return [coord for xy in self.polygon.exterior.coords[:-1] for coord in xy]
+
+    def _polygon_to_coco_rle_mask(self, associated_tile: Tile) -> dict:
         """
         Encodes a polygon into an RLE mask.
 
@@ -196,18 +210,19 @@ class PolygonLabel:
         Returns:
             np.ndarray: A binary mask of the same dimensions as the input image, with pixels inside the polygon set to 1 and others set to 0.
         """
-
         contours = np.array(self.polygon.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
-        binary_mask = np.zeros(image_size, dtype=np.uint8)
+        binary_mask = np.zeros((associated_tile.metadata['height'], associated_tile.metadata['width']),
+                               dtype=np.uint8)
         cv2.fillPoly(binary_mask, [contours], 1)
         binary_mask_fortran = np.asfortranarray(binary_mask)
         rle = mask_utils.encode(binary_mask_fortran)
+        rle['counts'] = base64.b64encode(rle['counts']).decode('utf-8')     # JSON can't save bytes
         return rle
 
     def to_coco(self,
                 image_id: int,
                 category_id_map: dict,
-                associated_image_size: Tuple[int, int] = None,
+                associated_tile: Tile,
                 use_rle: bool = False):
         """
         Convert the polygon label to a COCO-format dictionary.
@@ -216,7 +231,7 @@ class PolygonLabel:
             image_id (int): The ID of the image this polygon is associated with.
             category_id_map (dict): A mapping from category names or IDs used in this class to the corresponding COCO category IDs.
             use_rle (bool): Whether to use RLE for encoding the polygon label.
-            associated_image_size (Tuple[int, int]): Only used when use_rle_format is True. The dimension of the associated image (height, width).
+            associated_tile (Tile): Only used when use_rle_format is True. The dimension of the associated image (height, width).
 
         Returns:
             dict: A dictionary formatted according to COCO specifications.
@@ -229,18 +244,12 @@ class PolygonLabel:
             raise ValueError(f"Category '{self.category}' not found in category ID map.")
 
         if use_rle:
-            assert type(associated_image_size) is tuple and len(associated_image_size) == 2, \
-                ("If using RLE format to encode labels,"
-                 " please specify the associated_image_dimension parameter as it is needed to create the mask."
-                 " It must be a 2-value tuple (height, width).")
-            # Convert the polygon to an RLE mask
-            rle = self.polygon_to_rle_mask(image_size=associated_image_size)
-            rle['counts'] = base64.b64encode(rle['counts']).decode('utf-8')
-            segmentation = rle
+            # Convert the polygon to a COCO RLE mask
+            segmentation = self._polygon_to_coco_rle_mask(associated_tile=associated_tile)
         else:
             # Convert the polygon's exterior coordinates to the format expected by COCO
             # Exclude the closing coordinate which is a repetition
-            segmentation = [coord for xy in self.polygon.exterior.coords[:-1] for coord in xy]
+            segmentation = self._polygon_to_coco_coordinates()
 
         # Calculate the area of the polygon
         area = self.polygon.area
@@ -252,6 +261,7 @@ class PolygonLabel:
         # Construct the COCO representation
         coco_annotation = {
             "segmentation": [segmentation],  # COCO expects a list of polygons, each a list of coordinates
+            "is_rle_format": use_rle,
             "area": area,
             "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
             "image_id": image_id,

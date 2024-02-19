@@ -50,8 +50,10 @@ class RasterLabels(ABC):
         - A GeoDataFrame with polygons converted to pixel coordinates based on the TIFF file's CRS.
         """
 
-        assert self.associated_raster.transform is not None, f"A {self.ext} label file was specified but the associated_geo_data does not contain a Transform."
-        assert self.associated_raster.crs is not None, f"A {self.ext} label file was specified but the associated_geo_data does not contain a CRS."
+        assert self.associated_raster.metadata['transform'] is not None, \
+            f"A {self.ext} label file was specified but the associated_geo_data does not contain a Transform."
+        assert self.associated_raster.metadata['crs'] is not None, \
+            f"A {self.ext} label file was specified but the associated_geo_data does not contain a CRS."
 
         # Load polygons
         if self.ext in ['.geojson', '.gpkg', '.shp']:
@@ -72,9 +74,9 @@ class RasterLabels(ABC):
             label = PolygonLabel(polygon=polygon['geometry'],
                                  category=polygon['Label'] if 'Label' in polygon else None,
                                  crs=polygons.crs)
-            label.apply_crs(self.associated_raster.crs)
+            label.apply_crs(self.associated_raster.metadata['crs'])
             # No need to call label.apply_scale_factor(...) as the raster transform already contains the scale_factor
-            label.apply_crs_to_pixel_transform(self.associated_raster.transform)
+            label.apply_crs_to_pixel_transform(self.associated_raster.metadata['transform'])
             labels.append(label)
 
         print(f"Found {len(labels)} labels (polygons). "

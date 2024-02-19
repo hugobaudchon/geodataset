@@ -21,25 +21,21 @@ class Raster(BaseGeoData):
         self.scale_factor = scale_factor
 
         (self.data,
-         self.crs,
-         self.transform,
          self.metadata) = self._load_data()
 
     def _load_data(self):
         data, metadata = read_raster(path=self.path, scale_factor=self.scale_factor)
+        if 'crs' not in metadata:
+            metadata['crs'] = None
+        if 'transform' not in metadata:
+            metadata['transform'] = None
 
-        if 'crs' not in metadata or not metadata['crs']:
+        if not metadata['crs']:
             warnings.warn(f'Could not find a CRS in the raster file {self.name}.')
-            crs = None
-        else:
-            crs = metadata['crs']
-        if 'transform' not in metadata or not metadata['transform']:
+        if not metadata['transform']:
             warnings.warn(f'Could not find a transform in the raster file {self.name}.')
-            transform = None
-        else:
-            transform = metadata['transform']
 
-        return data, crs, transform, metadata
+        return data, metadata
 
     def get_tile(self,
                  window: rasterio.windows.Window,
