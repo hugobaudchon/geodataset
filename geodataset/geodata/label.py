@@ -248,7 +248,6 @@ class PolygonLabel:
             segmentation = self._polygon_to_coco_rle_mask(associated_tile=associated_tile)
         else:
             # Convert the polygon's exterior coordinates to the format expected by COCO
-            # Exclude the closing coordinate which is a repetition
             segmentation = self._polygon_to_coco_coordinates()
 
         # Calculate the area of the polygon
