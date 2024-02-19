@@ -26,7 +26,7 @@ tilerizer = LabeledRasterTilerizer(task='detection',
                                    labels_path=Path('Data/raw/wwf_ecuador/annotations/cleaned/clean_annotations.csv'),
                                    output_path=Path('Data/pre_processed/test/carlos_vera_arteaga'),
                                    scale_factor=0.2,                            # optional
-                                   use_rle_for_labels=False,                    # optional
+                                   use_rle_for_labels=True,                     # optional
                                    min_intersection_ratio=0.9,                  # optional
                                    ignore_tiles_without_labels=False,           # optional
                                    ignore_mostly_black_or_white_tiles=True      # optional
@@ -49,7 +49,7 @@ tilerizer = LabeledRasterTilerizer(task='segmentation',
                                    labels_path=Path('Data/raw/quebec_trees_dataset_2021-09-02/Z1_polygons.gpkg'),
                                    output_path=Path('Data/pre_processed/test/Z1_quebec_trees'),
                                    scale_factor=0.5,                        # optional
-                                   use_rle_for_labels=False,                # optional
+                                   use_rle_for_labels=True,                 # optional
                                    min_intersection_ratio=0.9,              # optional
                                    ignore_tiles_without_labels=False,       # optional
                                    ignore_mostly_black_or_white_tiles=True  # optional

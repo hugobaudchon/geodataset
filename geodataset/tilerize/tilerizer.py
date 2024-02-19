@@ -22,7 +22,7 @@ class LabeledRasterTilerizer:
                  output_path: Path,
                  task: str,
                  scale_factor: float = 1.0,
-                 use_rle_for_labels: bool = False,
+                 use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.9,
                  ignore_tiles_without_labels: bool = False,
                  ignore_mostly_black_or_white_tiles: bool = True):
