@@ -82,7 +82,7 @@ class LabeledRasterTilerizer:
     def _create_tiles(self, tile_size, overlap) -> List[Tuple[Tile, List[PolygonLabel]]]:
         width = self.raster.metadata['width']
         height = self.raster.metadata['height']
-        print('Raster size: ', (width, height))
+        print('Raster size: ', (height, width))
         print('Desired tile size: ', tile_size)
         print('Creating tiles and finding their associated labels...')
         samples = []
