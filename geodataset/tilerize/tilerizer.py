@@ -87,7 +87,7 @@ class LabeledRasterTilerizer:
         print('Creating tiles and finding their associated labels...')
         samples = []
         for row in range(0, height, int((1 - overlap) * tile_size)):
-            print(f'\t Row {row}/{width}')
+            print(f'\t Row {row}/{height}')
             for col in range(0, width, int((1 - overlap) * tile_size)):
                 window = rasterio.windows.Window(col, row, tile_size, tile_size)
                 tile = self.raster.get_tile(window=window,
