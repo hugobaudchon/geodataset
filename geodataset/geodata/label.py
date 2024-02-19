@@ -235,7 +235,7 @@ class PolygonLabel:
                  " It must be a 2-value tuple (height, width).")
             # Convert the polygon to an RLE mask
             rle = self.polygon_to_rle_mask(image_size=associated_image_size)
-            rle['counts'] = base64.b64encode(rle['counts']).decode('ascii')
+            rle['counts'] = base64.b64encode(rle['counts']).decode('utf-8')
             segmentation = rle
         else:
             # Convert the polygon's exterior coordinates to the format expected by COCO
