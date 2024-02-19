@@ -79,16 +79,16 @@ class LabeledRasterTilerizer:
 
         return raster, labels
 
-    def create_tiles(self, tile_size=1024, overlap=0) -> List[Tuple[Tile, List[PolygonLabel]]]:
+    def _create_tiles(self, tile_size, overlap) -> List[Tuple[Tile, List[PolygonLabel]]]:
         width = self.raster.metadata['width']
         height = self.raster.metadata['height']
         print('Raster size: ', (width, height))
         print('Desired tile size: ', tile_size)
-        print('Saving tiles')
+        print('Creating tiles and finding their associated labels...')
         samples = []
-        for row in range(0, width, int((1 - overlap) * tile_size)):
+        for row in range(0, height, int((1 - overlap) * tile_size)):
             print(f'\t Row {row}/{width}')
-            for col in range(0, height, int((1 - overlap) * tile_size)):
+            for col in range(0, width, int((1 - overlap) * tile_size)):
                 window = rasterio.windows.Window(col, row, tile_size, tile_size)
                 tile = self.raster.get_tile(window=window,
                                             dataset_name=self.dataset_name)
@@ -132,7 +132,7 @@ class LabeledRasterTilerizer:
                 coco_annotation = label.to_coco(image_id=image_id,
                                                 category_id_map=self.category_id_map,
                                                 use_rle=self.use_rle_for_labels,
-                                                associated_image_size=(tile.data.shape[1], tile.data.shape[2]))
+                                                associated_image_size=(tile.metadata['height'], tile.metadata['width']))
                 coco_annotation['id'] = annotation_id
                 annotations_coco.append(coco_annotation)
                 annotation_id += 1
@@ -140,7 +140,7 @@ class LabeledRasterTilerizer:
         return images_coco, annotations_coco
 
     def generate_coco_dataset(self, tile_size=1024, overlap=0, start_counter_tile=0):
-        samples = self.create_tiles(tile_size=tile_size, overlap=overlap)
+        samples = self._create_tiles(tile_size=tile_size, overlap=overlap)
 
         categories_coco = self._generate_coco_categories()
         images_coco, annotations_coco = self._generate_coco_images_annotations(samples, start_image_id=start_counter_tile)
