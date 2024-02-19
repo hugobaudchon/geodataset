@@ -1,5 +1,7 @@
 import warnings
 from pathlib import Path
+
+import numpy as np
 import rasterio.windows
 
 from geodataset.geodata.base_geodata import BaseGeoData
@@ -46,6 +48,13 @@ class Raster(BaseGeoData):
                        :,
                        window.row_off:window.row_off + window.height,
                        window.col_off:window.col_off + window.width]
+
+        pad_row = window.width - tile_data.shape[1]
+        pad_col = window.height - tile_data.shape[2]
+
+        if pad_row > 0 or pad_col > 0:
+            padding = ((0, 0), (0, pad_row), (0, pad_col))  # No padding for bands, pad rows and columns as needed
+            tile_data = np.pad(tile_data, padding, mode='constant', constant_values=0)
 
         window_transform = rasterio.windows.transform(window, self.metadata['transform'])
 
