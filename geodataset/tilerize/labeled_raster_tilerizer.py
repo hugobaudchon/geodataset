@@ -56,8 +56,9 @@ class LabeledRasterTilerizer:
         assert task in self.SUPPORTED_TASKS, f'The task \'{task}\' is not in the supported tasks {self.SUPPORTED_TASKS}.'
 
         self.output_path = output_path
-        self.tiles_path = self.output_path / 'tiles'
+        self.tiles_path = self.output_path / self.dataset_name / 'tiles'
         self.tiles_path.mkdir(parents=True, exist_ok=True)
+        self.coco_json_path = self.output_path / self.dataset_name / f'{self.dataset_name}_coco.json'
 
         (self.raster,
          self.labels) = self._load_data()
@@ -167,8 +168,7 @@ class LabeledRasterTilerizer:
             tile.save(output_folder=self.tiles_path)
 
         # Save the COCO dataset to a JSON file
-        coco_json_path = self.output_path / f'{self.dataset_name}_coco.json'
-        with coco_json_path.open('w') as f:
+        with self.coco_json_path.open('w') as f:
             json.dump(coco_dataset, f, ensure_ascii=False, indent=2)
 
-        print(f"COCO dataset has been saved to {coco_json_path}")
+        print(f"COCO dataset has been saved to {self.coco_json_path}")
