@@ -201,9 +201,9 @@ class RasterSegmentationLabels(RasterLabels):
                                window: rasterio.windows.Window,
                                min_intersection_ratio: float):
 
-        intersecting_cropped_polygons = []
+        associated_cropped_polygons_labels = []
         for label in self.labels:
             if label.is_in_window(window=window, min_intersection_ratio=min_intersection_ratio):
-                intersecting_cropped_polygons.append(label.get_cropped_polygon_label(window=window))
+                associated_cropped_polygons_labels.append(label.get_cropped_polygon_label(window=window))
 
-        return intersecting_cropped_polygons
+        return associated_cropped_polygons_labels
