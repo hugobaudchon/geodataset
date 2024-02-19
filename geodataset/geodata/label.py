@@ -1,12 +1,15 @@
-from typing import List
-
+import base64
+from typing import List, Tuple
+import cv2
+import numpy as np
 import shapely
+import pyproj
 from pyproj import Transformer
 from shapely import Polygon, box
 from shapely.ops import transform
 import rasterio
 from functools import partial
-import pyproj
+from pycocotools import mask as mask_utils
 
 
 class PolygonLabel:
@@ -183,13 +186,37 @@ class PolygonLabel:
         intersection_area = intersection_polygon.area
         return intersection_polygon, intersection_area
 
-    def to_coco(self, image_id: int, category_id_map: dict):
+    def polygon_to_rle_mask(self, image_size: tuple) -> dict:
+        """
+        Encodes a polygon into an RLE mask.
+
+        Args:
+            image_size (tuple): The dimensions of the image (height, width).
+
+        Returns:
+            np.ndarray: A binary mask of the same dimensions as the input image, with pixels inside the polygon set to 1 and others set to 0.
+        """
+
+        contours = np.array(self.polygon.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
+        binary_mask = np.zeros(image_size, dtype=np.uint8)
+        cv2.fillPoly(binary_mask, [contours], 1)
+        binary_mask_fortran = np.asfortranarray(binary_mask)
+        rle = mask_utils.encode(binary_mask_fortran)
+        return rle
+
+    def to_coco(self,
+                image_id: int,
+                category_id_map: dict,
+                associated_image_size: Tuple[int, int] = None,
+                use_rle: bool = False):
         """
         Convert the polygon label to a COCO-format dictionary.
 
         Args:
             image_id (int): The ID of the image this polygon is associated with.
             category_id_map (dict): A mapping from category names or IDs used in this class to the corresponding COCO category IDs.
+            use_rle (bool): Whether to use RLE for encoding the polygon label.
+            associated_image_size (Tuple[int, int]): Only used when use_rle_format is True. The dimension of the associated image (height, width).
 
         Returns:
             dict: A dictionary formatted according to COCO specifications.
@@ -201,10 +228,19 @@ class PolygonLabel:
         else:
             raise ValueError(f"Category '{self.category}' not found in category ID map.")
 
-        # Convert the polygon's exterior coordinates to the format expected by COCO.
-        # COCO expects a flat list of coordinates for segmentation: [x1, y1, x2, y2, ..., xn, yn]
-
-        segmentation = [coord for xy in self.polygon.exterior.coords for coord in xy]
+        if use_rle:
+            assert type(associated_image_size) is tuple and len(associated_image_size) == 2, \
+                ("If using RLE format to encode labels,"
+                 " please specify the associated_image_dimension parameter as it is needed to create the mask."
+                 " It must be a 2-value tuple (height, width).")
+            # Convert the polygon to an RLE mask
+            rle = self.polygon_to_rle_mask(image_size=associated_image_size)
+            rle['counts'] = base64.b64encode(rle['counts']).decode('ascii')
+            segmentation = rle
+        else:
+            # Convert the polygon's exterior coordinates to the format expected by COCO
+            # Exclude the closing coordinate which is a repetition
+            segmentation = [coord for xy in self.polygon.exterior.coords[:-1] for coord in xy]
 
         # Calculate the area of the polygon
         area = self.polygon.area

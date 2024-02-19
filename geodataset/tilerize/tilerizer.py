@@ -1,10 +1,8 @@
 import json
 from typing import Tuple, List
 import numpy as np
-import pandas as pd
 import rasterio
 from pathlib import Path
-from abc import ABC, abstractmethod
 
 from geodataset.geodata import Raster
 from geodataset.geodata.label import PolygonLabel
@@ -24,6 +22,7 @@ class LabeledRasterTilerizer:
                  output_path: Path,
                  task: str,
                  scale_factor: float = 1.0,
+                 use_rle_for_labels: bool = False,
                  min_intersection_ratio: float = 0.9,
                  ignore_tiles_without_labels: bool = False,
                  ignore_mostly_black_or_white_tiles: bool = True):
@@ -48,6 +47,7 @@ class LabeledRasterTilerizer:
         self.raster_path = raster_path
         self.labels_path = labels_path
         self.scale_factor = scale_factor
+        self.use_rle_for_labels = use_rle_for_labels
         self.min_intersection_ratio = min_intersection_ratio
         self.ignore_tiles_without_labels = ignore_tiles_without_labels
         self.ignore_mostly_black_or_white_tiles = ignore_mostly_black_or_white_tiles
@@ -129,7 +129,10 @@ class LabeledRasterTilerizer:
 
             for label in associated_labels:
                 # Generate COCO annotation data from each associated label
-                coco_annotation = label.to_coco(image_id=image_id, category_id_map=self.category_id_map)
+                coco_annotation = label.to_coco(image_id=image_id,
+                                                category_id_map=self.category_id_map,
+                                                use_rle=self.use_rle_for_labels,
+                                                associated_image_size=(tile.data.shape[1], tile.data.shape[2]))
                 coco_annotation['id'] = annotation_id
                 annotations_coco.append(coco_annotation)
                 annotation_id += 1
