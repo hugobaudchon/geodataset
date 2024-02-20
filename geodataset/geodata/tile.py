@@ -20,14 +20,6 @@ class Tile:
         self.row = row
         self.col = col
 
-        self.labels = None
-
-    def set_labels(self, labels: list[list]):
-        self.labels = labels
-
-    def get_labels(self):
-        return self.labels
-
     @classmethod
     def from_path(cls, path: Path):
         data, metadata, dataset_name, row, col = Tile.load_tile(path)

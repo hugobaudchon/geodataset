@@ -1,15 +1,22 @@
 import json
+import warnings
+from functools import partial
 from typing import Tuple, List
 import numpy as np
 import rasterio
+import geopandas as gpd
 from pathlib import Path
 
+from shapely import box, Polygon
+from shapely.affinity import translate
+
 from geodataset.geodata import Raster
-from geodataset.geodata.label import PolygonLabel
 from geodataset.geodata.tile import Tile
-from geodataset.labels import RasterDetectionLabels, RasterSegmentationLabels
+from geodataset.labels.raster_labels import RasterPolygonLabels
 
 from datetime import date
+
+from geodataset.utils.geometry import polygon_to_coco_rle_mask, polygon_to_coco_coordinates
 
 
 class LabeledRasterTilerizer:
@@ -68,19 +75,30 @@ class LabeledRasterTilerizer:
                         scale_factor=self.scale_factor)
 
         if self.task == 'detection':
-            labels = RasterDetectionLabels(path=self.labels_path,
-                                           associated_raster=raster,
-                                           scale_factor=self.scale_factor)
+            # labels = RasterDetectionLabels(path=self.labels_path,
+            #                                associated_raster=raster,
+            #                                scale_factor=self.scale_factor)
+            labels = RasterPolygonLabels(path=self.labels_path,
+                                         associated_raster=raster,
+                                         task='detection',
+                                         scale_factor=self.scale_factor)
         elif self.task == 'segmentation':
-            labels = RasterSegmentationLabels(path=self.labels_path,
-                                              associated_raster=raster,
-                                              scale_factor=self.scale_factor)
+            # labels = RasterSegmentationLabels(path=self.labels_path,
+            #                                   associated_raster=raster,
+            #                                   scale_factor=self.scale_factor)
+            labels = RasterPolygonLabels(path=self.labels_path,
+                                         associated_raster=raster,
+                                         task='segmentation',
+                                         scale_factor=self.scale_factor)
         else:
             raise NotImplementedError('An unsupported \'task\' value was provided.')
 
         return raster, labels
 
-    def _create_tiles(self, tile_size, overlap) -> List[Tuple[Tile, List[PolygonLabel]]]:
+    def _create_tiles(self,
+                      tile_size: int,
+                      overlap: float,
+                      start_counter_tile: int) -> List[Tuple[int, Tile]]:
         width = self.raster.metadata['width']
         height = self.raster.metadata['height']
         print('Raster size: ', (height, width))
@@ -100,56 +118,119 @@ class LabeledRasterTilerizer:
                     if np.sum(tile.data == 255) / (tile_size * tile_size * self.raster.metadata['count']) > 0.5:
                         continue
 
-                associated_labels = self.labels.find_associated_labels(window=window,
-                                                                       min_intersection_ratio=self.min_intersection_ratio)
-
-                if self.ignore_tiles_without_labels and not associated_labels:
-                    continue
-
-                samples.append((tile, associated_labels))
+                samples.append((start_counter_tile, tile))
+                start_counter_tile += 1
 
         return samples
+
+    def _find_associated_labels(self, samples) -> gpd.GeoDataFrame:
+        tile_ids = [sample[0] for sample in samples]
+        tiles = [sample[1] for sample in samples]
+        tiles_gdf = gpd.GeoDataFrame(data={'tile_id': tile_ids,
+                                           'geometry': [box(tile.col,
+                                                            tile.row,
+                                                            tile.col + tile.metadata['width'],
+                                                            tile.row + tile.metadata['height']) for tile in tiles]})
+        labels_gdf = self.labels.labels_gdf
+        labels_gdf['label_area'] = labels_gdf.geometry.area
+        inter_polygons = gpd.overlay(tiles_gdf, labels_gdf, how='intersection')
+        inter_polygons['area'] = inter_polygons.geometry.area
+        inter_polygons['intersection_ratio'] = inter_polygons['area'] / inter_polygons['label_area']
+        significant_polygons_inter = inter_polygons[inter_polygons['intersection_ratio'] > self.min_intersection_ratio]
+        significant_polygons_inter.reset_index()
+
+        def adjust_geometry(polygon: Polygon, tile: Tile):
+            return translate(polygon, xoff=-tile.col, yoff=-tile.row)
+
+        for tile_id, tile in zip(tile_ids, tiles):
+            labels_indices = significant_polygons_inter[significant_polygons_inter['tile_id'] == tile_id].index
+            adjusted_geometries = significant_polygons_inter.loc[labels_indices, 'geometry'].astype(object).apply(
+                partial(adjust_geometry, tile=tile))
+            significant_polygons_inter.loc[labels_indices, 'geometry'] = adjusted_geometries
+
+        return significant_polygons_inter
 
     def _generate_coco_categories(self):
         """
         Generate COCO categories from the unique label categories in the dataset.
         """
-        unique_categories = set(label.category for label in self.labels.labels)  # Assuming self.labels.labels is a list of PolygonLabel objects
-        categories = [{'id': i + 1, 'name': category, 'supercategory': ''} for i, category in enumerate(unique_categories)]
-        self.category_id_map = {category: i + 1 for i, category in enumerate(unique_categories)}  # For mapping category names to IDs
+        if 'category' in self.labels.labels_gdf:
+            unique_categories = set(self.labels.labels_gdf['category'])
+            categories = [{'id': i + 1, 'name': category, 'supercategory': ''} for i, category in
+                          enumerate(unique_categories)]
+            self.category_id_map = {category: i + 1 for i, category in enumerate(unique_categories)}
+        else:
+            categories = {}
+            warnings.warn("The GeoDataFrame containing the labels doesn't contain a category column,"
+                          " so labels won't have categories.")
         return categories
 
-    def _generate_coco_images_annotations(self, tiles_info, start_image_id=1):
+    def _generate_coco_images_and_labels_annotations(self,
+                                                     samples: List[Tuple[int, Tile]],
+                                                     intersecting_labels: gpd.GeoDataFrame):
         images_coco = []
         annotations_coco = []
         annotation_id = 1
 
-        for image_id, (tile, associated_labels) in enumerate(tiles_info, start=start_image_id):
-            # Directly generate COCO image data from the Tile object
-            images_coco.append(tile.to_coco(image_id=image_id))
+        for tile_id, tile in samples:
+            associated_labels = intersecting_labels[intersecting_labels['tile_id'] == tile_id]
+            if self.ignore_tiles_without_labels and len(associated_labels) == 0:
+                continue
 
-            for label in associated_labels:
-                # Generate COCO annotation data from each associated label
-                coco_annotation = label.to_coco(image_id=image_id,
-                                                category_id_map=self.category_id_map,
-                                                use_rle=self.use_rle_for_labels,
-                                                associated_tile=tile)
+            # Directly generate COCO image data from the Tile object
+            images_coco.append(tile.to_coco(image_id=tile_id))
+
+            for _, label in associated_labels.iterrows():
+                coco_annotation = self._generate_label_coco(label=label, tile=tile, tile_id=tile_id)
                 coco_annotation['id'] = annotation_id
-                annotations_coco.append(coco_annotation)
                 annotation_id += 1
+                annotations_coco.append(coco_annotation)
 
         return images_coco, annotations_coco
 
+    def _generate_label_coco(self, label: gpd.GeoDataFrame, tile: Tile, tile_id: int) -> dict:
+        if self.use_rle_for_labels:
+            # Convert the polygon to a COCO RLE mask
+            segmentation = polygon_to_coco_rle_mask(polygon=label['geometry'],
+                                                    tile_height=tile.metadata['height'],
+                                                    tile_width=tile.metadata['width'])
+        else:
+            # Convert the polygon's exterior coordinates to the format expected by COCO
+            segmentation = polygon_to_coco_coordinates(polygon=label['geometry'])
+
+            # Calculate the area of the polygon
+        area = label['geometry'].area
+
+        # Get the bounding box in COCO format: [x, y, width, height]
+        bbox = list(label['geometry'].bounds)
+        bbox_coco_format = [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]]
+
+        # Generate COCO annotation data from each associated label
+        coco_annotation = {
+            "segmentation": [segmentation],  # COCO expects a list of polygons, each a list of coordinates
+            "is_rle_format": self.use_rle_for_labels,
+            "area": area,
+            "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
+            "image_id": tile_id,
+            "bbox": bbox_coco_format,
+            "category_id": self.category_id_map[label['category']] if 'category' in label else None,
+        }
+
+        return coco_annotation
+
     def generate_coco_dataset(self, tile_size=1024, overlap=0, start_counter_tile=1):
-        samples = self._create_tiles(tile_size=tile_size, overlap=overlap)
+        samples = self._create_tiles(tile_size=tile_size, overlap=overlap, start_counter_tile=start_counter_tile)
+        intersecting_labels = self._find_associated_labels(samples=samples)
 
         categories_coco = self._generate_coco_categories()
-        images_coco, annotations_coco = self._generate_coco_images_annotations(samples, start_image_id=start_counter_tile)
+        (images_coco,
+         annotations_coco) = self._generate_coco_images_and_labels_annotations(samples,
+                                                                               intersecting_labels=intersecting_labels)
 
         # Assemble the COCO dataset
         coco_dataset = {
             "info": {
-                "description": f"{self.dataset_name} Dataset",
+                "description": f"{self.dataset_name}",
                 "dataset_name": self.dataset_name,
                 "version": "1.0",
                 "year": str(date.today().year),
@@ -164,7 +245,7 @@ class LabeledRasterTilerizer:
         }
 
         # Save the tile images
-        for tile, labels in samples:
+        for tile_id, tile in samples:
             tile.save(output_folder=self.tiles_path)
 
         # Save the COCO dataset to a JSON file
