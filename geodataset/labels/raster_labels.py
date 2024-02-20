@@ -50,9 +50,9 @@ class RasterPolygonLabels:
         if labels_gdf.crs != self.associated_raster.metadata['crs']:
             if labels_gdf.crs and self.associated_raster.metadata['crs']:
                 labels_gdf.set_crs(self.associated_raster.metadata['crs'])
-            else:
-                raise Exception(f"Either the labels or the raster don't have a CRS,"
-                                f" so can't cast the labels to the raster's CRS.")
+            elif labels_gdf.crs and not self.associated_raster.metadata['crs']:
+                raise Exception(f"The labels have a CRS but no the Raster."
+                                f" Please verify the correct raster path was set")
 
         # Making sure we are working with Polygons and not Multipolygons
         if (labels_gdf['geometry'].type == 'MultiPolygon').any():
@@ -82,7 +82,7 @@ class RasterPolygonLabels:
             # If the labels don't have a CRS, we expect them to already be in pixel coordinates.
             # So we just need to apply the scaling factor.
             labels_gdf['geometry'] = labels_gdf['geometry'].astype(object).apply(
-                lambda geom: [(x * self.scale_factor, y * self.scale_factor) for x, y in geom.exterior.coords]
+                lambda geom: Polygon([(x * self.scale_factor, y * self.scale_factor) for x, y in geom.exterior.coords])
             )
 
         # Checking if most of the labels are intersecting the Raster.
@@ -154,7 +154,7 @@ class RasterPolygonLabels:
         else:
             agb = None
 
-        labels_gdf = gpd.GeoDataFrame(labels_df, geometry=[box(bbox) for bbox in labels_bbox])
+        labels_gdf = gpd.GeoDataFrame(labels_df, geometry=[box(*bbox) for bbox in labels_bbox])
         is_bbox = True
 
         return labels_gdf, is_bbox

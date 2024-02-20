@@ -75,17 +75,11 @@ class LabeledRasterTilerizer:
                         scale_factor=self.scale_factor)
 
         if self.task == 'detection':
-            # labels = RasterDetectionLabels(path=self.labels_path,
-            #                                associated_raster=raster,
-            #                                scale_factor=self.scale_factor)
             labels = RasterPolygonLabels(path=self.labels_path,
                                          associated_raster=raster,
                                          task='detection',
                                          scale_factor=self.scale_factor)
         elif self.task == 'segmentation':
-            # labels = RasterSegmentationLabels(path=self.labels_path,
-            #                                   associated_raster=raster,
-            #                                   scale_factor=self.scale_factor)
             labels = RasterPolygonLabels(path=self.labels_path,
                                          associated_raster=raster,
                                          task='segmentation',
