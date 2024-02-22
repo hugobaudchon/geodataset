@@ -33,7 +33,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
                  use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.9,
                  ignore_tiles_without_labels: bool = False,
-                 ignore_black_white_tiles_threshold: float = 0.8):
+                 ignore_black_white_alpha_tiles_threshold: float = 0.8):
         """
         raster_path: Path,
             Path to the raster (.tif, .png...).
@@ -48,14 +48,14 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
             ratio between a candidate polygon and the tile in order to keep this polygon as a label for that tile.
         ignore_tiles_without_labels: bool,
             Whether to ignore (skip) tiles that don't have any associated labels.
-        ignore_mostly_black_or_white_tiles: bool,
-            Whether to ignore (skip) mostly black or white (>50%) tiles.
+        ignore_black_white_alpha_tiles_threshold: bool,
+            Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
         """
         super().__init__(dataset_name=dataset_name,
                          raster_path=raster_path,
                          output_path=output_path,
                          scale_factor=scale_factor,
-                         ignore_black_white_tiles_threshold=ignore_black_white_tiles_threshold)
+                         ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
 
         self.labels_path = labels_path
         self.use_rle_for_labels = use_rle_for_labels
