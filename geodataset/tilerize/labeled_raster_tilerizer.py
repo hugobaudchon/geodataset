@@ -17,9 +17,10 @@ from geodataset.labels.raster_labels import RasterPolygonLabels
 from datetime import date
 
 from geodataset.utils.geometry import polygon_to_coco_rle_mask, polygon_to_coco_coordinates
+from geodataset.tilerize import BaseRasterTilerizer
 
 
-class LabeledRasterTilerizer:
+class LabeledRasterTilerizer(BaseRasterTilerizer):
     SUPPORTED_TASKS = ['detection', 'segmentation']
 
     def __init__(self,
@@ -32,7 +33,7 @@ class LabeledRasterTilerizer:
                  use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.9,
                  ignore_tiles_without_labels: bool = False,
-                 ignore_mostly_black_or_white_tiles: bool = True):
+                 ignore_black_white_tiles_threshold: float = 0.8):
         """
         raster_path: Path,
             Path to the raster (.tif, .png...).
@@ -50,72 +51,41 @@ class LabeledRasterTilerizer:
         ignore_mostly_black_or_white_tiles: bool,
             Whether to ignore (skip) mostly black or white (>50%) tiles.
         """
-        self.dataset_name = dataset_name
-        self.raster_path = raster_path
+        super().__init__(dataset_name=dataset_name,
+                         raster_path=raster_path,
+                         output_path=output_path,
+                         scale_factor=scale_factor,
+                         ignore_black_white_tiles_threshold=ignore_black_white_tiles_threshold)
+
         self.labels_path = labels_path
-        self.scale_factor = scale_factor
         self.use_rle_for_labels = use_rle_for_labels
         self.min_intersection_ratio = min_intersection_ratio
         self.ignore_tiles_without_labels = ignore_tiles_without_labels
-        self.ignore_mostly_black_or_white_tiles = ignore_mostly_black_or_white_tiles
         self.task = task
 
         assert task in self.SUPPORTED_TASKS, f'The task \'{task}\' is not in the supported tasks {self.SUPPORTED_TASKS}.'
 
-        self.output_path = output_path
         self.tiles_path = self.output_path / self.dataset_name / 'tiles'
         self.tiles_path.mkdir(parents=True, exist_ok=True)
         self.coco_json_path = self.output_path / self.dataset_name / f'{self.dataset_name}_coco.json'
 
-        (self.raster,
-         self.labels) = self._load_data()
+        self.labels = self._load_labels()
 
-    def _load_data(self):
-        raster = Raster(path=self.raster_path,
-                        scale_factor=self.scale_factor)
-
+    def _load_labels(self):
         if self.task == 'detection':
             labels = RasterPolygonLabels(path=self.labels_path,
-                                         associated_raster=raster,
+                                         associated_raster=self.raster,
                                          task='detection',
                                          scale_factor=self.scale_factor)
         elif self.task == 'segmentation':
             labels = RasterPolygonLabels(path=self.labels_path,
-                                         associated_raster=raster,
+                                         associated_raster=self.raster,
                                          task='segmentation',
                                          scale_factor=self.scale_factor)
         else:
             raise NotImplementedError('An unsupported \'task\' value was provided.')
 
-        return raster, labels
-
-    def _create_tiles(self,
-                      tile_size: int,
-                      overlap: float,
-                      start_counter_tile: int) -> List[Tuple[int, Tile]]:
-        width = self.raster.metadata['width']
-        height = self.raster.metadata['height']
-        print('Raster size: ', (height, width))
-        print('Desired tile size: ', tile_size)
-        print('Creating tiles and finding their associated labels...')
-        samples = []
-        for row in range(0, height, int((1 - overlap) * tile_size)):
-            print(f'\t Row {row}/{height}')
-            for col in range(0, width, int((1 - overlap) * tile_size)):
-                window = rasterio.windows.Window(col, row, tile_size, tile_size)
-                tile = self.raster.get_tile(window=window,
-                                            dataset_name=self.dataset_name)
-                if self.ignore_mostly_black_or_white_tiles:
-                    # If it's >50% black pixels or white pixels, just continue. No point segmenting it.
-                    if np.sum(tile.data == 0) / (tile_size * tile_size * self.raster.metadata['count']) > 0.5:
-                        continue
-                    if np.sum(tile.data == 255) / (tile_size * tile_size * self.raster.metadata['count']) > 0.5:
-                        continue
-
-                samples.append((start_counter_tile, tile))
-                start_counter_tile += 1
-
-        return samples
+        return labels
 
     def _find_associated_labels(self, samples) -> gpd.GeoDataFrame:
         tile_ids = [sample[0] for sample in samples]
