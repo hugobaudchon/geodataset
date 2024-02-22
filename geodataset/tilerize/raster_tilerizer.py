@@ -102,8 +102,8 @@ class RasterTilerizer(BaseRasterTilerizer):
         self.tiles_path = self.output_path / self.dataset_name / 'tiles'
         self.tiles_path.mkdir(parents=True, exist_ok=True)
 
-    def generate_tiles(self, tile_size=1024, overlap=0):
-        samples = self._create_tiles(tile_size=tile_size, overlap=overlap)
+    def generate_tiles(self, tile_size=1024, overlap=0, start_counter_tile=1):
+        samples = self._create_tiles(tile_size=tile_size, overlap=overlap, start_counter_tile=start_counter_tile)
 
         # Save the tile images
         for tile_id, tile in samples:
