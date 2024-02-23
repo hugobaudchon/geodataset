@@ -51,7 +51,7 @@ class RasterPolygonLabels:
             if labels_gdf.crs and self.associated_raster.metadata['crs']:
                 labels_gdf.to_crs(self.associated_raster.metadata['crs'])
             elif labels_gdf.crs and not self.associated_raster.metadata['crs']:
-                raise Exception(f"The labels have a CRS but no the Raster."
+                raise Exception(f"The labels have a CRS but not the Raster."
                                 f" Please verify the correct raster path was set")
 
         # Making sure we are working with Polygons and not Multipolygons
