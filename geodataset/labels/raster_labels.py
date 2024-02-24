@@ -1,5 +1,4 @@
 import warnings
-from functools import partial
 
 import rasterio
 import xmltodict
@@ -8,7 +7,6 @@ import geopandas as gpd
 from pathlib import Path
 
 from shapely import box, Polygon, MultiPolygon
-from shapely.ops import transform
 
 from geodataset.geodata import Raster
 
@@ -46,14 +44,6 @@ class RasterPolygonLabels:
         else:
             raise Exception(f'Annotation format {self.ext} is not yet supported.')
 
-        # Making sure the labels and associated raster CRS are matching.
-        if labels_gdf.crs != self.associated_raster.metadata['crs']:
-            if labels_gdf.crs and self.associated_raster.metadata['crs']:
-                labels_gdf.to_crs(self.associated_raster.metadata['crs'])
-            elif labels_gdf.crs and not self.associated_raster.metadata['crs']:
-                raise Exception(f"The labels have a CRS but not the Raster."
-                                f" Please verify the correct raster path was set")
-
         # Making sure we are working with Polygons and not Multipolygons
         if (labels_gdf['geometry'].type == 'MultiPolygon').any():
             labels_gdf['geometry'] = labels_gdf['geometry'].astype(object).apply(self.try_cast_multipolygon_to_polygon)
@@ -62,28 +52,11 @@ class RasterPolygonLabels:
             warnings.warn(f"Removed {n_poly_before - len(labels_gdf)} out of {n_poly_before} labels as they are MultiPolygons"
                           f" that can't be cast to Polygons.")
 
+        # Making sure the labels and associated raster CRS are matching.
+        labels_gdf = self.associated_raster.adjust_geometries_to_raster_crs_if_necessary(gdf=labels_gdf)
+
         # Scaling the geometries to pixel coordinates aligned with the Raster
-        if labels_gdf.crs:
-            # If the labels have a CRS, their geometries are in CRS coordinates,
-            # so we need to apply the inverse of the Raster transform to get pixel coordinates.
-            # This also applies the scaling_factor as the Raster is supposedly already scaled too.
-            inverse_transform = ~self.associated_raster.metadata['transform']
-
-            def transform_coord(x, y, transform_fct):
-                # Applying the inverse transform to the coordinate
-                x, y = transform_fct * (x, y)
-                return x, y
-
-            labels_gdf['geometry'] = labels_gdf['geometry'].astype(object).apply(
-                lambda geom: transform(partial(transform_coord, transform_fct=inverse_transform), geom)
-            )
-            labels_gdf.crs = None
-        else:
-            # If the labels don't have a CRS, we expect them to already be in pixel coordinates.
-            # So we just need to apply the scaling factor.
-            labels_gdf['geometry'] = labels_gdf['geometry'].astype(object).apply(
-                lambda geom: Polygon([(x * self.scale_factor, y * self.scale_factor) for x, y in geom.exterior.coords])
-            )
+        labels_gdf = self.associated_raster.adjust_geometries_to_raster_pixel_coordinates(gdf=labels_gdf)
 
         # Checking if most of the labels are intersecting the Raster.
         # If not, something probably went wrong with the CRS, transform or scaling factor.

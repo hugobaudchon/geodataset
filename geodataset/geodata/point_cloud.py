@@ -5,7 +5,7 @@ import numpy as np
 import rasterio
 
 from geodataset.geodata.base_geodata import BaseGeoData
-from geodataset.utils.io import read_point_cloud
+from geodataset.utils import read_point_cloud
 
 
 class PointCloud(BaseGeoData):

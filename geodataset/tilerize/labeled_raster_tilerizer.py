@@ -1,22 +1,20 @@
 import json
 import warnings
 from functools import partial
-from typing import Tuple, List
-import numpy as np
-import rasterio
+from typing import List
 import geopandas as gpd
 from pathlib import Path
 
 from shapely import box, Polygon
 from shapely.affinity import translate
 
-from geodataset.geodata import Raster
+from geodataset.aoi import AOIConfig
 from geodataset.geodata.tile import Tile
 from geodataset.labels.raster_labels import RasterPolygonLabels
 
 from datetime import date
 
-from geodataset.utils.geometry import polygon_to_coco_rle_mask, polygon_to_coco_coordinates
+from geodataset.utils import polygon_to_coco_coordinates, polygon_to_coco_rle_mask, save_aois_tiles_picture
 from geodataset.tilerize import BaseRasterTilerizer
 
 
@@ -33,7 +31,9 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
                  use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.9,
                  ignore_tiles_without_labels: bool = False,
-                 ignore_black_white_alpha_tiles_threshold: float = 0.8):
+                 ignore_black_white_alpha_tiles_threshold: float = 0.8,
+                 main_label_category_column_name: str = None,
+                 other_labels_attributes_column_names: List[str] = None):
         """
         raster_path: Path,
             Path to the raster (.tif, .png...).
@@ -65,10 +65,6 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
 
         assert task in self.SUPPORTED_TASKS, f'The task \'{task}\' is not in the supported tasks {self.SUPPORTED_TASKS}.'
 
-        self.tiles_path = self.output_path / self.dataset_name / 'tiles'
-        self.tiles_path.mkdir(parents=True, exist_ok=True)
-        self.coco_json_path = self.output_path / self.dataset_name / f'{self.dataset_name}_coco.json'
-
         self.labels = self._load_labels()
 
     def _load_labels(self):
@@ -87,9 +83,13 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
 
         return labels
 
-    def _find_associated_labels(self, samples) -> gpd.GeoDataFrame:
-        tile_ids = [sample[0] for sample in samples]
-        tiles = [sample[1] for sample in samples]
+    def _find_associated_labels(self, tiles) -> gpd.GeoDataFrame:
+
+        # We only get the labels for the 'all' key (all tiles) and then assign them to correct aois,
+        # in order to reduce computation cost.
+
+        tile_ids = [tile.tile_id for tile in tiles]
+
         tiles_gdf = gpd.GeoDataFrame(data={'tile_id': tile_ids,
                                            'geometry': [box(tile.col,
                                                             tile.row,
@@ -130,22 +130,22 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         return categories
 
     def _generate_coco_images_and_labels_annotations(self,
-                                                     samples: List[Tuple[int, Tile]],
+                                                     tiles: List[Tile],
                                                      intersecting_labels: gpd.GeoDataFrame):
         images_coco = []
         annotations_coco = []
         annotation_id = 1
 
-        for tile_id, tile in samples:
-            associated_labels = intersecting_labels[intersecting_labels['tile_id'] == tile_id]
+        for tile in tiles:
+            associated_labels = intersecting_labels[intersecting_labels['tile_id'] == tile.tile_id]
             if self.ignore_tiles_without_labels and len(associated_labels) == 0:
                 continue
 
             # Directly generate COCO image data from the Tile object
-            images_coco.append(tile.to_coco(image_id=tile_id))
+            images_coco.append(tile.to_coco())
 
             for _, label in associated_labels.iterrows():
-                coco_annotation = self._generate_label_coco(label=label, tile=tile, tile_id=tile_id)
+                coco_annotation = self._generate_label_coco(label=label, tile=tile, tile_id=tile.tile_id)
                 coco_annotation['id'] = annotation_id
                 annotation_id += 1
                 annotations_coco.append(coco_annotation)
@@ -182,38 +182,58 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
 
         return coco_annotation
 
-    def generate_coco_dataset(self, tile_size=1024, overlap=0, start_counter_tile=1):
-        samples = self._create_tiles(tile_size=tile_size, overlap=overlap, start_counter_tile=start_counter_tile)
-        intersecting_labels = self._find_associated_labels(samples=samples)
+    def generate_coco_dataset(self, tile_size=1024, overlap=0, start_counter_tile=1, aois_config: AOIConfig = None):
+        aois_tiles = self._get_tiles_per_aoi(aois_config=aois_config,
+                                             tile_size=tile_size,
+                                             overlap=overlap,
+                                             start_counter_tile=start_counter_tile)
 
-        categories_coco = self._generate_coco_categories()
-        (images_coco,
-         annotations_coco) = self._generate_coco_images_and_labels_annotations(samples,
-                                                                               intersecting_labels=intersecting_labels)
+        tile_coordinate_step = int((1 - overlap) * tile_size)
+        save_aois_tiles_picture(aois_tiles=aois_tiles,
+                                save_path=self.output_path / 'aois_tiles.png',
+                                tile_coordinate_step=tile_coordinate_step)
 
-        # Assemble the COCO dataset
-        coco_dataset = {
-            "info": {
-                "description": f"{self.dataset_name}",
-                "dataset_name": self.dataset_name,
-                "version": "1.0",
-                "year": str(date.today().year),
-                "date_created": str(date.today())
-            },
-            "licenses": [
-                # add license?
-            ],
-            "images": images_coco,
-            "annotations": annotations_coco,
-            "categories": categories_coco
-        }
+        for aoi in aois_tiles:
+            if aoi == 'all' and len(aois_tiles.keys()) > 1:
+                # don't save the 'all' tiles if aois were provided.
+                continue
 
-        # Save the tile images
-        for tile_id, tile in samples:
-            tile.save(output_folder=self.tiles_path)
+            tiles = aois_tiles[aoi]
+            aoi_tiles_intersecting_labels = self._find_associated_labels(tiles=tiles)
 
-        # Save the COCO dataset to a JSON file
-        with self.coco_json_path.open('w') as f:
-            json.dump(coco_dataset, f, ensure_ascii=False, indent=2)
+            categories_coco = self._generate_coco_categories()
 
-        print(f"COCO dataset has been saved to {self.coco_json_path}")
+            images_coco, annotations_coco = self._generate_coco_images_and_labels_annotations(
+                tiles,
+                intersecting_labels=aoi_tiles_intersecting_labels
+            )
+
+            # Assemble the COCO dataset
+            coco_dataset = {
+                "info": {
+                    "description": f"{self.dataset_name}",
+                    "dataset_name": self.dataset_name,
+                    "version": "1.0",
+                    "year": str(date.today().year),
+                    "date_created": str(date.today())
+                },
+                "licenses": [
+                    # add license?
+                ],
+                "images": images_coco,
+                "annotations": annotations_coco,
+                "categories": categories_coco
+            }
+
+            aoi_tiles_output_folder = self.tiles_path / aoi
+            aoi_tiles_output_folder.mkdir(exist_ok=False)
+            # Save the tile images
+            for tile in aois_tiles[aoi]:
+                tile.save(output_folder=aoi_tiles_output_folder)
+
+            coco_output_file_path = self.output_path / f'{self.dataset_name}_{aoi}_coco.json'
+            # Save the COCO dataset to a JSON file
+            with coco_output_file_path.open('w') as f:
+                json.dump(coco_dataset, f, ensure_ascii=False, indent=2)
+
+            print(f"COCO dataset(s) has been saved to {self.output_path}")
