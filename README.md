@@ -18,6 +18,9 @@ In order to provide more flexibility when tilerizing a raster, geodataset suppor
 2 types of AOIs configs are supported: AOIGeneratorConfig and AOIFromPackageConfig.
 These configs can then be passed to the tilerizers to divide the raster into groups of tiles for each AOI.
 
+Specifying an AOI config for a Tilerizer is optional.
+If no AOI config is passed to the Tilerizer, all the tiles will be kept in a single 'all' dataset.
+
 ```python
 from pathlib import Path
 from geodataset.aoi import AOIFromPackageConfig, AOIGeneratorConfig
