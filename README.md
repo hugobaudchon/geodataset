@@ -15,8 +15,8 @@ pip install git+ssh://git@github.com/hugobaudchon/geodataset.git
 ### Area of Interest
 
 In order to provide more flexibility when tilerizing a raster, geodataset supports areas of interest (AOI).
-2 types of aois configs are supported: AOIGeneratorConfig and AOIFromPackageConfig.
-These configs can then be passed to the tilerizers to divide the raster into groups of tiles for each AOI
+2 types of AOIs configs are supported: AOIGeneratorConfig and AOIFromPackageConfig.
+These configs can then be passed to the tilerizers to divide the raster into groups of tiles for each AOI.
 
 ```python
 from pathlib import Path
@@ -54,7 +54,9 @@ tilerizer = RasterTilerizer(dataset_name='TilesOnlyCarlosVeraArteagaRLE',
                             ignore_black_white_alpha_tiles_threshold=0.8   # optional
                             )
 
-tilerizer.generate_tiles(tile_size=1024, overlap=0.5, aois_config=aoi_gen_config)
+tilerizer.generate_tiles(tile_size=1024,
+                         overlap=0.5,
+                         aois_config=aoi_gen_config)
 ```
 
 ### Detection
