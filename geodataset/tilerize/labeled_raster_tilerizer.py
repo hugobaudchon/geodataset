@@ -19,7 +19,6 @@ from geodataset.tilerize import BaseRasterTilerizer
 
 
 class LabeledRasterTilerizer(BaseRasterTilerizer):
-    SUPPORTED_TASKS = ['detection', 'segmentation']
 
     def __init__(self,
                  dataset_name: str,
@@ -60,8 +59,6 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         self.use_rle_for_labels = use_rle_for_labels
         self.min_intersection_ratio = min_intersection_ratio
         self.ignore_tiles_without_labels = ignore_tiles_without_labels
-
-        assert task in self.SUPPORTED_TASKS, f'The task \'{task}\' is not in the supported tasks {self.SUPPORTED_TASKS}.'
 
         self.labels = self._load_labels(main_label_category_column_name, other_labels_attributes_column_names)
 
