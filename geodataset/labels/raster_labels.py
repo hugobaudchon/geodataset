@@ -12,12 +12,9 @@ from geodataset.geodata import Raster
 
 
 class RasterPolygonLabels:
-    SUPPORTED_TASKS = ['detection', 'segmentation']
-
     def __init__(self,
                  path: Path,
                  associated_raster: Raster,
-                 task: str,
                  scale_factor: float = 1.0,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None):
@@ -26,12 +23,9 @@ class RasterPolygonLabels:
         self.ext = self.path.suffix
         self.associated_raster = associated_raster
         self.scale_factor = scale_factor
-        self.task = task
         self.main_label_category_column_name = main_label_category_column_name
         self.other_labels_attributes_column_names = other_labels_attributes_column_names
 
-        assert task in self.SUPPORTED_TASKS, \
-            f"The 'task' value provided is not valid. Valid values are {self.SUPPORTED_TASKS}"
         assert self.scale_factor == self.associated_raster.scale_factor, \
             "The specified scale_factor for the labels and Raster are different."
 

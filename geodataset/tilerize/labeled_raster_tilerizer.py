@@ -19,14 +19,12 @@ from geodataset.tilerize import BaseRasterTilerizer
 
 
 class LabeledRasterTilerizer(BaseRasterTilerizer):
-    SUPPORTED_TASKS = ['detection', 'segmentation']
 
     def __init__(self,
                  dataset_name: str,
                  raster_path: Path,
                  labels_path: Path,
                  output_path: Path,
-                 task: str,
                  scale_factor: float = 1.0,
                  use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.9,
@@ -61,31 +59,18 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         self.use_rle_for_labels = use_rle_for_labels
         self.min_intersection_ratio = min_intersection_ratio
         self.ignore_tiles_without_labels = ignore_tiles_without_labels
-        self.task = task
-
-        assert task in self.SUPPORTED_TASKS, f'The task \'{task}\' is not in the supported tasks {self.SUPPORTED_TASKS}.'
 
         self.labels = self._load_labels(main_label_category_column_name, other_labels_attributes_column_names)
 
     def _load_labels(self,
                      main_label_category_column_name: str or None,
                      other_labels_attributes_column_names: List[str] or None):
-        if self.task == 'detection':
-            labels = RasterPolygonLabels(path=self.labels_path,
-                                         associated_raster=self.raster,
-                                         task='detection',
-                                         scale_factor=self.scale_factor,
-                                         main_label_category_column_name=main_label_category_column_name,
-                                         other_labels_attributes_column_names=other_labels_attributes_column_names)
-        elif self.task == 'segmentation':
-            labels = RasterPolygonLabels(path=self.labels_path,
-                                         associated_raster=self.raster,
-                                         task='segmentation',
-                                         scale_factor=self.scale_factor,
-                                         main_label_category_column_name=main_label_category_column_name,
-                                         other_labels_attributes_column_names=other_labels_attributes_column_names)
-        else:
-            raise NotImplementedError('An unsupported \'task\' value was provided.')
+
+        labels = RasterPolygonLabels(path=self.labels_path,
+                                     associated_raster=self.raster,
+                                     scale_factor=self.scale_factor,
+                                     main_label_category_column_name=main_label_category_column_name,
+                                     other_labels_attributes_column_names=other_labels_attributes_column_names)
 
         return labels
 
