@@ -13,26 +13,20 @@ class Tile:
                  metadata: dict,
                  dataset_name: str,
                  row: int,
-                 col: int):
+                 col: int,
+                 tile_id: int):
         self.data = data
         self.metadata = metadata
         self.dataset_name = dataset_name
         self.row = row
         self.col = col
-
-        self.labels = None
-
-    def set_labels(self, labels: list[list]):
-        self.labels = labels
-
-    def get_labels(self):
-        return self.labels
+        self.tile_id = tile_id
 
     @classmethod
-    def from_path(cls, path: Path):
+    def from_path(cls, path: Path, tile_id):
         data, metadata, dataset_name, row, col = Tile.load_tile(path)
 
-        return cls(data=data, metadata=metadata, dataset_name=dataset_name, row=row, col=col)
+        return cls(data=data, metadata=metadata, dataset_name=dataset_name, row=row, col=col, tile_id=tile_id)
 
     @staticmethod
     def load_tile(path: Path):
@@ -70,12 +64,9 @@ class Tile:
                 **self.metadata) as tile_raster:
             tile_raster.write(self.data)
 
-    def to_coco(self, image_id: int):
+    def to_coco(self):
         """
         Generate a COCO-format dictionary for the tile image.
-
-        Args:
-            image_id (int): A unique identifier for the image in the COCO dataset.
 
         Returns:
             dict: A dictionary formatted according to COCO specifications for an image.
@@ -92,7 +83,7 @@ class Tile:
 
         # Construct the COCO representation for the image
         coco_image = {
-            "id": image_id,
+            "id": self.tile_id,
             "width": width,
             "height": height,
             "file_name": file_name,
