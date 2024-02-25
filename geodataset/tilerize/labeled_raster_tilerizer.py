@@ -65,19 +65,25 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
 
         assert task in self.SUPPORTED_TASKS, f'The task \'{task}\' is not in the supported tasks {self.SUPPORTED_TASKS}.'
 
-        self.labels = self._load_labels()
+        self.labels = self._load_labels(main_label_category_column_name, other_labels_attributes_column_names)
 
-    def _load_labels(self):
+    def _load_labels(self,
+                     main_label_category_column_name: str or None,
+                     other_labels_attributes_column_names: List[str] or None):
         if self.task == 'detection':
             labels = RasterPolygonLabels(path=self.labels_path,
                                          associated_raster=self.raster,
                                          task='detection',
-                                         scale_factor=self.scale_factor)
+                                         scale_factor=self.scale_factor,
+                                         main_label_category_column_name=main_label_category_column_name,
+                                         other_labels_attributes_column_names=other_labels_attributes_column_names)
         elif self.task == 'segmentation':
             labels = RasterPolygonLabels(path=self.labels_path,
                                          associated_raster=self.raster,
                                          task='segmentation',
-                                         scale_factor=self.scale_factor)
+                                         scale_factor=self.scale_factor,
+                                         main_label_category_column_name=main_label_category_column_name,
+                                         other_labels_attributes_column_names=other_labels_attributes_column_names)
         else:
             raise NotImplementedError('An unsupported \'task\' value was provided.')
 
@@ -118,8 +124,8 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         """
         Generate COCO categories from the unique label categories in the dataset.
         """
-        if 'category' in self.labels.labels_gdf:
-            unique_categories = set(self.labels.labels_gdf['category'])
+        if self.labels.main_label_category_column_name:
+            unique_categories = set(self.labels.labels_gdf[self.labels.main_label_category_column_name])
             categories = [{'id': i + 1, 'name': category, 'supercategory': ''} for i, category in
                           enumerate(unique_categories)]
             self.category_id_map = {category: i + 1 for i, category in enumerate(unique_categories)}
@@ -169,6 +175,20 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         bbox = list(label['geometry'].bounds)
         bbox_coco_format = [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]]
 
+        # Finding the main category if any
+        if self.labels.main_label_category_column_name:
+            category_id = self.category_id_map[label[self.labels.main_label_category_column_name]]
+        else:
+            category_id = None
+
+        # Finding the other attributes if any
+        if self.labels.other_labels_attributes_column_names:
+            other_attributes_dict = {}
+            for attribute in self.labels.other_labels_attributes_column_names:
+                other_attributes_dict[attribute] = label[attribute]
+        else:
+            other_attributes_dict = None
+
         # Generate COCO annotation data from each associated label
         coco_annotation = {
             "segmentation": [segmentation],  # COCO expects a list of polygons, each a list of coordinates
@@ -177,7 +197,8 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
             "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
             "image_id": tile_id,
             "bbox": bbox_coco_format,
-            "category_id": self.category_id_map[label['category']] if 'category' in label else None,
+            "category_id": category_id,
+            "other_attributes": other_attributes_dict
         }
 
         return coco_annotation
@@ -236,4 +257,4 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
             with coco_output_file_path.open('w') as f:
                 json.dump(coco_dataset, f, ensure_ascii=False, indent=2)
 
-            print(f"COCO dataset(s) has been saved to {self.output_path}")
+            print(f"The COCO dataset for AOI '{aoi}' has been saved to {self.output_path}")
