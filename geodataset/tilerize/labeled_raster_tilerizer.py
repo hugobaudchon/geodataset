@@ -231,11 +231,9 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
                 "categories": categories_coco
             }
 
-            aoi_tiles_output_folder = self.tiles_path / aoi
-            aoi_tiles_output_folder.mkdir(exist_ok=False)
             # Save the tile images
             for tile in aois_tiles[aoi]:
-                tile.save(output_folder=aoi_tiles_output_folder)
+                tile.save(output_folder=self.tiles_path)
 
             coco_output_file_path = self.output_path / f'{self.dataset_name}_{aoi}_coco.json'
             # Save the COCO dataset to a JSON file

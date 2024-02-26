@@ -5,7 +5,7 @@ import rasterio
 from pathlib import Path
 from typing import cast
 
-from geodataset.aoi import AOIGenerator, AOIBase, AOIFromPackage
+from geodataset.aoi import AOIGenerator, AOIFromPackage
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
 from geodataset.geodata import Raster
 from geodataset.geodata.tile import Tile
@@ -156,10 +156,9 @@ class RasterTilerizer(BaseRasterTilerizer):
             if aoi == 'all' and len(aois_tiles.keys()) > 1:
                 # don't save the 'all' tiles if aois were provided.
                 continue
-            aoi_tiles_output_folder = self.tiles_path / aoi
-            aoi_tiles_output_folder.mkdir(exist_ok=False)
+
             # Save the tile images
             for tile in aois_tiles[aoi]:
-                tile.save(output_folder=aoi_tiles_output_folder)
+                tile.save(output_folder=self.tiles_path)
 
         print(f"The tiles has been saved to {self.tiles_path}.")
