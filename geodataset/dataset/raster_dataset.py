@@ -164,7 +164,7 @@ class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
                 bbox_coco = label['bbox']
                 bbox = box(*[bbox_coco[0], bbox_coco[1], bbox_coco[0] + bbox_coco[2], bbox_coco[1] + bbox_coco[3]])
             else:
-                segmentation = labels['segmentation']
+                segmentation = label['segmentation']
                 if ('is_rle_format' in label and label['is_rle_format']) or isinstance(segmentation, dict):
                     # RLE format
                     bbox = rle_segmentation_to_bbox(segmentation)

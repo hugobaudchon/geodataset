@@ -40,6 +40,8 @@ def polygon_to_coco_rle_mask(polygon: Polygon, tile_height: int, tile_width: int
     cv2.fillPoly(binary_mask, [contours], 1)
     binary_mask_fortran = np.asfortranarray(binary_mask)
     rle = mask_utils.encode(binary_mask_fortran)
+
+    # Encode the counts to base64 to be able to store it in a json file
     rle['counts'] = base64.b64encode(rle['counts']).decode('utf-8')  # JSON can't save bytes
     return rle
 
@@ -48,6 +50,11 @@ def rle_segmentation_to_bbox(segmentation: dict) -> box:
     """
     Calculates the bounding box from a binary mask.
     """
+    # Decode the counts from base64
+    if 'counts' in segmentation and isinstance(segmentation['counts'], str):
+        counts = base64.b64decode(segmentation['counts'])
+        segmentation['counts'] = counts
+
     mask = mask_utils.decode(segmentation)
     rows = np.any(mask, axis=1)
     cols = np.any(mask, axis=0)
