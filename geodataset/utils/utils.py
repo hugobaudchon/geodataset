@@ -14,11 +14,20 @@ from rasterio.enums import Resampling
 from shapely import Polygon
 
 
-def polygon_to_coco_coordinates(polygon: Polygon):
+def polygon_to_coco_coordinates(polygon: Polygon or MultiPolygon):
     """
         Encodes a polygon into a list of coordinates supported by COCO.
     """
-    return [coord for xy in polygon.exterior.coords[:-1] for coord in xy]
+    if type(polygon) is Polygon:
+        coordinates = [coord for xy in polygon.exterior.coords[:-1] for coord in xy]
+    elif type(polygon) is MultiPolygon:
+        coordinates = []
+        for geom in polygon.geoms:
+            coordinates.append([coord for xy in geom.exterior.coords[:-1] for coord in xy])
+    else:
+        raise Exception(f"The polygon is not a shapely.Polygon or shapely.MultiPolygon. It is a {type(polygon)}.")
+
+    return coordinates
 
 
 def polygon_to_coco_rle_mask(polygon: Polygon, tile_height: int, tile_width: int) -> dict:
