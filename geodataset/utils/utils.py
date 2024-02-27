@@ -10,8 +10,9 @@ import shapely
 from matplotlib import pyplot as plt, patches as patches
 from matplotlib.colors import ListedColormap
 from pycocotools import mask as mask_utils
+
 from rasterio.enums import Resampling
-from shapely import Polygon
+from shapely import Polygon, box, MultiPolygon
 
 
 def polygon_to_coco_coordinates(polygon: Polygon or MultiPolygon):
@@ -19,7 +20,7 @@ def polygon_to_coco_coordinates(polygon: Polygon or MultiPolygon):
         Encodes a polygon into a list of coordinates supported by COCO.
     """
     if type(polygon) is Polygon:
-        coordinates = [coord for xy in polygon.exterior.coords[:-1] for coord in xy]
+        coordinates = [[coord for xy in polygon.exterior.coords[:-1] for coord in xy]]
     elif type(polygon) is MultiPolygon:
         coordinates = []
         for geom in polygon.geoms:
