@@ -1,8 +1,5 @@
 from abc import ABC, abstractmethod
-from pathlib import Path, WindowsPath
-
-import geopandas as gpd
-from shapely import MultiPolygon, Polygon
+from pathlib import Path, WindowsPath, PosixPath
 
 
 class AOIConfig(ABC):
