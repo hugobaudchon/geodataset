@@ -44,6 +44,35 @@ def polygon_to_coco_rle_mask(polygon: Polygon, tile_height: int, tile_width: int
     return rle
 
 
+def rle_segmentation_to_bbox(segmentation: dict) -> box:
+    """
+    Calculates the bounding box from a binary mask.
+    """
+    mask = mask_utils.decode(segmentation)
+    rows = np.any(mask, axis=1)
+    cols = np.any(mask, axis=0)
+    ymin, ymax = np.where(rows)[0][[0, -1]]
+    xmin, xmax = np.where(cols)[0][[0, -1]]
+
+    return box(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
+
+
+def polygon_segmentation_to_bbox(segmentation: list) -> box:
+    """
+    Calculates the bounding box from a polygon.
+    """
+    polygons = []
+    for polygon_coords in segmentation:
+        # Reshape the flat list of coords into a list of (x, y) tuples
+        it = iter(polygon_coords)
+        polygon = Polygon([(x, y) for x, y in zip(it, it)])
+        polygons.append(polygon)
+
+    # Create a MultiPolygon from the list of Polygon objects
+    multipolygon = MultiPolygon(polygons)
+    return box(*multipolygon.bounds)
+
+
 def get_tiles_array(tiles: list, tile_coordinate_step: int):
     """
     :param tiles: a list of Tile

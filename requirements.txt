@@ -1,10 +1,11 @@
+albumentations==1.4.0
 einops==0.7.0
 geopandas==0.13.2
 laspy==2.5.3
 lazrs==0.5.3
 matplotlib==3.8.2
 numpy==1.25.0
-opencv-python-headless==4.9.0.80
+opencv-python==4.9.0.80
 pandas==2.2.0
 Pillow==10.2.0
 pycocotools==2.0.7
