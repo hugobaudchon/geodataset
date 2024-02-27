@@ -24,7 +24,7 @@ class AOIFromPackageConfig(AOIConfig):
             assert type(aoi_name) is str, (
                 f"The keys in aois should be string, for the name of the aoi (train, valid, test...)."
                 f" Found {aoi_name} which is not a string.")
-            assert type(aoi_path) in [Path, WindowsPath], \
+            assert type(aoi_path) in [Path, PosixPath, WindowsPath], \
                 f"The value associated to aoi {aoi_name} is not a pathlib.Path. Got value {type(aoi_path)}."
 
 
