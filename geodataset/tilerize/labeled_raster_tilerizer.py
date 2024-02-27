@@ -153,7 +153,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
             # Convert the polygon's exterior coordinates to the format expected by COCO
             segmentation = polygon_to_coco_coordinates(polygon=label['geometry'])
 
-            # Calculate the area of the polygon
+        # Calculate the area of the polygon
         area = label['geometry'].area
 
         # Get the bounding box in COCO format: [x, y, width, height]
@@ -176,7 +176,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
 
         # Generate COCO annotation data from each associated label
         coco_annotation = {
-            "segmentation": [segmentation],  # COCO expects a list of polygons, each a list of coordinates
+            "segmentation": segmentation,
             "is_rle_format": self.use_rle_for_labels,
             "area": area,
             "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
@@ -231,11 +231,9 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
                 "categories": categories_coco
             }
 
-            aoi_tiles_output_folder = self.tiles_path / aoi
-            aoi_tiles_output_folder.mkdir(exist_ok=False)
             # Save the tile images
             for tile in aois_tiles[aoi]:
-                tile.save(output_folder=aoi_tiles_output_folder)
+                tile.save(output_folder=self.tiles_path)
 
             coco_output_file_path = self.output_path / f'{self.dataset_name}_{aoi}_coco.json'
             # Save the COCO dataset to a JSON file

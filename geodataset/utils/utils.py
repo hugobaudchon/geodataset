@@ -10,15 +10,25 @@ import shapely
 from matplotlib import pyplot as plt, patches as patches
 from matplotlib.colors import ListedColormap
 from pycocotools import mask as mask_utils
+
 from rasterio.enums import Resampling
-from shapely import Polygon
+from shapely import Polygon, box, MultiPolygon
 
 
-def polygon_to_coco_coordinates(polygon: Polygon):
+def polygon_to_coco_coordinates(polygon: Polygon or MultiPolygon):
     """
         Encodes a polygon into a list of coordinates supported by COCO.
     """
-    return [coord for xy in polygon.exterior.coords[:-1] for coord in xy]
+    if type(polygon) is Polygon:
+        coordinates = [[coord for xy in polygon.exterior.coords[:-1] for coord in xy]]
+    elif type(polygon) is MultiPolygon:
+        coordinates = []
+        for geom in polygon.geoms:
+            coordinates.append([coord for xy in geom.exterior.coords[:-1] for coord in xy])
+    else:
+        raise Exception(f"The polygon is not a shapely.Polygon or shapely.MultiPolygon. It is a {type(polygon)}.")
+
+    return coordinates
 
 
 def polygon_to_coco_rle_mask(polygon: Polygon, tile_height: int, tile_width: int) -> dict:
@@ -30,8 +40,44 @@ def polygon_to_coco_rle_mask(polygon: Polygon, tile_height: int, tile_width: int
     cv2.fillPoly(binary_mask, [contours], 1)
     binary_mask_fortran = np.asfortranarray(binary_mask)
     rle = mask_utils.encode(binary_mask_fortran)
+
+    # Encode the counts to base64 to be able to store it in a json file
     rle['counts'] = base64.b64encode(rle['counts']).decode('utf-8')  # JSON can't save bytes
     return rle
+
+
+def rle_segmentation_to_bbox(segmentation: dict) -> box:
+    """
+    Calculates the bounding box from a binary mask.
+    """
+    # Decode the counts from base64
+    if 'counts' in segmentation and isinstance(segmentation['counts'], str):
+        counts = base64.b64decode(segmentation['counts'])
+        segmentation['counts'] = counts
+
+    mask = mask_utils.decode(segmentation)
+    rows = np.any(mask, axis=1)
+    cols = np.any(mask, axis=0)
+    ymin, ymax = np.where(rows)[0][[0, -1]]
+    xmin, xmax = np.where(cols)[0][[0, -1]]
+
+    return box(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
+
+
+def polygon_segmentation_to_bbox(segmentation: list) -> box:
+    """
+    Calculates the bounding box from a polygon.
+    """
+    polygons = []
+    for polygon_coords in segmentation:
+        # Reshape the flat list of coords into a list of (x, y) tuples
+        it = iter(polygon_coords)
+        polygon = Polygon([(x, y) for x, y in zip(it, it)])
+        polygons.append(polygon)
+
+    # Create a MultiPolygon from the list of Polygon objects
+    multipolygon = MultiPolygon(polygons)
+    return box(*multipolygon.bounds)
 
 
 def get_tiles_array(tiles: list, tile_coordinate_step: int):
