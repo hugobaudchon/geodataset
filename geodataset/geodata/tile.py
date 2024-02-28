@@ -87,11 +87,6 @@ class Tile:
             "width": width,
             "height": height,
             "file_name": file_name,
-            "crs": {
-                "format": ("EPSG" if crs.to_epsg() else "WKT") if crs else None,
-                "value": (crs.to_epsg() if crs.to_epsg() else crs.to_wkt()) if crs else None
-            },
-            "affine_transform": tuple(transform) if transform else None
         }
 
         return coco_image
