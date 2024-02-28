@@ -14,14 +14,14 @@ from geodataset.labels.raster_labels import RasterPolygonLabels
 
 from datetime import date
 
-from geodataset.utils import polygon_to_coco_coordinates, polygon_to_coco_rle_mask, save_aois_tiles_picture
+from geodataset.utils import polygon_to_coco_coordinates, polygon_to_coco_rle_mask, save_aois_tiles_picture, \
+    CocoNameConvention, AoiTilesImageConvention
 from geodataset.tilerize import BaseRasterTilerizer
 
 
 class LabeledRasterTilerizer(BaseRasterTilerizer):
 
     def __init__(self,
-                 dataset_name: str,
                  raster_path: Path,
                  labels_path: Path,
                  output_path: Path,
@@ -49,8 +49,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         ignore_black_white_alpha_tiles_threshold: bool,
             Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
         """
-        super().__init__(dataset_name=dataset_name,
-                         raster_path=raster_path,
+        super().__init__(raster_path=raster_path,
                          output_path=output_path,
                          scale_factor=scale_factor,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
@@ -196,7 +195,10 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
 
         tile_coordinate_step = int((1 - overlap) * tile_size)
         save_aois_tiles_picture(aois_tiles=aois_tiles,
-                                save_path=self.output_path / 'aois_tiles.png',
+                                save_path=self.output_path / AoiTilesImageConvention.create_name(
+                                    product_name=self.product_name,
+                                    scale_factor=self.scale_factor
+                                ),
                                 tile_coordinate_step=tile_coordinate_step)
 
         for aoi in aois_tiles:
@@ -206,19 +208,17 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
 
             tiles = aois_tiles[aoi]
             aoi_tiles_intersecting_labels = self._find_associated_labels(tiles=tiles)
-
             categories_coco = self._generate_coco_categories()
-
             images_coco, annotations_coco = self._generate_coco_images_and_labels_annotations(
                 tiles,
                 intersecting_labels=aoi_tiles_intersecting_labels
             )
-
             # Assemble the COCO dataset
             coco_dataset = {
                 "info": {
-                    "description": f"{self.dataset_name}",
-                    "dataset_name": self.dataset_name,
+                    "description": f"Dataset for the product {self.product_name}"
+                                   f" with fold {aoi} and scale_factor {self.scale_factor}",
+                    "dataset_name": self.product_name,
                     "version": "1.0",
                     "year": str(date.today().year),
                     "date_created": str(date.today())
@@ -235,7 +235,9 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
             for tile in aois_tiles[aoi]:
                 tile.save(output_folder=self.tiles_path)
 
-            coco_output_file_path = self.output_path / f'{self.dataset_name}_{aoi}_coco.json'
+            coco_output_file_path = self.output_path / CocoNameConvention.create_name(product_name=self.product_name,
+                                                                                      scale_factor=self.scale_factor,
+                                                                                      fold=aoi)
             # Save the COCO dataset to a JSON file
             with coco_output_file_path.open('w') as f:
                 json.dump(coco_dataset, f, ensure_ascii=False, indent=2)

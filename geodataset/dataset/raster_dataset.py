@@ -9,7 +9,8 @@ import numpy as np
 import rasterio
 from shapely import box
 
-from geodataset.utils import rle_segmentation_to_bbox, polygon_segmentation_to_bbox, display_image_with_polygons
+from geodataset.utils import rle_segmentation_to_bbox, polygon_segmentation_to_bbox, display_image_with_polygons, \
+    CocoNameConvention
 
 
 class LabeledRasterCocoDataset(ABC):
@@ -28,12 +29,17 @@ class LabeledRasterCocoDataset(ABC):
         self.transform = transform
         self.tiles = {}
         self.tiles_path_to_id_mapping = {}  # Mapping old image IDs to new ones to ensure uniqueness
+        self.cocos_detected = []
 
         self._load_coco_datasets(directory=self.root_path)
         self._find_tiles_paths(directory=self.root_path)
         self._remove_tiles_not_found()
 
-        assert len(self) > 0, "The dataset didn't find any COCO file in the provided root folder for the specified fold."
+        if len(self.cocos_detected) == 0:
+            raise Exception(f"No COCO datasets for fold {self.fold} were found in the specified root folder.")
+        elif len(self.cocos_detected) > 0 and len(self) == 0:
+            raise Exception(f"Could not find find any tiles associated with the COCO files found."
+                            f" COCO files found: {self.cocos_detected}.")
 
     def _load_coco_datasets(self, directory: Path):
         """
@@ -41,8 +47,13 @@ class LabeledRasterCocoDataset(ABC):
         """
 
         for path in directory.iterdir():
-            if path.is_file() and path.name.endswith(f"{self.fold}_coco.json"):
-                self._load_coco_json(json_path=path)
+            if path.is_file() and path.name.endswith(f".json"):
+                try:
+                    product_name, scale_factor, fold = CocoNameConvention.parse_name(path.name)
+                    if fold == self.fold:
+                        self._load_coco_json(json_path=path)
+                except ValueError:
+                    return
             elif path.is_dir() and path.name != 'tiles':
                 self._load_coco_datasets(directory=path)
 
@@ -57,6 +68,7 @@ class LabeledRasterCocoDataset(ABC):
         with open(json_path) as f:
             coco_data = json.load(f)
         self._reindex_coco_data(coco_data=coco_data)
+        self.cocos_detected.append(json_path)
 
     def _reindex_coco_data(self, coco_data: dict):
         """

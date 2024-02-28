@@ -50,8 +50,7 @@ from pathlib import Path
 from geodataset.tilerize import RasterTilerizer
 
 
-tilerizer = RasterTilerizer(dataset_name='TilesOnlyCarlosVeraArteagaRLE',
-                            raster_path=Path('/Data/raw/wwf_ecuador/RGB Orthomosaics/Carlos Vera Arteaga RGB.tif'),
+tilerizer = RasterTilerizer(raster_path=Path('/Data/raw/wwf_ecuador/RGB Orthomosaics/Carlos Vera Arteaga RGB.tif'),
                             output_path=Path('/Data/pre_processed/test'),
                             scale_factor=0.2,
                             ignore_black_white_alpha_tiles_threshold=0.8   # optional
@@ -72,8 +71,7 @@ from pathlib import Path
 from geodataset.tilerize import LabeledRasterTilerizer
 
 
-tilerizer = LabeledRasterTilerizer(dataset_name='quebectreesZ1',
-                                   raster_path=Path('Data/raw/quebec_trees_dataset_2021-09-02/2021-09-02/zone1/2021-09-02-sbl-z1-rgb-cog.tif'),
+tilerizer = LabeledRasterTilerizer(raster_path=Path('Data/raw/quebec_trees_dataset_2021-09-02/2021-09-02/zone1/2021-09-02-sbl-z1-rgb-cog.tif'),
                                    labels_path=Path('Data/raw/quebec_trees_dataset_2021-09-02/Z1_polygons.gpkg'),
                                    output_path=Path('Data/pre_processed/test'),
                                    scale_factor=0.5,                                # optional

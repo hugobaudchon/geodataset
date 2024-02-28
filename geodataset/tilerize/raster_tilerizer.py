@@ -9,12 +9,11 @@ from geodataset.aoi import AOIGenerator, AOIFromPackage
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
 from geodataset.geodata import Raster
 from geodataset.geodata.tile import Tile
-from geodataset.utils import save_aois_tiles_picture
+from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention, validate_and_convert_product_name
 
 
 class BaseRasterTilerizer(ABC):
     def __init__(self,
-                 dataset_name: str,
                  raster_path: Path,
                  output_path: Path,
                  scale_factor: float = 1.0,
@@ -29,12 +28,12 @@ class BaseRasterTilerizer(ABC):
         ignore_black_white_alpha_tiles_threshold: bool,
             Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
         """
-        self.dataset_name = dataset_name
         self.raster_path = raster_path
+        self.product_name = validate_and_convert_product_name(raster_path.stem)
         self.scale_factor = scale_factor
         self.ignore_black_white_alpha_tiles_threshold = ignore_black_white_alpha_tiles_threshold
 
-        self.output_path = output_path / self.dataset_name
+        self.output_path = output_path / self.product_name
         self.tiles_path = self.output_path / 'tiles'
         self.tiles_path.mkdir(parents=True, exist_ok=True)
 
@@ -63,7 +62,7 @@ class BaseRasterTilerizer(ABC):
             for col in range(0, width, int((1 - overlap) * tile_size)):
                 window = rasterio.windows.Window(col, row, tile_size, tile_size)
                 tile = self.raster.get_tile(window=window,
-                                            dataset_name=self.dataset_name,
+                                            product_name=self.product_name,
                                             tile_id=tile_id_counter)
 
                 if self._check_skip_tile(tile=tile, tile_size=tile_size):
@@ -130,13 +129,11 @@ class BaseRasterTilerizer(ABC):
 
 class RasterTilerizer(BaseRasterTilerizer):
     def __init__(self,
-                 dataset_name: str,
                  raster_path: Path,
                  output_path: Path,
                  scale_factor: float = 1.0,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8):
-        super().__init__(dataset_name=dataset_name,
-                         raster_path=raster_path,
+        super().__init__(raster_path=raster_path,
                          output_path=output_path,
                          scale_factor=scale_factor,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
@@ -149,7 +146,10 @@ class RasterTilerizer(BaseRasterTilerizer):
 
         tile_coordinate_step = int((1 - overlap) * tile_size)
         save_aois_tiles_picture(aois_tiles=aois_tiles,
-                                save_path=self.output_path / 'aois_tiles.png',
+                                save_path=self.output_path / AoiTilesImageConvention.create_name(
+                                    product_name=self.product_name,
+                                    scale_factor=self.scale_factor
+                                ),
                                 tile_coordinate_step=tile_coordinate_step)
 
         for aoi in aois_tiles:
