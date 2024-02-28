@@ -12,19 +12,16 @@ from ..utils import get_tiles_array
 class AOIGenerator(AOIBase):
     def __init__(self,
                  tiles: List[Tile],
-                 tile_size: int,
-                 tile_overlap: float,
+                 tile_coordinate_step: int,
                  aois_config: AOIGeneratorConfig):
         """
         :param aois_config: An instanced AOIGeneratorConfig.
         """
 
         super().__init__(tiles=tiles,
-                         tile_size=tile_size,
-                         tile_overlap=tile_overlap,
+                         tile_coordinate_step=tile_coordinate_step,
                          aois_config=aois_config)
 
-        self.tile_coordinate_step = int((1 - self.tile_overlap) * self.tile_size)
         self.tiles_array = get_tiles_array(tiles=self.tiles, tile_coordinate_step=self.tile_coordinate_step)
         self.n_tiles = len(tiles)
 
@@ -38,7 +35,11 @@ class AOIGenerator(AOIBase):
         sorted_aois = {k: v for k, v in sorted(self.aois.items(), key=lambda item: (float('inf'),) if item[1]['position'] is None else (item[1]['position'],))}
         aois_tiles = {}
         for key in sorted_aois:
-            max_n_tiles_in_aoi = int(sorted_aois[key]['percentage'] * self.n_tiles)
+            max_n_tiles_in_aoi = np.round(sorted_aois[key]['percentage'] * self.n_tiles)
+            n_tiles_left = np.sum(self.tiles_array[self.tiles_array == 1])
+            if max_n_tiles_in_aoi > n_tiles_left:
+                max_n_tiles_in_aoi = n_tiles_left
+
             if self.aoi_type == "corner":
                 aoi_array = self._get_corner_aoi_array(max_n_tiles_in_aoi=max_n_tiles_in_aoi,
                                                        forced_position=sorted_aois[key]['percentage'])
@@ -51,7 +52,7 @@ class AOIGenerator(AOIBase):
             # Finding associated tile objects and storing them in a dict
             aois_tiles[key] = []
             for tile in self.tiles:
-                if aoi_array[int(tile.col/self.tile_coordinate_step), int(tile.row/self.tile_coordinate_step)] == 2:
+                if aoi_array[int(tile.row/self.tile_coordinate_step), int(tile.col/self.tile_coordinate_step)] == 2:
                     aois_tiles[key].append(tile)
 
             # Setting tiles already assigned to an AOI as 0 so that they don't get assigned again.

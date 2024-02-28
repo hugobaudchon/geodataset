@@ -31,13 +31,25 @@ def polygon_to_coco_coordinates(polygon: Polygon or MultiPolygon):
     return coordinates
 
 
-def polygon_to_coco_rle_mask(polygon: Polygon, tile_height: int, tile_width: int) -> dict:
+def polygon_to_coco_rle_mask(polygon: Polygon or MultiPolygon, tile_height: int, tile_width: int) -> dict:
     """
-    Encodes a polygon into an RLE mask.
+    Encodes a Polygon or MultiPolygon object into an RLE mask.
     """
-    contours = np.array(polygon.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
     binary_mask = np.zeros((tile_height, tile_width), dtype=np.uint8)
-    cv2.fillPoly(binary_mask, [contours], 1)
+
+    # Function to process each polygon
+    def process_polygon(p):
+        contours = np.array(p.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
+        cv2.fillPoly(binary_mask, [contours], 1)
+
+    if isinstance(polygon, Polygon):
+        process_polygon(polygon)
+    elif isinstance(polygon, MultiPolygon):
+        for polygon in polygon.geoms:
+            process_polygon(polygon)
+    else:
+        raise TypeError("Geometry must be a Polygon or MultiPolygon")
+
     binary_mask_fortran = np.asfortranarray(binary_mask)
     rle = mask_utils.encode(binary_mask_fortran)
 
@@ -86,19 +98,19 @@ def get_tiles_array(tiles: list, tile_coordinate_step: int):
     :param tile_coordinate_step: usually = (1 - tile_overlap) * tile_size
     :return: a binary grid array with 0 if no tile and 1 if tile
     """
-    coordinates = [(int(tile.col / tile_coordinate_step),
-                    int(tile.row / tile_coordinate_step)) for tile in tiles]
+    numpy_coordinates = [(int(tile.row / tile_coordinate_step),
+                          int(tile.col / tile_coordinate_step)) for tile in tiles]
 
     # Determine dimensions based on coordinates if not provided
-    max_x = max(coordinates, key=lambda coord: coord[0])[0] if coordinates else 0
-    max_y = max(coordinates, key=lambda coord: coord[1])[1] if coordinates else 0
+    max_x = max(numpy_coordinates, key=lambda coord: coord[0])[0] if numpy_coordinates else 0
+    max_y = max(numpy_coordinates, key=lambda coord: coord[1])[1] if numpy_coordinates else 0
     dimensions = (max_x + 1, max_y + 1)
 
     # Create an array of zeros with the determined dimensions
     array = np.zeros(dimensions, dtype=int)
 
     # Mark the coordinates in the array
-    for x, y in coordinates:
+    for x, y in numpy_coordinates:
         if x < dimensions[0] and y < dimensions[1]:
             array[x, y] = 1
 
@@ -207,9 +219,9 @@ def save_aois_tiles_picture(aois_tiles: dict[str, list], save_path: Path, tile_c
             continue
 
         for tile in aois_tiles[aoi]:
-            tile_x = int(tile.col / tile_coordinate_step)
-            tile_y = int(tile.row / tile_coordinate_step)
-            display_array[tile_x, tile_y] = idx + 1
+            tile_x_numpy = int(tile.row / tile_coordinate_step)
+            tile_y_numpy = int(tile.col / tile_coordinate_step)
+            display_array[tile_x_numpy, tile_y_numpy] = idx + 1
 
         base_cmap.append(colors[idx-1])
         color_labels.append(aoi)  # Use the dict key as the label

@@ -50,16 +50,16 @@ from pathlib import Path
 from geodataset.tilerize import RasterTilerizer
 
 
-tilerizer = RasterTilerizer(dataset_name='TilesOnlyCarlosVeraArteagaRLE',
-                            raster_path=Path('/Data/raw/wwf_ecuador/RGB Orthomosaics/Carlos Vera Arteaga RGB.tif'),
+tilerizer = RasterTilerizer(raster_path=Path('/Data/raw/wwf_ecuador/RGB Orthomosaics/Carlos Vera Arteaga RGB.tif'),
                             output_path=Path('/Data/pre_processed/test'),
+                            tile_size=1024,
+                            tile_overlap=0.5,
+                            aois_config=aoi_gen_config,
                             scale_factor=0.2,
                             ignore_black_white_alpha_tiles_threshold=0.8   # optional
                             )
 
-tilerizer.generate_tiles(tile_size=1024,
-                         overlap=0.5,
-                         aois_config=aoi_gen_config)
+tilerizer.generate_tiles()
 ```
 
 ### Labeled Raster
@@ -72,10 +72,12 @@ from pathlib import Path
 from geodataset.tilerize import LabeledRasterTilerizer
 
 
-tilerizer = LabeledRasterTilerizer(dataset_name='quebectreesZ1',
-                                   raster_path=Path('Data/raw/quebec_trees_dataset_2021-09-02/2021-09-02/zone1/2021-09-02-sbl-z1-rgb-cog.tif'),
+tilerizer = LabeledRasterTilerizer(raster_path=Path('Data/raw/quebec_trees_dataset_2021-09-02/2021-09-02/zone1/2021-09-02-sbl-z1-rgb-cog.tif'),
                                    labels_path=Path('Data/raw/quebec_trees_dataset_2021-09-02/Z1_polygons.gpkg'),
                                    output_path=Path('Data/pre_processed/test'),
+                                   tile_size=1024,
+                                   tile_overlap=0.5,
+                                   aois_config=aoi_gpkg_config,
                                    scale_factor=0.5,                                # optional
                                    use_rle_for_labels=True,                         # optional
                                    min_intersection_ratio=0.9,                      # optional
@@ -85,8 +87,5 @@ tilerizer = LabeledRasterTilerizer(dataset_name='quebectreesZ1',
                                    other_labels_attributes_column_names=None        # optional
                                    )
                                    
-tilerizer.generate_coco_dataset(tile_size=1024,
-                                overlap=0.5,
-                                start_counter_tile=0,
-                                aois_config=aoi_gpkg_config)
+tilerizer.generate_coco_dataset()
 ```

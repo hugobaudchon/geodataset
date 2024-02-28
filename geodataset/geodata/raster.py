@@ -43,7 +43,7 @@ class Raster(BaseGeoData):
 
     def get_tile(self,
                  window: rasterio.windows.Window,
-                 dataset_name: str,
+                 product_name: str,
                  tile_id: int or None) -> Tile or None:
         tile_data = self.data[
                     :,
@@ -69,7 +69,7 @@ class Raster(BaseGeoData):
             'transform': window_transform
         }
 
-        tile = Tile(data=tile_data, metadata=tile_metadata, dataset_name=dataset_name,
+        tile = Tile(data=tile_data, metadata=tile_metadata, product_name=product_name, scale_factor=self.scale_factor,
                     row=window.row_off, col=window.col_off, tile_id=tile_id)
 
         return tile
