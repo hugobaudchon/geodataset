@@ -98,19 +98,19 @@ def get_tiles_array(tiles: list, tile_coordinate_step: int):
     :param tile_coordinate_step: usually = (1 - tile_overlap) * tile_size
     :return: a binary grid array with 0 if no tile and 1 if tile
     """
-    coordinates = [(int(tile.col / tile_coordinate_step),
-                    int(tile.row / tile_coordinate_step)) for tile in tiles]
+    numpy_coordinates = [(int(tile.row / tile_coordinate_step),
+                          int(tile.col / tile_coordinate_step)) for tile in tiles]
 
     # Determine dimensions based on coordinates if not provided
-    max_x = max(coordinates, key=lambda coord: coord[0])[0] if coordinates else 0
-    max_y = max(coordinates, key=lambda coord: coord[1])[1] if coordinates else 0
+    max_x = max(numpy_coordinates, key=lambda coord: coord[0])[0] if numpy_coordinates else 0
+    max_y = max(numpy_coordinates, key=lambda coord: coord[1])[1] if numpy_coordinates else 0
     dimensions = (max_x + 1, max_y + 1)
 
     # Create an array of zeros with the determined dimensions
     array = np.zeros(dimensions, dtype=int)
 
     # Mark the coordinates in the array
-    for x, y in coordinates:
+    for x, y in numpy_coordinates:
         if x < dimensions[0] and y < dimensions[1]:
             array[x, y] = 1
 
