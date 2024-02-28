@@ -12,8 +12,7 @@ from geodataset.geodata import Tile, Raster
 class AOIFromPackage(AOIBase):
     def __init__(self,
                  tiles: List[Tile],
-                 tile_size: int,
-                 tile_overlap: float,
+                 tile_coordinate_step: int,
                  aois_config: AOIFromPackageConfig,
                  associated_raster: Raster,
                  scale_factor: float):
@@ -21,8 +20,7 @@ class AOIFromPackage(AOIBase):
         :param aois_config: An instanced AOIFromPackageConfig.
         """
         super().__init__(tiles=tiles,
-                         tile_size=tile_size,
-                         tile_overlap=tile_overlap,
+                         tile_coordinate_step=tile_coordinate_step,
                          aois_config=aois_config)
 
         self.associated_raster = associated_raster

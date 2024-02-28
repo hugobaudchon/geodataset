@@ -8,15 +8,13 @@ from geodataset.geodata import Tile
 class AOIBase(ABC):
     def __init__(self,
                  tiles: List[Tile],
-                 tile_size: int,
-                 tile_overlap: float,
+                 tile_coordinate_step: int,
                  aois_config: AOIConfig):
         """
         :param aois_config: An instanced AOIConfig.
         """
         self.tiles = tiles
-        self.tile_size = tile_size
-        self.tile_overlap = tile_overlap
+        self.tile_coordinate_step = tile_coordinate_step
         self.aois_config = aois_config
 
     @abstractmethod

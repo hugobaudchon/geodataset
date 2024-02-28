@@ -219,9 +219,9 @@ def save_aois_tiles_picture(aois_tiles: dict[str, list], save_path: Path, tile_c
             continue
 
         for tile in aois_tiles[aoi]:
-            tile_x = int(tile.col / tile_coordinate_step)
-            tile_y = int(tile.row / tile_coordinate_step)
-            display_array[tile_x, tile_y] = idx + 1
+            tile_x_numpy = int(tile.row / tile_coordinate_step)
+            tile_y_numpy = int(tile.col / tile_coordinate_step)
+            display_array[tile_x_numpy, tile_y_numpy] = idx + 1
 
         base_cmap.append(colors[idx-1])
         color_labels.append(aoi)  # Use the dict key as the label
