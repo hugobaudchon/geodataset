@@ -31,13 +31,25 @@ def polygon_to_coco_coordinates(polygon: Polygon or MultiPolygon):
     return coordinates
 
 
-def polygon_to_coco_rle_mask(polygon: Polygon, tile_height: int, tile_width: int) -> dict:
+def polygon_to_coco_rle_mask(polygon: Polygon or MultiPolygon, tile_height: int, tile_width: int) -> dict:
     """
-    Encodes a polygon into an RLE mask.
+    Encodes a Polygon or MultiPolygon object into an RLE mask.
     """
-    contours = np.array(polygon.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
     binary_mask = np.zeros((tile_height, tile_width), dtype=np.uint8)
-    cv2.fillPoly(binary_mask, [contours], 1)
+
+    # Function to process each polygon
+    def process_polygon(p):
+        contours = np.array(p.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
+        cv2.fillPoly(binary_mask, [contours], 1)
+
+    if isinstance(polygon, Polygon):
+        process_polygon(polygon)
+    elif isinstance(polygon, MultiPolygon):
+        for polygon in polygon.geoms:
+            process_polygon(polygon)
+    else:
+        raise TypeError("Geometry must be a Polygon or MultiPolygon")
+
     binary_mask_fortran = np.asfortranarray(binary_mask)
     rle = mask_utils.encode(binary_mask_fortran)
 
