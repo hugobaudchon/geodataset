@@ -16,6 +16,9 @@ class BaseRasterTilerizer(ABC):
     def __init__(self,
                  raster_path: Path,
                  output_path: Path,
+                 tile_size: int,
+                 tile_overlap: float,
+                 aois_config: AOIConfig = None,
                  scale_factor: float = 1.0,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8):
         """
@@ -23,6 +26,12 @@ class BaseRasterTilerizer(ABC):
             Path to the raster (.tif, .png...).
         output_path: Path,
             Path to parent folder where to save the image tiles and associated labels.
+        tile_size: int,
+            The wanted size of the tiles (tile_size, tile_size).
+        tile_overlap: float,
+            The overlap between the tiles (should be 0 <= overlap < 1).
+        aois_config: AOIConfig or None,
+            An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
         scale_factor: float,
             Scale factor for rescaling the data (change pixel resolution).
         ignore_black_white_alpha_tiles_threshold: bool,
@@ -30,7 +39,11 @@ class BaseRasterTilerizer(ABC):
         """
         self.raster_path = raster_path
         self.product_name = validate_and_convert_product_name(raster_path.stem)
+        self.tile_size = tile_size
+        self.tile_overlap = tile_overlap
+        self.tile_coordinate_step = int((1 - self.tile_overlap) * self.tile_size)
         self.scale_factor = scale_factor
+        self.aois_config = aois_config
         self.ignore_black_white_alpha_tiles_threshold = ignore_black_white_alpha_tiles_threshold
 
         self.output_path = output_path / self.product_name
@@ -44,28 +57,25 @@ class BaseRasterTilerizer(ABC):
                         scale_factor=self.scale_factor)
         return raster
 
-    def _create_tiles(self,
-                      tile_size: int,
-                      overlap: float,
-                      start_counter_tile: int) -> List[Tile]:
+    def _create_tiles(self) -> List[Tile]:
         width = self.raster.metadata['width']
         height = self.raster.metadata['height']
 
         print('Raster size: ', (height, width))
-        print('Desired tile size: ', tile_size)
+        print('Desired tile size: ', self.tile_size)
         print('Creating tiles and finding their associated labels...')
 
-        tile_id_counter = start_counter_tile
+        tile_id_counter = 0
         tiles = []
-        for row in range(0, height, int((1 - overlap) * tile_size)):
+        for row in range(0, height, self.tile_coordinate_step):
             print(f'\t Row {row}/{height}')
-            for col in range(0, width, int((1 - overlap) * tile_size)):
-                window = rasterio.windows.Window(col, row, tile_size, tile_size)
+            for col in range(0, width, self.tile_coordinate_step):
+                window = rasterio.windows.Window(col, row, width=self.tile_size, height=self.tile_size)
                 tile = self.raster.get_tile(window=window,
                                             product_name=self.product_name,
                                             tile_id=tile_id_counter)
 
-                if self._check_skip_tile(tile=tile, tile_size=tile_size):
+                if self._check_skip_tile(tile=tile, tile_size=self.tile_size):
                     continue
 
                 tiles.append(tile)
@@ -73,29 +83,20 @@ class BaseRasterTilerizer(ABC):
 
         return tiles
 
-    def _get_tiles_per_aoi(self,
-                           aois_config: AOIConfig,
-                           tile_size: int,
-                           overlap: float,
-                           start_counter_tile: int):
-
-        tiles = self._create_tiles(tile_size=tile_size, overlap=overlap, start_counter_tile=start_counter_tile)
-
-        if aois_config is not None:
-            if type(aois_config) is AOIGeneratorConfig:
+    def _get_tiles_per_aoi(self, tiles: List[Tile]):
+        if self.aois_config is not None:
+            if type(self.aois_config) is AOIGeneratorConfig:
                 aoi_engine = AOIGenerator(tiles=tiles,
-                                          tile_size=tile_size,
-                                          tile_overlap=overlap,
-                                          aois_config=cast(AOIGeneratorConfig, aois_config))
-            elif type(aois_config) is AOIFromPackageConfig:
+                                          tile_coordinate_step=self.tile_coordinate_step,
+                                          aois_config=cast(AOIGeneratorConfig, self.aois_config))
+            elif type(self.aois_config) is AOIFromPackageConfig:
                 aoi_engine = AOIFromPackage(tiles=tiles,
-                                            tile_size=tile_size,
-                                            tile_overlap=overlap,
-                                            aois_config=cast(AOIFromPackageConfig, aois_config),
+                                            tile_coordinate_step=self.tile_coordinate_step,
+                                            aois_config=cast(AOIFromPackageConfig, self.aois_config),
                                             associated_raster=self.raster,
                                             scale_factor=self.scale_factor)
             else:
-                raise Exception(f'aois_config type unsupported: {type(aois_config)}')
+                raise Exception(f'aois_config type unsupported: {type(self.aois_config)}')
 
             aois_tiles = aoi_engine.get_aoi_tiles()
         else:
@@ -131,26 +132,46 @@ class RasterTilerizer(BaseRasterTilerizer):
     def __init__(self,
                  raster_path: Path,
                  output_path: Path,
+                 tile_size: int,
+                 tile_overlap: float,
+                 aois_config: AOIConfig = None,
                  scale_factor: float = 1.0,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8):
+        """
+        raster_path: Path,
+            Path to the raster (.tif, .png...).
+        output_path: Path,
+            Path to parent folder where to save the image tiles and associated labels.
+        tile_size: int,
+            The wanted size of the tiles (tile_size, tile_size).
+        tile_overlap: float,
+            The overlap between the tiles (should be 0 <= overlap < 1).
+        aois_config: AOIConfig or None,
+            An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
+        scale_factor: float,
+            Scale factor for rescaling the data (change pixel resolution).
+        ignore_black_white_alpha_tiles_threshold: bool,
+            Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
+        """
+
         super().__init__(raster_path=raster_path,
                          output_path=output_path,
+                         tile_size=tile_size,
+                         tile_overlap=tile_overlap,
+                         aois_config=aois_config,
                          scale_factor=scale_factor,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
 
-    def generate_tiles(self, tile_size=1024, overlap=0, start_counter_tile=1, aois_config: AOIConfig = None):
-        aois_tiles = self._get_tiles_per_aoi(aois_config=aois_config,
-                                             tile_size=tile_size,
-                                             overlap=overlap,
-                                             start_counter_tile=start_counter_tile)
+    def generate_tiles(self):
+        tiles = self._create_tiles()
+        aois_tiles = self._get_tiles_per_aoi(tiles=tiles)
 
-        tile_coordinate_step = int((1 - overlap) * tile_size)
         save_aois_tiles_picture(aois_tiles=aois_tiles,
                                 save_path=self.output_path / AoiTilesImageConvention.create_name(
                                     product_name=self.product_name,
                                     scale_factor=self.scale_factor
                                 ),
-                                tile_coordinate_step=tile_coordinate_step)
+                                tile_coordinate_step=self.tile_coordinate_step)
 
         for aoi in aois_tiles:
             if aoi == 'all' and len(aois_tiles.keys()) > 1:
