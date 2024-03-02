@@ -150,8 +150,8 @@ class LabeledRasterCocoDataset(ABC):
 
 
 class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
-    def __init__(self, fold: str, root_path: Path):
-        super().__init__(fold=fold, root_path=root_path)
+    def __init__(self, fold: str, root_path: Path, transform: None):
+        super().__init__(fold=fold, root_path=root_path, transform=transform)
 
     def __getitem__(self, idx: int):
         """
