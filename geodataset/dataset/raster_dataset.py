@@ -148,11 +148,6 @@ class LabeledRasterCocoDataset(ABC):
         """
         return len(self.tiles)
 
-    @staticmethod
-    @abstractmethod
-    def get_collate_fn():
-        pass
-
 
 class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
     def __init__(self, fold: str, root_path: Path):
