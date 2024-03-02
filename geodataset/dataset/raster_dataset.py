@@ -9,8 +9,7 @@ import numpy as np
 import rasterio
 from shapely import box
 
-from geodataset.utils import rle_segmentation_to_bbox, polygon_segmentation_to_bbox, display_image_with_polygons, \
-    CocoNameConvention
+from geodataset.utils import rle_segmentation_to_bbox, polygon_segmentation_to_bbox, CocoNameConvention
 
 
 class LabeledRasterCocoDataset(ABC):
@@ -149,6 +148,11 @@ class LabeledRasterCocoDataset(ABC):
         """
         return len(self.tiles)
 
+    @staticmethod
+    @abstractmethod
+    def get_collate_fn():
+        pass
+
 
 class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
     def __init__(self, fold: str, root_path: Path):
@@ -168,7 +172,6 @@ class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
 
         with rasterio.open(tile_info['path']) as tile_file:
             tile = tile_file.read([1, 2, 3])  # Reading the first three bands
-            tile = np.moveaxis(tile, 0, -1)  # Channels last
 
         labels = tile_info['labels']
         bboxes = []
@@ -199,4 +202,14 @@ class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
             transformed_image = tile
             transformed_bboxes = bboxes
 
-        return transformed_image, transformed_bboxes
+        return transformed_image, {'boxes': transformed_bboxes, 'labels': [1,] * len(transformed_bboxes)}
+
+    @staticmethod
+    def get_collate_fn():
+        def collate_fn(batch):
+            images = [x[0] for x in batch]
+            boxes = [x[1] for x in batch]
+
+            return images, boxes
+
+        return collate_fn
