@@ -9,8 +9,7 @@ import numpy as np
 import rasterio
 from shapely import box
 
-from geodataset.utils import rle_segmentation_to_bbox, polygon_segmentation_to_bbox, CocoNameConvention, \
-    collate_fn_raster_detection_dataset
+from geodataset.utils import rle_segmentation_to_bbox, polygon_segmentation_to_bbox, CocoNameConvention
 
 
 class LabeledRasterCocoDataset(ABC):
@@ -204,7 +203,3 @@ class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
             transformed_bboxes = bboxes
 
         return transformed_image, {'boxes': transformed_bboxes, 'labels': [1,] * len(transformed_bboxes)}
-
-    @staticmethod
-    def get_collate_fn():
-        return collate_fn_raster_detection_dataset
