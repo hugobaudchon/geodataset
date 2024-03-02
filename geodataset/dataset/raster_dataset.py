@@ -150,7 +150,7 @@ class LabeledRasterCocoDataset(ABC):
 
 
 class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
-    def __init__(self, fold: str, root_path: Path, transform: None):
+    def __init__(self, fold: str, root_path: Path, transform: albumentations.core.composition.Compose = None):
         super().__init__(fold=fold, root_path=root_path, transform=transform)
 
     def __getitem__(self, idx: int):
@@ -187,14 +187,16 @@ class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
                 else:
                     raise NotImplementedError("Could not find the segmentation type (RLE vs polygon coordinates).")
 
-            bboxes.append(bbox.bounds)
+            bboxes.append([int(x) for x in bbox.bounds])
+
+        bboxes = {'boxes': bboxes, 'labels': [1, ] * len(bboxes)}
 
         if self.transform:
-            transformed = self.transform(image=tile, bboxes=bboxes)
-            transformed_image = transformed['image']
+            transformed = self.transform(image=tile.transpose((1, 2, 0)), bboxes=bboxes['boxes'], labels=bboxes['labels'])
+            transformed_image = transformed['image'].transpose((2, 0, 1))
             transformed_bboxes = transformed['bboxes']
         else:
             transformed_image = tile
             transformed_bboxes = bboxes
 
-        return transformed_image, {'boxes': transformed_bboxes, 'labels': [1,] * len(transformed_bboxes)}
+        return transformed_image, transformed_bboxes
