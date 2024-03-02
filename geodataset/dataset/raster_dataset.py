@@ -199,4 +199,6 @@ class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
             transformed_image = tile
             transformed_bboxes = bboxes
 
+        transformed_image = transformed_image / 255  # normalizing
+
         return transformed_image, transformed_bboxes
