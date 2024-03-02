@@ -238,3 +238,10 @@ def save_aois_tiles_picture(aois_tiles: dict[str, list], save_path: Path, tile_c
     plt.clim(0, len(base_cmap) - 1)  # Adjust color limit to include all AOI colors
 
     plt.savefig(save_path)
+
+
+def collate_fn_raster_detection_dataset(batch):
+    images = [x[0] for x in batch]
+    boxes = [x[1] for x in batch]
+
+    return images, boxes
