@@ -41,6 +41,9 @@ class LabeledRasterCocoDataset(ABC):
             raise Exception(f"Could not find find any tiles associated with the COCO files found."
                             f" COCO files found: {self.cocos_detected}.")
 
+        print(f"Found {len(self.tiles)} tiles and {sum([len(self.tiles[x]['labels']) for x in self.tiles])} labels"
+              f" for fold {self.fold}.")
+
     def _load_coco_datasets(self, directory: Path):
         """
         Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
