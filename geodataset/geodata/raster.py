@@ -17,18 +17,23 @@ class Raster(BaseGeoData):
     """
     Typically a .tif or .png raster with or without CRS/transform data.
     """
-    def __init__(self, path: Path, scale_factor: float = 1.0):
+    def __init__(self, path: Path, ground_resolution: float = None, scale_factor: float = None):
         self.path = path
         self.name = path.name
         self.ext = path.suffix
 
+        assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
+                                                          " Please only specify one.")
+        self.ground_resolution = ground_resolution
         self.scale_factor = scale_factor
 
         (self.data,
          self.metadata) = self._load_data()
 
     def _load_data(self):
-        data, metadata = read_raster(path=self.path, scale_factor=self.scale_factor)
+        data, metadata = read_raster(path=self.path,
+                                     ground_resolution=self.ground_resolution,
+                                     scale_factor=self.scale_factor)
         if 'crs' not in metadata:
             metadata['crs'] = None
         if 'transform' not in metadata:
@@ -69,7 +74,8 @@ class Raster(BaseGeoData):
             'transform': window_transform
         }
 
-        tile = Tile(data=tile_data, metadata=tile_metadata, product_name=product_name, scale_factor=self.scale_factor,
+        tile = Tile(data=tile_data, metadata=tile_metadata, product_name=product_name,
+                    ground_resolution=self.ground_resolution, scale_factor=self.scale_factor,
                     row=window.row_off, col=window.col_off, tile_id=tile_id)
 
         return tile
@@ -101,7 +107,7 @@ class Raster(BaseGeoData):
                 lambda geom: transform(partial(transform_coord, transform_fct=inverse_transform), geom)
             )
             gdf.crs = None
-        else:
+        elif self.scale_factor:
             # If the labels don't have a CRS, we expect them to already be in pixel coordinates.
             # So we just need to apply the scaling factor.
             gdf['geometry'] = gdf['geometry'].astype(object).apply(

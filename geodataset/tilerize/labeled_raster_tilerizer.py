@@ -29,7 +29,8 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
                  tile_size: int,
                  tile_overlap: float,
                  aois_config: AOIConfig = None,
-                 scale_factor: float = 1.0,
+                 ground_resolution: float = None,
+                 scale_factor: float = None,
                  use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.9,
                  ignore_tiles_without_labels: bool = False,
@@ -49,8 +50,12 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
             The overlap between the tiles (should be 0 <= overlap < 1).
         aois_config: AOIConfig or None,
             An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
+        ground_resolution: float,
+            The ground resolution in meter per pixel desired when loading the raster.
+            Only one of ground_resolution and scale_factor can be set at the same time.
         scale_factor: float,
             Scale factor for rescaling the data (change pixel resolution).
+            Only one of ground_resolution and scale_factor can be set at the same time.
         intersection_ratio: float,
             When finding the associated labels to a tile, this ratio will specify the minimal required intersection
             ratio between a candidate polygon and the tile in order to keep this polygon as a label for that tile.
@@ -64,6 +69,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
                          tile_size=tile_size,
                          tile_overlap=tile_overlap,
                          aois_config=aois_config,
+                         ground_resolution=ground_resolution,
                          scale_factor=scale_factor,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
 
@@ -80,6 +86,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
 
         labels = RasterPolygonLabels(path=self.labels_path,
                                      associated_raster=self.raster,
+                                     ground_resolution=self.ground_resolution,
                                      scale_factor=self.scale_factor,
                                      main_label_category_column_name=main_label_category_column_name,
                                      other_labels_attributes_column_names=other_labels_attributes_column_names)
@@ -228,6 +235,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         save_aois_tiles_picture(aois_tiles=aois_tiles,
                                 save_path=self.output_path / AoiTilesImageConvention.create_name(
                                     product_name=self.product_name,
+                                    ground_resolution=self.ground_resolution,
                                     scale_factor=self.scale_factor
                                 ),
                                 tile_coordinate_step=self.tile_coordinate_step)
@@ -245,7 +253,9 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
             coco_dataset = {
                 "info": {
                     "description": f"Dataset for the product {self.product_name}"
-                                   f" with fold {aoi} and scale_factor {self.scale_factor}",
+                                   f" with fold {aoi}"
+                                   f" and scale_factor {self.scale_factor}"
+                                   f" and ground_resolution {self.ground_resolution}.",
                     "dataset_name": self.product_name,
                     "version": "1.0",
                     "year": str(date.today().year),
@@ -264,6 +274,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
                 tile.save(output_folder=self.tiles_path)
 
             coco_output_file_path = self.output_path / CocoNameConvention.create_name(product_name=self.product_name,
+                                                                                      ground_resolution=self.ground_resolution,
                                                                                       scale_factor=self.scale_factor,
                                                                                       fold=aoi)
             # Save the COCO dataset to a JSON file
