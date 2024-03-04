@@ -117,15 +117,40 @@ def get_tiles_array(tiles: list, tile_coordinate_step: int):
     return array
 
 
-def read_raster(path: Path, scale_factor: float = 1.0):
+def read_raster(path: Path, ground_resolution: float = None, scale_factor: float = None):
+    assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
+                                                      " Please only specify one.")
+
     ext = path.suffix
     if ext in ['.tif', '.png', '.jpg']:
         with rasterio.open(path) as src:
-            # resample data to target shape
+            # Check if the CRS uses meters as units
+            crs = src.crs
+            if ground_resolution:
+                if crs:
+                    if crs.is_projected:
+                        current_x_resolution = src.transform[0]
+                        current_y_resolution = -src.transform[4]
+                        # Calculate scale factors to achieve the specified ground_resolution
+                        x_scale_factor = current_x_resolution / ground_resolution
+                        y_scale_factor = current_y_resolution / ground_resolution
+                    else:
+                        raise Exception("The CRS of the raster is not projected (in meter units),"
+                                        " so the ground_resolution cannot be applied.")
+                else:
+                    raise Exception("The raster doesn't have a CRS, so the ground_resolution cannot be applied.")
+            elif scale_factor:
+                x_scale_factor = scale_factor
+                y_scale_factor = scale_factor
+            else:
+                x_scale_factor = 1
+                y_scale_factor = 1
+            print(444, src.transform[0], -src.transform[4])
+
             data = src.read(
                 out_shape=(src.count,
-                           int(src.height * scale_factor),
-                           int(src.width * scale_factor)),
+                           int(src.height * y_scale_factor),
+                           int(src.width * x_scale_factor)),
                 resampling=Resampling.bilinear)
 
             if src.transform:
@@ -135,7 +160,7 @@ def read_raster(path: Path, scale_factor: float = 1.0):
                     (src.height / data.shape[-2]))
             else:
                 new_transform = None
-
+            print(444, new_transform[0], -new_transform[4])
             new_profile = src.profile
             new_profile.update(transform=new_transform,
                                driver='GTiff',

@@ -19,7 +19,8 @@ class BaseRasterTilerizer(ABC):
                  tile_size: int,
                  tile_overlap: float,
                  aois_config: AOIConfig = None,
-                 scale_factor: float = 1.0,
+                 ground_resolution: float = None,
+                 scale_factor: float = None,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8):
         """
         raster_path: Path,
@@ -32,8 +33,12 @@ class BaseRasterTilerizer(ABC):
             The overlap between the tiles (should be 0 <= overlap < 1).
         aois_config: AOIConfig or None,
             An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
+        ground_resolution: float,
+            The ground resolution in meter per pixel desired when loading the raster.
+            Only one of ground_resolution and scale_factor can be set at the same time.
         scale_factor: float,
             Scale factor for rescaling the data (change pixel resolution).
+            Only one of ground_resolution and scale_factor can be set at the same time.
         ignore_black_white_alpha_tiles_threshold: bool,
             Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
         """
@@ -42,9 +47,13 @@ class BaseRasterTilerizer(ABC):
         self.tile_size = tile_size
         self.tile_overlap = tile_overlap
         self.tile_coordinate_step = int((1 - self.tile_overlap) * self.tile_size)
-        self.scale_factor = scale_factor
         self.aois_config = aois_config
         self.ignore_black_white_alpha_tiles_threshold = ignore_black_white_alpha_tiles_threshold
+
+        assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
+                                                          " Please only specify one.")
+        self.scale_factor = scale_factor
+        self.ground_resolution = ground_resolution
 
         self.output_path = output_path / self.product_name
         self.tiles_path = self.output_path / 'tiles'
@@ -54,6 +63,7 @@ class BaseRasterTilerizer(ABC):
 
     def _load_raster(self):
         raster = Raster(path=self.raster_path,
+                        ground_resolution=self.ground_resolution,
                         scale_factor=self.scale_factor)
         return raster
 
@@ -94,6 +104,7 @@ class BaseRasterTilerizer(ABC):
                                             tile_coordinate_step=self.tile_coordinate_step,
                                             aois_config=cast(AOIFromPackageConfig, self.aois_config),
                                             associated_raster=self.raster,
+                                            ground_resolution=self.ground_resolution,
                                             scale_factor=self.scale_factor)
             else:
                 raise Exception(f'aois_config type unsupported: {type(self.aois_config)}')
@@ -135,7 +146,8 @@ class RasterTilerizer(BaseRasterTilerizer):
                  tile_size: int,
                  tile_overlap: float,
                  aois_config: AOIConfig = None,
-                 scale_factor: float = 1.0,
+                 ground_resolution: float = None,
+                 scale_factor: float = None,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8):
         """
         raster_path: Path,
@@ -148,8 +160,12 @@ class RasterTilerizer(BaseRasterTilerizer):
             The overlap between the tiles (should be 0 <= overlap < 1).
         aois_config: AOIConfig or None,
             An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
+        ground_resolution: float,
+            The ground resolution in meter per pixel desired when loading the raster.
+            Only one of ground_resolution and scale_factor can be set at the same time.
         scale_factor: float,
             Scale factor for rescaling the data (change pixel resolution).
+            Only one of ground_resolution and scale_factor can be set at the same time.
         ignore_black_white_alpha_tiles_threshold: bool,
             Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
         """
@@ -159,6 +175,7 @@ class RasterTilerizer(BaseRasterTilerizer):
                          tile_size=tile_size,
                          tile_overlap=tile_overlap,
                          aois_config=aois_config,
+                         ground_resolution=ground_resolution,
                          scale_factor=scale_factor,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
 
@@ -169,6 +186,7 @@ class RasterTilerizer(BaseRasterTilerizer):
         save_aois_tiles_picture(aois_tiles=aois_tiles,
                                 save_path=self.output_path / AoiTilesImageConvention.create_name(
                                     product_name=self.product_name,
+                                    ground_resolution=self.ground_resolution,
                                     scale_factor=self.scale_factor
                                 ),
                                 tile_coordinate_step=self.tile_coordinate_step)

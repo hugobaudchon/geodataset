@@ -10,6 +10,7 @@ class Tile:
                  data: np.ndarray,
                  metadata: dict,
                  product_name: str,
+                 ground_resolution: float,
                  scale_factor: float,
                  row: int,
                  col: int,
@@ -17,18 +18,23 @@ class Tile:
         self.data = data
         self.metadata = metadata
         self.product_name = product_name
-        self.scale_factor = scale_factor
         self.row = row
         self.col = col
         self.tile_id = tile_id
 
+        assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
+                                                          " Please only specify one.")
+        self.scale_factor = scale_factor
+        self.ground_resolution = ground_resolution
+
     @classmethod
     def from_path(cls, path: Path, tile_id):
-        data, metadata, product_name, scale_factor, row, col = Tile.load_tile(path)
+        data, metadata, product_name, ground_resolution, scale_factor, row, col = Tile.load_tile(path)
 
         tile = cls(data=data,
                    metadata=metadata,
                    product_name=product_name,
+                   ground_resolution=ground_resolution,
                    scale_factor=scale_factor,
                    row=row,
                    col=col,
@@ -46,14 +52,15 @@ class Tile:
             data = src.read()
             metadata = src.profile
 
-        product_name, scale_factor, row, col = TileNameConvention.parse_name(path.name)
+        product_name, ground_resolution, scale_factor, row, col = TileNameConvention.parse_name(path.name)
 
-        return data, metadata, product_name, scale_factor, row, col
+        return data, metadata, product_name, ground_resolution, scale_factor, row, col
 
     def save(self, output_folder: Path):
         assert output_folder.exists(), f"The output folder {output_folder} doesn't exist yet."
 
         tile_name = TileNameConvention.create_name(product_name=self.product_name,
+                                                   ground_resolution=self.ground_resolution,
                                                    scale_factor=self.scale_factor,
                                                    row=self.row,
                                                    col=self.col)
@@ -78,6 +85,7 @@ class Tile:
 
         # Generate file name
         tile_name = TileNameConvention.create_name(product_name=self.product_name,
+                                                   ground_resolution=self.ground_resolution,
                                                    scale_factor=self.scale_factor,
                                                    row=self.row,
                                                    col=self.col)

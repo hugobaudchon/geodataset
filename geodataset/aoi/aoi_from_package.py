@@ -15,6 +15,7 @@ class AOIFromPackage(AOIBase):
                  tile_coordinate_step: int,
                  aois_config: AOIFromPackageConfig,
                  associated_raster: Raster,
+                 ground_resolution: float,
                  scale_factor: float):
         """
         :param aois_config: An instanced AOIFromPackageConfig.
@@ -24,8 +25,13 @@ class AOIFromPackage(AOIBase):
                          aois_config=aois_config)
 
         self.associated_raster = associated_raster
+        self.ground_resolution = ground_resolution
         self.scale_factor = scale_factor
 
+        assert self.ground_resolution == self.associated_raster.ground_resolution, \
+            "The specified ground_resolution for the labels and Raster are different."
+        assert self.scale_factor == self.associated_raster.scale_factor, \
+            "The specified scale_factor for the labels and Raster are different."
         assert type(aois_config) is AOIFromPackageConfig
 
         self.loaded_aois = self._load_aois()

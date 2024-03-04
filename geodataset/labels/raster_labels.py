@@ -15,17 +15,21 @@ class RasterPolygonLabels:
     def __init__(self,
                  path: Path,
                  associated_raster: Raster,
-                 scale_factor: float = 1.0,
+                 ground_resolution: float = None,
+                 scale_factor: float = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None):
 
         self.path = path
         self.ext = self.path.suffix
         self.associated_raster = associated_raster
+        self.ground_resolution = ground_resolution
         self.scale_factor = scale_factor
         self.main_label_category_column_name = main_label_category_column_name
         self.other_labels_attributes_column_names = other_labels_attributes_column_names
 
+        assert self.ground_resolution == self.associated_raster.ground_resolution, \
+            "The specified ground_resolution for the labels and Raster are different."
         assert self.scale_factor == self.associated_raster.scale_factor, \
             "The specified scale_factor for the labels and Raster are different."
 

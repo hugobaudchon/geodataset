@@ -16,6 +16,24 @@ def validate_and_convert_product_name(product_name_stem):
 
 class FileNameConvention(ABC):
     @staticmethod
+    def create_specifier(scale_factor=None, ground_resolution=None):
+        if scale_factor is not None:
+            return f"sf{str(scale_factor).replace('.', 'p')}"
+        elif ground_resolution is not None:
+            return f"gr{str(ground_resolution).replace('.', 'p')}"
+        else:
+            return FileNameConvention.create_specifier(scale_factor=1.0)
+
+    @staticmethod
+    def parse_specifier(specifier):
+        if 'sf' in specifier:
+            return float(specifier.replace('sf', '').replace('p', '.')), None
+        elif 'gr' in specifier:
+            return None, float(specifier.replace('gr', '').replace('p', '.'))
+        else:
+            raise ValueError("Specifier must contain either 'sf' for scale factor or 'gr' for ground resolution.")
+
+    @staticmethod
     @abstractmethod
     def _validate_name(**kwargs):
         pass
@@ -34,13 +52,14 @@ class FileNameConvention(ABC):
 class TileNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+_tile_[0-9]+_[0-9]+_[0-9]+\.tif$"
+        pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+_tile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
         if not re.match(pattern, name):
             raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
 
     @staticmethod
-    def create_name(product_name: str, col: int, row: int, scale_factor: float):
-        tile_name = f"{product_name}_tile_{int(scale_factor*100)}_{col}_{row}.tif"
+    def create_name(product_name: str, col: int, row: int, scale_factor=None, ground_resolution=None):
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
+        tile_name = f"{product_name}_tile_{specifier}_{col}_{row}.tif"
         TileNameConvention._validate_name(tile_name)
         return tile_name
 
@@ -49,26 +68,27 @@ class TileNameConvention(FileNameConvention):
         TileNameConvention._validate_name(tile_name)
 
         parts = tile_name.split("_")
-
         product_name = "_".join(parts[:-4])
-        scale_factor = int(parts[-3])/100
+        specifier = parts[-3]
         col = parts[-2]
-        row = parts[-1]
+        row = parts[-1].replace('.tif', '')
 
-        return product_name, scale_factor, col, row
+        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+
+        return product_name, scale_factor, ground_resolution, col, row
 
 
 class CocoNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        # Adjusted pattern for COCO naming convention
-        pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+_coco_[0-9]+_[a-zA-Z0-9]+\.json$"
+        pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+_coco_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[a-zA-Z0-9]+\.json$"
         if not re.match(pattern, name):
             raise ValueError(f"coco_name {name} does not match the expected format {pattern}.")
 
     @staticmethod
-    def create_name(product_name: str, fold: str, scale_factor: float):
-        coco_name = f"{product_name}_coco_{int(scale_factor*100)}_{fold}.json"
+    def create_name(product_name: str, fold: str, scale_factor=None, ground_resolution=None):
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
+        coco_name = f"{product_name}_coco_{specifier}_{fold}.json"
         CocoNameConvention._validate_name(coco_name)
         return coco_name
 
@@ -77,25 +97,26 @@ class CocoNameConvention(FileNameConvention):
         CocoNameConvention._validate_name(coco_name)
 
         parts = coco_name.split("_")
-
         product_name = "_".join(parts[:-3])
-        scale_factor = int(parts[-2]) / 100
+        specifier = parts[-2]
         fold = parts[-1].replace(".json", "")
 
-        return product_name, scale_factor, fold
+        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+
+        return product_name, scale_factor, ground_resolution, fold
 
 
 class AoiTilesImageConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        # Pattern for AOI Tiles image naming convention
-        pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+_aoistiles_[0-9]+\.png$"
+        pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+_aoistiles_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))\.png$"
         if not re.match(pattern, name):
             raise ValueError(f"file_name {name} does not match the expected format {pattern}.")
 
     @staticmethod
-    def create_name(product_name: str, scale_factor: float):
-        file_name = f"{product_name}_aoistiles_{int(scale_factor*100)}.png"
+    def create_name(product_name: str, scale_factor=None, ground_resolution=None):
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
+        file_name = f"{product_name}_aoistiles_{specifier}.png"
         AoiTilesImageConvention._validate_name(file_name)
         return file_name
 
@@ -104,10 +125,11 @@ class AoiTilesImageConvention(FileNameConvention):
         AoiTilesImageConvention._validate_name(file_name)
 
         parts = file_name.split("_")
-
         product_name = "_".join(parts[:-2])
-        scale_factor = int(parts[-1].replace(".png", "")) / 100
+        specifier = parts[-1].replace(".png", "")
 
-        return product_name, scale_factor
+        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+
+        return product_name, scale_factor, ground_resolution
 
 

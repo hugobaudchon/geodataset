@@ -55,8 +55,9 @@ tilerizer = RasterTilerizer(raster_path=Path('/Data/raw/wwf_ecuador/RGB Orthomos
                             tile_size=1024,
                             tile_overlap=0.5,
                             aois_config=aoi_gen_config,
-                            scale_factor=0.2,
-                            ignore_black_white_alpha_tiles_threshold=0.8   # optional
+                            ground_resolution=0.05,                          # optional, scale_factor must be None if used.
+                            scale_factor=0.5,                                # optional, ground_resolution must be None if used.
+                            ignore_black_white_alpha_tiles_threshold=0.8     # optional
                             )
 
 tilerizer.generate_tiles()
@@ -78,7 +79,8 @@ tilerizer = LabeledRasterTilerizer(raster_path=Path('Data/raw/quebec_trees_datas
                                    tile_size=1024,
                                    tile_overlap=0.5,
                                    aois_config=aoi_gpkg_config,
-                                   scale_factor=0.5,                                # optional
+                                   ground_resolution=0.05,                          # optional, scale_factor must be None if used.
+                                   scale_factor=0.5,                                # optional, ground_resolution must be None if used.
                                    use_rle_for_labels=True,                         # optional
                                    min_intersection_ratio=0.9,                      # optional
                                    ignore_tiles_without_labels=False,               # optional
