@@ -171,7 +171,7 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
     else:
         raise Exception(f'Data format {ext} not supported yet.')
 
-    return data, new_profile
+    return data, new_profile, x_scale_factor, y_scale_factor
 
 
 def read_point_cloud(path: Path):
