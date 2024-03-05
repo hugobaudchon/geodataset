@@ -121,9 +121,6 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
 
     def _find_associated_labels(self, tiles) -> gpd.GeoDataFrame:
 
-        # We only get the labels for the 'all' key (all tiles) and then assign them to correct aois,
-        # in order to reduce computation cost.
-
         tile_ids = [tile.tile_id for tile in tiles]
 
         tiles_gdf = gpd.GeoDataFrame(data={'tile_id': tile_ids,
