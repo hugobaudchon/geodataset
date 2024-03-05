@@ -35,7 +35,7 @@ class LabeledRasterCocoDataset(ABC):
         self._remove_tiles_not_found()
 
         if len(self.cocos_detected) == 0:
-            raise Exception(f"No COCO datasets for fold {self.fold} were found in the specified root folder.")
+            raise Exception(f"No COCO datasets for fold '{self.fold}' were found in the specified root folder.")
         elif len(self.cocos_detected) > 0 and len(self) == 0:
             raise Exception(f"Could not find find any tiles associated with the COCO files found."
                             f" COCO files found: {self.cocos_detected}.")
@@ -51,7 +51,7 @@ class LabeledRasterCocoDataset(ABC):
         for path in directory.iterdir():
             if path.is_file() and path.name.endswith(f".json"):
                 try:
-                    product_name, scale_factor, fold = CocoNameConvention.parse_name(path.name)
+                    product_name, scale_factor, ground_resolution, fold = CocoNameConvention.parse_name(path.name)
                     if fold == self.fold:
                         self._load_coco_json(json_path=path)
                 except ValueError:
@@ -189,16 +189,19 @@ class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
 
             bboxes.append([int(x) for x in bbox.bounds])
 
-        bboxes = {'boxes': bboxes, 'labels': [1, ] * len(bboxes)}
+        labels = [1, ] * len(bboxes)
 
         if self.transform:
-            transformed = self.transform(image=tile.transpose((1, 2, 0)), bboxes=bboxes['boxes'], labels=bboxes['labels'])
+            transformed = self.transform(image=tile.transpose((1, 2, 0)), bboxes=bboxes, labels=labels)
             transformed_image = transformed['image'].transpose((2, 0, 1))
             transformed_bboxes = transformed['bboxes']
+            transformed_labels = transformed['labels']
         else:
             transformed_image = tile
             transformed_bboxes = bboxes
+            transformed_labels = labels
 
         transformed_image = transformed_image / 255  # normalizing
+        transformed_bboxes = {'boxes': transformed_bboxes, 'labels': transformed_labels}
 
         return transformed_image, transformed_bboxes
