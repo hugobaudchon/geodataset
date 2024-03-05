@@ -1,16 +1,16 @@
 # Geo Dataset
 
-## Description
+### Description
 
 This package provide essential tools for cutting rasters and their labels into smaller tiles, useful for machine learning tasks. Also provides datasets compatible with pytorch.
 
-## Installation
+### Installation
 
 ```bash
 pip install git+ssh://git@github.com/hugobaudchon/geodataset.git
 ```
 
-## Examples
+# Examples
 
 ### Area of Interest
 
@@ -67,7 +67,7 @@ tilerizer.generate_tiles()
 
 The class LabeledRasterTilerizer can tilerize a raster and its labels (.gpkg, .geojson, .shp, .csv and .xml).
 
-#### Segmentation with .tif raster and .gpkg labels
+
 ```python
 from pathlib import Path
 from geodataset.tilerize import LabeledRasterTilerizer
@@ -90,4 +90,37 @@ tilerizer = LabeledRasterTilerizer(raster_path=Path('Data/raw/quebec_trees_datas
                                    )
                                    
 tilerizer.generate_coco_dataset()
+```
+
+### Dataset
+
+Geodataset provides a DetectionLabeledRasterCocoDataset class which given a root folder, will recursively go into each subdirectory and parse the COCO json files matching a specific 'fold',
+and the associated images paths.
+
+This class can then be directly used with a torch Dataloader.
+
+You can also provide an albumentation transform (optional) to DetectionLabeledRasterCocoDataset to augment the data when training a model. 
+
+```python
+from pathlib import Path
+from geodataset.dataset import DetectionLabeledRasterCocoDataset
+import albumentations as A
+
+augment_transform = A.Compose([
+            A.HorizontalFlip(),
+            A.VerticalFlip(),
+        ],
+            bbox_params=A.BboxParams(
+                format='pascal_voc',
+                label_fields=['labels'],
+                min_area=0.,
+                min_visibility=0.,
+            ))
+
+
+train_ds = DetectionLabeledRasterCocoDataset(root_path=Path('C:/Users/Hugo/Documents/Data/pre_processed/all_datasets'),
+                                             fold="train",
+                                             transform=augment_transform)
+                                   
+
 ```
