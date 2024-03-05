@@ -49,7 +49,7 @@ class AOIGeneratorConfig(AOIConfig):
             assert type(aoi['position']) is int or aoi['position'] is None, \
                 f"The 'position' value of aoi {aoi_name} is not an int or None. Got value {aoi['position']}"
             assert 'percentage' in aoi, f"The aoi '{aoi_name}' doesn't have a 'percentage' value."
-            assert type(aoi['percentage']) is float, \
+            assert type(aoi['percentage']) is float or aoi['percentage'] == 1, \
                 f"The 'percentage' value of aoi {aoi_name} is not a float. Got value {aoi['percentage']}"
 
             positions.append(aoi['position'])
