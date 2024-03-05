@@ -328,8 +328,10 @@ if __name__ == "__main__":
                          tile_size=1024,
                          tile_overlap=0.5)
 
-    savanna_trees_parser(dataset_root=Path('C:/Users/Hugo/Documents/Data/raw/Savanna Tree Mosaic and labels'),
-                         output_path=Path('C:/Users/Hugo/Documents/Data/pre_processed/all_datasets'),
-                         ground_resolution=0.05,
-                         tile_size=1024,
-                         tile_overlap=0.5)
+    # Savanna Tree Dataset is not ideal for tilerizing a detection dataset as only about 30% of the trees in each raster has labels.
+    # Training a detection model on this data is really noisy.
+    # savanna_trees_parser(dataset_root=Path('C:/Users/Hugo/Documents/Data/raw/Savanna Tree Mosaic and labels'),
+    #                      output_path=Path('C:/Users/Hugo/Documents/Data/pre_processed/all_datasets'),
+    #                      ground_resolution=0.05,
+    #                      tile_size=1024,
+    #                      tile_overlap=0.5)
