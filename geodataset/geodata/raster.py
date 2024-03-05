@@ -28,12 +28,17 @@ class Raster(BaseGeoData):
         self.scale_factor = scale_factor
 
         (self.data,
-         self.metadata) = self._load_data()
+         self.metadata,
+         self.x_scale_factor,
+         self.y_scale_factor) = self._load_data()
 
     def _load_data(self):
-        data, metadata = read_raster(path=self.path,
-                                     ground_resolution=self.ground_resolution,
-                                     scale_factor=self.scale_factor)
+        data, metadata, x_scale_factor, y_scale_factor = read_raster(
+            path=self.path,
+            ground_resolution=self.ground_resolution,
+            scale_factor=self.scale_factor
+        )
+
         if 'crs' not in metadata:
             metadata['crs'] = None
         if 'transform' not in metadata:
@@ -44,7 +49,7 @@ class Raster(BaseGeoData):
         if not metadata['transform']:
             warnings.warn(f'Could not find a transform in the raster file {self.name}.')
 
-        return data, metadata
+        return data, metadata, x_scale_factor, y_scale_factor
 
     def get_tile(self,
                  window: rasterio.windows.Window,
@@ -113,6 +118,11 @@ class Raster(BaseGeoData):
             gdf['geometry'] = gdf['geometry'].astype(object).apply(
                 lambda geom: Polygon(
                     [(x * self.scale_factor, y * self.scale_factor) for x, y in geom.exterior.coords])
+            )
+        elif self.ground_resolution:
+            gdf['geometry'] = gdf['geometry'].astype(object).apply(
+                lambda geom: Polygon(
+                    [(x * self.x_scale_factor, y * self.y_scale_factor) for x, y in geom.exterior.coords])
             )
 
         return gdf
