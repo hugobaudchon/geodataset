@@ -134,6 +134,9 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
                         # Calculate scale factors to achieve the specified ground_resolution
                         x_scale_factor = current_x_resolution / ground_resolution
                         y_scale_factor = current_y_resolution / ground_resolution
+                        print(f'Rescaling the raster with x_scale_factor={x_scale_factor}'
+                              f' and x_scale_factor={y_scale_factor}'
+                              f' to match ground_resolution={ground_resolution}.')
                     else:
                         raise Exception("The CRS of the raster is not projected (in meter units),"
                                         " so the ground_resolution cannot be applied.")
@@ -145,7 +148,6 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
             else:
                 x_scale_factor = 1
                 y_scale_factor = 1
-            print(444, src.transform[0], -src.transform[4])
 
             data = src.read(
                 out_shape=(src.count,
@@ -160,7 +162,7 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
                     (src.height / data.shape[-2]))
             else:
                 new_transform = None
-            print(444, new_transform[0], -new_transform[4])
+
             new_profile = src.profile
             new_profile.update(transform=new_transform,
                                driver='GTiff',

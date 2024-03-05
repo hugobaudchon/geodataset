@@ -38,11 +38,11 @@ class RasterPolygonLabels:
     def _load_labels(self):
         # Loading the labels into a GeoDataFrame
         if self.ext.lower() == '.xml':
-            labels_gdf, is_bbox = self._load_xml_labels()
+            labels_gdf = self._load_xml_labels()
         elif self.ext == '.csv':
-            labels_gdf, is_bbox = self._load_csv_labels()
+            labels_gdf = self._load_csv_labels()
         elif self.ext in ['.geojson', '.gpkg', '.shp']:
-            labels_gdf, is_bbox = self._load_geopandas_labels()
+            labels_gdf = self._load_geopandas_labels()
         else:
             raise Exception(f'Annotation format {self.ext} is not yet supported.')
 
@@ -97,14 +97,15 @@ class RasterPolygonLabels:
                     f' or remove the attribute from the parameter \'other_labels_attributes_column_names\'.' \
                     f' The columns of the geopackages are: {labels_gdf.columns}'
 
-        return labels_gdf, None#TODO
+        return labels_gdf
 
     def _load_xml_labels(self):
         with open(self.path, 'r') as annotation_file:
             annotation = xmltodict.parse(annotation_file.read())
         labels_bboxes = []
         labels_main_categories = []
-        labels_other_attributes = {attribute: [] for attribute in self.other_labels_attributes_column_names}
+        labels_other_attributes = {attribute: [] for attribute in self.other_labels_attributes_column_names}\
+            if self.other_labels_attributes_column_names else {}
         if isinstance(annotation['annotation']['object'], list):
             for bbox in annotation['annotation']['object']:
                 xmin = int(bbox['bndbox']['xmin'])
@@ -138,9 +139,7 @@ class RasterPolygonLabels:
             for attribute, values in labels_other_attributes.items():
                 labels_gdf[attribute] = pd.Series(values)
 
-        is_bbox = True
-
-        return labels_gdf, is_bbox
+        return labels_gdf
 
     def _find_label_attributes_in_xml(self,
                                       bbox_xml_object: dict,
@@ -198,9 +197,7 @@ class RasterPolygonLabels:
                                     f' value from parameter \'other_labels_attributes_column_names\'.'
                                     f' The columns of the CSV are: {labels_df.columns}')
 
-        is_bbox = True
-
-        return labels_gdf, is_bbox
+        return labels_gdf
 
     @staticmethod
     def try_cast_multipolygon_to_polygon(geometry):
