@@ -2,10 +2,8 @@ import json
 from abc import ABC, abstractmethod
 from warnings import warn
 from pathlib import Path
-from typing import List
 
 import albumentations
-import numpy as np
 import rasterio
 from shapely import box
 
@@ -205,3 +203,70 @@ class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
         transformed_bboxes = {'boxes': transformed_bboxes, 'labels': transformed_labels}
 
         return transformed_image, transformed_bboxes
+
+
+class UnlabeledRasterDataset:
+    def __init__(self,
+                 fold: str,
+                 root_path: Path,
+                 transform: albumentations.core.composition.Compose = None):
+        """
+        Parameters:
+        - fold: str, the dataset fold to load (e.g., 'train', 'valid', 'test'...).
+        - root_path: pathlib.Path, the root directory of the dataset.
+        - transform: albumentations.core.composition.Compose, a composition of transformations to apply to the tiles.
+        """
+        self.fold = fold
+        self.root_path = Path(root_path)
+        self.transform = transform
+        self.tile_paths = []
+
+        self._find_tiles_paths(directory=self.root_path)
+
+    def _find_tiles_paths(self, directory: Path):
+        """
+        Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
+        """
+
+        for path in directory.iterdir():
+            if path.is_dir() and path.name == 'tiles':
+                for tile_path in path.iterdir():
+                    if tile_path.suffix == ".tif":
+                        self.tile_paths.append(tile_path)
+
+            elif path.is_dir() and path.name != 'tiles':
+                self._find_tiles_paths(directory=path)
+
+    def __getitem__(self, idx: int):
+        """
+        Retrieves a tile and its annotations by index, applying any specified transformations.
+
+        Parameters:
+        - idx: int, the index of the tile to retrieve.
+
+        Returns:
+        - A tuple containing the transformed tile and its annotations.
+        """
+        tile_path = self.tile_paths[idx]
+
+        with rasterio.open(tile_path) as tile_file:
+            tile = tile_file.read([1, 2, 3])  # Reading the first three bands
+
+        if self.transform:
+            transformed = self.transform(image=tile.transpose((1, 2, 0)))
+            transformed_image = transformed['image'].transpose((2, 0, 1))
+        else:
+            transformed_image = tile
+
+        transformed_image = transformed_image / 255  # normalizing
+
+        return transformed_image
+
+    def __len__(self):
+        """
+        Returns the total number of tiles in the dataset.
+
+        Returns:
+        - An integer count of the tiles.
+        """
+        return len(self.tile_paths)
