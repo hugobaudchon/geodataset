@@ -9,7 +9,8 @@ from geodataset.aoi import AOIGenerator, AOIFromPackage
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
 from geodataset.geodata import Raster
 from geodataset.geodata.tile import Tile
-from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention, validate_and_convert_product_name
+from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention, validate_and_convert_product_name, \
+    strip_all_extensions
 
 
 class BaseRasterTilerizer(ABC):
@@ -43,7 +44,7 @@ class BaseRasterTilerizer(ABC):
             Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
         """
         self.raster_path = raster_path
-        self.product_name = validate_and_convert_product_name(raster_path.stem)
+        self.product_name = validate_and_convert_product_name(strip_all_extensions(raster_path))
         self.tile_size = tile_size
         self.tile_overlap = tile_overlap
         self.tile_coordinate_step = int((1 - self.tile_overlap) * self.tile_size)
