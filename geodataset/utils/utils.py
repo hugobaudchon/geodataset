@@ -265,3 +265,13 @@ def save_aois_tiles_picture(aois_tiles: dict[str, list], save_path: Path, tile_c
     plt.clim(0, len(base_cmap) - 1)  # Adjust color limit to include all AOI colors
 
     plt.savefig(save_path)
+
+
+def strip_all_extensions(path: Path):
+    """
+    Strips all extensions from a given Path object or path string and returns the base name.
+    """
+    p = Path(path)
+    while p.suffix:
+        p = p.with_suffix('')
+    return p.name
