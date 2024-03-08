@@ -97,13 +97,15 @@ tilerizer.generate_coco_dataset()
 Geodataset provides a DetectionLabeledRasterCocoDataset class which given a root folder, will recursively go into each subdirectory and parse the COCO json files matching a specific 'fold',
 and the associated images paths.
 
-This class can then be directly used with a torch Dataloader.
+There is also a DetectionUnlabeledRasterDataset class which only loads tiles (useful for inference, where we don't have labels, or for pre-training a model in a self-supervised manner).
 
-You can also provide an albumentation transform (optional) to DetectionLabeledRasterCocoDataset to augment the data when training a model. 
+These classes can then be directly used with a torch Dataloader.
+
+You can also provide an albumentation transform (optional) to the dataset classes to augment the data when training a model. 
 
 ```python
 from pathlib import Path
-from geodataset.dataset import DetectionLabeledRasterCocoDataset
+from geodataset.dataset import DetectionLabeledRasterCocoDataset, UnlabeledRasterDataset
 import albumentations as A
 
 augment_transform = A.Compose([
@@ -117,10 +119,15 @@ augment_transform = A.Compose([
                 min_visibility=0.,
             ))
 
-
-train_ds = DetectionLabeledRasterCocoDataset(root_path=Path('C:/Users/Hugo/Documents/Data/pre_processed/all_datasets'),
+# Labeled Detection Dataset
+train_ds = DetectionLabeledRasterCocoDataset(root_path=Path('Data/pre_processed/all_datasets'),
                                              fold="train",
                                              transform=augment_transform)
+
+# Unlabeled Dataset
+infer_ds = UnlabeledRasterDataset(root_path=Path('Data/pre_processed/inference_data'),
+                                  fold="infer",     # assuming the tiles were tilerized using an aoi 'infer' instead of 'train', 'valid'...
+                                  transform=None)
                                    
 
 ```
