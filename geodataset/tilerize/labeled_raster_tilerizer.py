@@ -119,6 +119,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         return aois_tiles, aois_labels
 
     def _find_associated_labels(self, tiles) -> gpd.GeoDataFrame:
+        print("Finding the labels associated to each tile...")
 
         tile_ids = [tile.tile_id for tile in tiles]
 
@@ -218,6 +219,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
                                 ),
                                 tile_coordinate_step=self.tile_coordinate_step)
 
+        print('Saving the tiles and COCO json files...')
         for aoi in aois_tiles:
             if aoi == 'all' and len(aois_tiles.keys()) > 1:
                 # don't save the 'all' tiles if aois were provided.
