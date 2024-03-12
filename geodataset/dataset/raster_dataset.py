@@ -146,6 +146,10 @@ class LabeledRasterCocoDataset(ABC):
         """
         return len(self.tiles)
 
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
 
 class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
     def __init__(self, fold: str, root_path: Path, transform: albumentations.core.composition.Compose = None):
@@ -270,3 +274,7 @@ class UnlabeledRasterDataset:
         - An integer count of the tiles.
         """
         return len(self.tile_paths)
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]

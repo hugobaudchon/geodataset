@@ -15,8 +15,7 @@ from geodataset.labels.raster_labels import RasterPolygonLabels
 
 from datetime import date
 
-from geodataset.utils import polygon_to_coco_coordinates, polygon_to_coco_rle_mask, save_aois_tiles_picture, \
-    CocoNameConvention, AoiTilesImageConvention
+from geodataset.utils import save_aois_tiles_picture, CocoNameConvention, AoiTilesImageConvention, generate_label_coco
 from geodataset.tilerize import BaseRasterTilerizer
 
 
@@ -120,6 +119,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         return aois_tiles, aois_labels
 
     def _find_associated_labels(self, tiles) -> gpd.GeoDataFrame:
+        print("Finding the labels associated to each tile...")
 
         tile_ids = [tile.tile_id for tile in tiles]
 
@@ -158,8 +158,8 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
             self.category_id_map = {category: i + 1 for i, category in enumerate(unique_categories)}
         else:
             categories = {}
-            warnings.warn("The GeoDataFrame containing the labels doesn't contain a category column,"
-                          " so labels won't have categories.")
+            warnings.warn("The GeoDataFrame containing the labels doesn't contain a category column,"                          
+                           " so labels won't have categories.")
         return categories
 
     def _generate_coco_images_and_labels_annotations(self,
@@ -182,22 +182,6 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         return images_coco, annotations_coco
 
     def _generate_label_coco(self, label: pd.Series, tile: Tile, tile_id: int) -> dict:
-        if self.use_rle_for_labels:
-            # Convert the polygon to a COCO RLE mask
-            segmentation = polygon_to_coco_rle_mask(polygon=label['geometry'],
-                                                    tile_height=tile.metadata['height'],
-                                                    tile_width=tile.metadata['width'])
-        else:
-            # Convert the polygon's exterior coordinates to the format expected by COCO
-            segmentation = polygon_to_coco_coordinates(polygon=label['geometry'])
-
-        # Calculate the area of the polygon
-        area = label['geometry'].area
-
-        # Get the bounding box in COCO format: [x, y, width, height]
-        bbox = list(label['geometry'].bounds)
-        bbox_coco_format = [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]]
-
         # Finding the main category if any
         if self.labels.main_label_category_column_name:
             category_id = self.category_id_map[label[self.labels.main_label_category_column_name]]
@@ -212,17 +196,15 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         else:
             other_attributes_dict = None
 
-        # Generate COCO annotation data from each associated label
-        coco_annotation = {
-            "segmentation": segmentation,
-            "is_rle_format": self.use_rle_for_labels,
-            "area": area,
-            "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
-            "image_id": tile_id,
-            "bbox": bbox_coco_format,
-            "category_id": category_id,
-            "other_attributes": other_attributes_dict
-        }
+        coco_annotation = generate_label_coco(
+            polygon=label['geometry'],
+            tile_height=tile.metadata['height'],
+            tile_width=tile.metadata['width'],
+            tile_id=tile_id,
+            use_rle_for_labels=self.use_rle_for_labels,
+            category_id=category_id,
+            other_attributes_dict=other_attributes_dict
+        )
 
         return coco_annotation
 
@@ -237,6 +219,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
                                 ),
                                 tile_coordinate_step=self.tile_coordinate_step)
 
+        print('Saving the tiles and COCO json files...')
         for aoi in aois_tiles:
             if aoi == 'all' and len(aois_tiles.keys()) > 1:
                 # don't save the 'all' tiles if aois were provided.

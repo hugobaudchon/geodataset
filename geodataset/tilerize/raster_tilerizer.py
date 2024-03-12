@@ -95,6 +95,8 @@ class BaseRasterTilerizer(ABC):
         return tiles
 
     def _get_tiles_per_aoi(self, tiles: List[Tile]):
+        print('Assigning the tiles to the aois...')
+
         if self.aois_config is not None:
             if type(self.aois_config) is AOIGeneratorConfig:
                 aoi_engine = AOIGenerator(tiles=tiles,
@@ -192,6 +194,7 @@ class RasterTilerizer(BaseRasterTilerizer):
                                 ),
                                 tile_coordinate_step=self.tile_coordinate_step)
 
+        print("Saving tiles...")
         for aoi in aois_tiles:
             if aoi == 'all' and len(aois_tiles.keys()) > 1:
                 # don't save the 'all' tiles if aois were provided.
@@ -201,4 +204,4 @@ class RasterTilerizer(BaseRasterTilerizer):
             for tile in aois_tiles[aoi]:
                 tile.save(output_folder=self.tiles_path)
 
-        print(f"The tiles has been saved to {self.tiles_path}.")
+        print(f"The tiles have been saved to {self.tiles_path}.")
