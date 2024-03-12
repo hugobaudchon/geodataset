@@ -201,4 +201,4 @@ class RasterTilerizer(BaseRasterTilerizer):
             for tile in aois_tiles[aoi]:
                 tile.save(output_folder=self.tiles_path)
 
-        print(f"The tiles has been saved to {self.tiles_path}.")
+        print(f"The tiles have been saved to {self.tiles_path}.")

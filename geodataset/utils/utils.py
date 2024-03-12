@@ -275,3 +275,41 @@ def strip_all_extensions(path: Path):
     while p.suffix:
         p = p.with_suffix('')
     return p.name
+
+
+def generate_label_coco(polygon: shapely.Polygon,
+                        tile_height: int,
+                        tile_width: int,
+                        tile_id: int,
+                        use_rle_for_labels: bool,
+                        category_id: int or None,
+                        other_attributes_dict: dict or None) -> dict:
+    if use_rle_for_labels:
+        # Convert the polygon to a COCO RLE mask
+        segmentation = polygon_to_coco_rle_mask(polygon=polygon,
+                                                tile_height=tile_height,
+                                                tile_width=tile_width)
+    else:
+        # Convert the polygon's exterior coordinates to the format expected by COCO
+        segmentation = polygon_to_coco_coordinates(polygon=polygon)
+
+    # Calculate the area of the polygon
+    area = polygon.area
+
+    # Get the bounding box in COCO format: [x, y, width, height]
+    bbox = list(polygon.bounds)
+    bbox_coco_format = [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]]
+
+    # Generate COCO annotation data from each associated label
+    coco_annotation = {
+        "segmentation": segmentation,
+        "is_rle_format": use_rle_for_labels,
+        "area": area,
+        "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
+        "image_id": tile_id,
+        "bbox": bbox_coco_format,
+        "category_id": category_id,
+        "other_attributes": other_attributes_dict
+    }
+
+    return coco_annotation
