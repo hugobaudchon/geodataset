@@ -13,6 +13,7 @@ from pycocotools import mask as mask_utils
 
 from rasterio.enums import Resampling
 from shapely import Polygon, box, MultiPolygon
+from shapely.ops import transform
 
 
 def polygon_to_coco_coordinates(polygon: Polygon or MultiPolygon):
@@ -313,3 +314,7 @@ def generate_label_coco(polygon: shapely.Polygon,
     }
 
     return coco_annotation
+
+
+def apply_affine_transform(geom: shapely.geometry, affine: rasterio.Affine):
+    return transform(lambda x, y: affine * (x, y), geom)
