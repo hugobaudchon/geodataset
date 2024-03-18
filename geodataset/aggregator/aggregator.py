@@ -31,6 +31,7 @@ class DetectionAggregator:
         assert self.tiles_extent_gdf.crs, "The provided tiles_extent_gdf doesn't have a CRS."
         assert 'tile_id' in self.tiles_extent_gdf, "The provided tiles_extent_gdf doesn't have a 'tile_id' column."
 
+        self.remove_low_score_boxes()
         self.remove_intersecting_boxes_with_tiles()
         self.labels_gdf.to_file(str(geojson_output_path), driver="GeoJSON")
 
