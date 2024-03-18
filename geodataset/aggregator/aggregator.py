@@ -192,7 +192,7 @@ class DetectionAggregator:
         if self.min_score_threshold:
             if "score" in self.labels_gdf:
                 n_before = len(self.labels_gdf)
-                self.labels_gdf = self.labels_gdf[self.labels_gdf["score"] < self.min_score_threshold]
+                self.labels_gdf.drop(self.labels_gdf[self.labels_gdf["score"] < self.min_score_threshold].index, inplace=True)
                 n_after = len(self.labels_gdf)
                 print(f"Removed {n_before-n_after} out of {n_before} labels"
                       f" as they were under the min_score_threshold={self.min_score_threshold}.")
