@@ -5,25 +5,38 @@ from warnings import warn
 
 import pandas as pd
 import rasterio
-from shapely import box
+from shapely import box, Polygon
 import geopandas as gpd
+from tqdm import tqdm
 
 from geodataset.utils import TileNameConvention, apply_affine_transform
 
 
 class DetectionAggregator:
     def __init__(self,
-                 labels_gdf: gpd.GeoDataFrame):
+                 geojson_output_path: Path,
+                 labels_gdf: gpd.GeoDataFrame,
+                 tiles_extent_gdf: gpd.GeoDataFrame,
+                 intersect_remove_ratio=0.95):
 
+        self.geojson_output_path = geojson_output_path
         self.labels_gdf = labels_gdf
+        self.tiles_extent_gdf = tiles_extent_gdf
+
         assert self.labels_gdf.crs, "The provided labels_gdf doesn't have a CRS."
         assert 'tile_id' in self.labels_gdf, "The provided labels_gdf doesn't have a 'tile_id' column."
-        print(self.labels_gdf)
+        assert self.tiles_extent_gdf.crs, "The provided tiles_extent_gdf doesn't have a CRS."
+        assert 'tile_id' in self.tiles_extent_gdf, "The provided tiles_extent_gdf doesn't have a 'tile_id' column."
+
+        self.remove_intersecting_boxes_with_tiles(intersect_remove_ratio)
+        self.labels_gdf.to_file(str(geojson_output_path), driver="GeoJSON")
 
     @classmethod
     def from_coco(cls,
+                  geojson_output_path: Path,
                   tiles_folder_path: Path,
-                  coco_json_path: Path):
+                  coco_json_path: Path,
+                  intersect_remove_ratio: float = 0.95):
 
         # Read the JSON file
         with open(coco_json_path, 'r') as f:
@@ -52,15 +65,20 @@ class DetectionAggregator:
                                          f" in tiles_folder_path='{tiles_folder_path}'")
             tile_ids_to_path[image['id']] = image_path
 
-        gdf_all_boxes = DetectionAggregator.prepare_boxes(tile_ids_to_path=tile_ids_to_path,
-                                                          tile_ids_to_boxes=tile_ids_to_boxes)
+        all_boxes_gdf, all_tiles_extents_gdf = DetectionAggregator.prepare_boxes(tile_ids_to_path=tile_ids_to_path,
+                                                                                 tile_ids_to_boxes=tile_ids_to_boxes)
 
-        return cls(labels_gdf=gdf_all_boxes)
+        return cls(geojson_output_path=geojson_output_path,
+                   labels_gdf=all_boxes_gdf,
+                   tiles_extent_gdf=all_tiles_extents_gdf,
+                   intersect_remove_ratio=intersect_remove_ratio)
 
     @classmethod
     def from_boxes(cls,
+                   geojson_output_path: Path,
                    tiles_paths: List[Path],
-                   boxes: List[List[box]]):
+                   boxes: List[List[box]],
+                   intersect_remove_ratio: float = 0.95):
 
         assert len(tiles_paths) == len(boxes), ("The number of tiles_paths must be equal than the number of lists "
                                                 "in boxes (one list of boxes per tile).")
@@ -69,15 +87,19 @@ class DetectionAggregator:
         tile_ids_to_path = {k: v for k, v in zip(ids, tiles_paths)}
         tile_ids_to_boxes = {k: v for k, v in zip(ids, boxes)}
 
-        gdf_all_boxes = DetectionAggregator.prepare_boxes(tile_ids_to_path=tile_ids_to_path,
-                                                          tile_ids_to_boxes=tile_ids_to_boxes)
+        all_boxes_gdf, all_tiles_extents_gdf = DetectionAggregator.prepare_boxes(tile_ids_to_path=tile_ids_to_path,
+                                                                                 tile_ids_to_boxes=tile_ids_to_boxes)
 
-        return cls(labels_gdf=gdf_all_boxes)
+        return cls(geojson_output_path=geojson_output_path,
+                   labels_gdf=all_boxes_gdf,
+                   tiles_extent_gdf=all_tiles_extents_gdf,
+                   intersect_remove_ratio=intersect_remove_ratio)
 
     @staticmethod
     def prepare_boxes(tile_ids_to_path: dict, tile_ids_to_boxes: dict):
         images_without_crs = 0
         all_gdfs_boxes = []
+        all_gdfs_tiles_extents = []
         for tile_id in tile_ids_to_boxes.keys():
             image_path = tile_ids_to_path[tile_id]
 
@@ -98,27 +120,95 @@ class DetectionAggregator:
             gdf_boxes['tile_id'] = tile_id
             all_gdfs_boxes.append(gdf_boxes)
 
+            bounds = src.bounds
+            # Create a polygon from the bounds
+            tile_extent_polygon = Polygon([
+                (bounds.left, bounds.bottom),
+                (bounds.left, bounds.top),
+                (bounds.right, bounds.top),
+                (bounds.right, bounds.bottom)
+            ])
+            gdf_tile_extent = gpd.GeoDataFrame(geometry=[tile_extent_polygon], crs=src.crs)
+            gdf_tile_extent['tile_id'] = tile_id
+            all_gdfs_tiles_extents.append(gdf_tile_extent)
+
         if images_without_crs > 0:
             warn(f"The aggregator found {images_without_crs} tiles without a CRS or transform")
 
-        gdfs_crs = [gdf.crs for gdf in all_gdfs_boxes]
-        n_crs = len(set(gdfs_crs))
+        tiles_crs = [gdf.crs for gdf in all_gdfs_tiles_extents]
+        n_crs = len(set(tiles_crs))
         if n_crs > 1:
-            common_crs = gdfs_crs[0].crs
+            common_crs = tiles_crs[0].crs
             warn(f"Multiple CRS were detected (n={n_crs}), so re-projecting all boxes of all tiles to the"
                  f" same common CRS '{common_crs}', chosen from one of the tiles.")
             all_gdfs_boxes = [gdf.to_crs(common_crs) for gdf in all_gdfs_boxes if gdf.crs != common_crs]
+            all_gdfs_tiles_extents = [gdf.to_crs(common_crs) for gdf in all_gdfs_tiles_extents if gdf.crs != common_crs]
 
-        gdf_all_boxes = gpd.GeoDataFrame(pd.concat(all_gdfs_boxes, ignore_index=True))
+        all_boxes_gdf = gpd.GeoDataFrame(pd.concat(all_gdfs_boxes, ignore_index=True))
+        all_tiles_extents_gdf = gpd.GeoDataFrame(pd.concat(all_gdfs_tiles_extents, ignore_index=True))
 
-        return gdf_all_boxes
+        return all_boxes_gdf, all_tiles_extents_gdf
+
+    def remove_intersecting_boxes_with_tiles(self, intersect_remove_ratio: float):
+        """
+        Removes labels that intersect more than a given percentage with any other label within the same tile,
+        iterating over tiles to keep progress tracking.
+
+        Args:
+            intersect_remove_ratio (float): The intersection percentage threshold.
+        """
+
+        tile_iterator = tqdm(self.tiles_extent_gdf.iterrows(), total=self.tiles_extent_gdf.shape[0],
+                             desc=f"Removing boxes intersecting at > {intersect_remove_ratio*100}%")
+
+        for _, tile_row in tile_iterator:
+            tile_id = tile_row['tile_id']
+            tile_geom = tile_row.geometry
+
+            # Find labels intersecting the current tile
+            intersecting_labels = gpd.sjoin(self.labels_gdf,
+                                            gpd.GeoDataFrame({'geometry': [tile_geom]}, crs=self.labels_gdf.crs),
+                                            how='inner', predicate='intersects')
+
+            if intersecting_labels.empty:
+                continue
+
+            # Finding the pairs of current tile labels and adjacent/overlapping tiles labels that intersect
+            tile_labels = intersecting_labels[intersecting_labels["tile_id"] == tile_id]
+            other_tiles_labels = intersecting_labels[intersecting_labels["tile_id"] != tile_id]
+            label_pairs = gpd.sjoin(tile_labels, other_tiles_labels, how="inner", predicate="intersects",
+                                    lsuffix='left2', rsuffix='right2')
+
+            if label_pairs.empty:
+                continue
+
+            # Calculate the intersection area for each pair
+            label_pairs["intersection_area"] = label_pairs.apply(
+                lambda row: row.geometry.intersection(
+                    other_tiles_labels.loc[row["index_right2"], "geometry"]).area, axis=1
+            )
+
+            # Calculate the intersection area ratio for left (the current tile labels)
+            # and right (the adjacent/overlapping tiles labels)
+            label_pairs["intersection_ratio_left"] = label_pairs["intersection_area"] / label_pairs.geometry.area
+            label_pairs["intersection_ratio_right"] = label_pairs.apply(
+                lambda row:
+                row["intersection_area"] / other_tiles_labels.loc[row["index_right2"], "geometry"].area, axis=1
+            )
+
+            # Identify labels to remove based on intersection ratio
+            labels_to_remove = label_pairs[
+                (label_pairs["intersection_ratio_left"] >= intersect_remove_ratio) &
+                (label_pairs["intersection_ratio_right"] >= intersect_remove_ratio)
+            ]["index_right2"].unique()
+
+            self.labels_gdf.drop(labels_to_remove, inplace=True, errors='ignore')
 
 
 if __name__ == "__main__":
-    aggregator = DetectionAggregator.from_coco(tiles_folder_path=Path("/home/hugobaudchon/Documents/Data/pre_processed/all_datasets/quebec_trees/2021_09_02_sbl_z1_rgb_cog/tiles"),
-                                               coco_json_path=Path("/home/hugobaudchon/Documents/Data/pre_processed/all_datasets/quebec_trees/2021_09_02_sbl_z1_rgb_cog/2021_09_02_sbl_z1_rgb_cog_coco_gr0p05_train.json"))
-
-    aggregator.labels_gdf.to_file("./test.geojson", driver='GeoJSON')
+    aggregator = DetectionAggregator.from_coco(geojson_output_path=Path("./test.geojson"),
+                                               tiles_folder_path=Path("C:/Users/Hugo/Documents/Data/pre_processed/all_datasets/quebec_trees/2021_09_02_sbl_z1_rgb_cog/tiles"),
+                                               coco_json_path=Path("C:/Users/Hugo/Documents/Data/pre_processed/all_datasets/quebec_trees/2021_09_02_sbl_z1_rgb_cog/2021_09_02_sbl_z1_rgb_cog_coco_gr0p05_train.json"))
 
 
 
