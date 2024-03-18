@@ -203,12 +203,3 @@ class DetectionAggregator:
             ]["index_right2"].unique()
 
             self.labels_gdf.drop(labels_to_remove, inplace=True, errors='ignore')
-
-
-if __name__ == "__main__":
-    aggregator = DetectionAggregator.from_coco(geojson_output_path=Path("./test.geojson"),
-                                               tiles_folder_path=Path("C:/Users/Hugo/Documents/Data/pre_processed/all_datasets/quebec_trees/2021_09_02_sbl_z1_rgb_cog/tiles"),
-                                               coco_json_path=Path("C:/Users/Hugo/Documents/Data/pre_processed/all_datasets/quebec_trees/2021_09_02_sbl_z1_rgb_cog/2021_09_02_sbl_z1_rgb_cog_coco_gr0p05_train.json"))
-
-
-
