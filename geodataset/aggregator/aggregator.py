@@ -155,7 +155,7 @@ class DetectionAggregator:
             gdf_boxes.crs = src.crs
             gdf_boxes['tile_id'] = tile_id
             if tile_ids_to_scores:
-                gdf_boxes['scores'] = tile_ids_to_scores[tile_id]
+                gdf_boxes['score'] = tile_ids_to_scores[tile_id]
             all_gdfs_boxes.append(gdf_boxes)
 
             bounds = src.bounds
