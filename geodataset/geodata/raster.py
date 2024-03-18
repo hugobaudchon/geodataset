@@ -10,7 +10,7 @@ from shapely.ops import transform
 
 from geodataset.geodata.base_geodata import BaseGeoData
 from geodataset.geodata.tile import Tile
-from geodataset.utils import read_raster
+from geodataset.utils import read_raster, apply_affine_transform
 
 
 class Raster(BaseGeoData):
@@ -92,7 +92,6 @@ class Raster(BaseGeoData):
             elif gdf.crs and not self.metadata['crs']:
                 raise Exception(f"The geometries have a CRS but not the Raster."
                                 f" Please verify the correct raster path was set")
-
         return gdf
 
     def adjust_geometries_to_raster_pixel_coordinates(self, gdf: gpd.GeoDataFrame):
@@ -103,13 +102,8 @@ class Raster(BaseGeoData):
             # This also applies the scaling_factor as the Raster is supposedly already scaled too.
             inverse_transform = ~self.metadata['transform']
 
-            def transform_coord(x, y, transform_fct):
-                # Applying the inverse transform to the coordinate
-                x, y = transform_fct * (x, y)
-                return x, y
-
             gdf['geometry'] = gdf['geometry'].astype(object).apply(
-                lambda geom: transform(partial(transform_coord, transform_fct=inverse_transform), geom)
+                lambda geom: apply_affine_transform(geom, inverse_transform)
             )
             gdf.crs = None
         elif self.scale_factor:
