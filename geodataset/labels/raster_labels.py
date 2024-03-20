@@ -33,7 +33,7 @@ class RasterPolygonLabels:
         assert self.scale_factor == self.associated_raster.scale_factor, \
             "The specified scale_factor for the labels and Raster are different."
 
-        self.labels_gdf = self._load_labels()
+        self.geometries_gdf = self._load_labels()
 
     def _load_labels(self):
         # Loading the labels into a GeoDataFrame
