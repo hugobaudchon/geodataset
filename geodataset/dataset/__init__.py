@@ -1,1 +1,2 @@
 from .raster_dataset import DetectionLabeledRasterCocoDataset, UnlabeledRasterDataset
+from .boxes_dataset import BoxesDataset

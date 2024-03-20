@@ -128,7 +128,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
                                                             tile.row,
                                                             tile.col + tile.metadata['width'],
                                                             tile.row + tile.metadata['height']) for tile in tiles]})
-        labels_gdf = self.labels.labels_gdf
+        labels_gdf = self.labels.geometries_gdf
         labels_gdf['label_area'] = labels_gdf.geometry.area
         inter_polygons = gpd.overlay(tiles_gdf, labels_gdf, how='intersection')
         inter_polygons['area'] = inter_polygons.geometry.area
@@ -152,7 +152,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         Generate COCO categories from the unique label categories in the dataset.
         """
         if self.labels.main_label_category_column_name:
-            unique_categories = set(self.labels.labels_gdf[self.labels.main_label_category_column_name])
+            unique_categories = set(self.labels.geometries_gdf[self.labels.main_label_category_column_name])
             categories = [{'id': i + 1, 'name': category, 'supercategory': ''} for i, category in
                           enumerate(unique_categories)]
             self.category_id_map = {category: i + 1 for i, category in enumerate(unique_categories)}

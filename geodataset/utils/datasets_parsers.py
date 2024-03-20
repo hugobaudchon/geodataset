@@ -308,25 +308,25 @@ def savanna_trees_parser(dataset_root: Path,
 
 
 if __name__ == "__main__":
-    quebec_trees_parser(dataset_root=Path('C:/Users/Hugo/Documents/Data/raw/quebec_trees_dataset_2021-09-02'),
-                        output_path=Path('C:/Users/Hugo/Documents/Data/pre_processed/all_datasets'),
+    quebec_trees_parser(dataset_root=Path('/home/hugobaudchon/Documents/Data/raw/quebec_trees_dataset_2021-09-02'),
+                        output_path=Path('/home/hugobaudchon/Documents/Data/pre_processed/all_datasets'),
                         ground_resolution=0.05,
                         tile_size=1024,
                         tile_overlap=0.5)
 
-    neon_train_parser(dataset_root=Path('C:/Users/Hugo/Documents/Data/raw/Neon_training'),
-                      output_path=Path('C:/Users/Hugo/Documents/Data/pre_processed/all_datasets'),
-                      ground_resolution=0.05,
-                      tile_size=1024,
-                      tile_overlap=0.5)
-
-    refores_trees_parser(dataset_root=Path('C:/Users/Hugo/Documents/Data/raw/reforesTree'),
-                         output_path=Path('C:/Users/Hugo/Documents/Data/pre_processed/all_datasets'),
-                         scale_factor=0.3,      # Can't use ground_resolution here as the rasters CRS are in degree,
-                                                # not in meter, and changing CRS un-aligns the rasters with their
-                                                # labels by a few tens of meters.
-                         tile_size=1024,
-                         tile_overlap=0.5)
+    # neon_train_parser(dataset_root=Path('/home/hugobaudchon/Documents/Data/raw/NeonTreeEvaluation/training'),
+    #                   output_path=Path('/home/hugobaudchon/Documents/Data/pre_processed/all_datasets'),
+    #                   ground_resolution=0.05,
+    #                   tile_size=1024,
+    #                   tile_overlap=0.5)
+    #
+    # refores_trees_parser(dataset_root=Path('/home/hugobaudchon/Documents/Data/raw/wwf_ecuador'),
+    #                      output_path=Path('/home/hugobaudchon/Documents/Data/pre_processed/all_datasets'),
+    #                      scale_factor=0.3,      # Can't use ground_resolution here as the rasters CRS are in degree,
+    #                                             # not in meter, and changing CRS un-aligns the rasters with their
+    #                                             # labels by a few tens of meters.
+    #                      tile_size=1024,
+    #                      tile_overlap=0.5)
 
     # Savanna Tree Dataset is not ideal for tilerizing a detection dataset as only about 30% of the trees in each raster has labels.
     # Training a detection model on this data is really noisy.

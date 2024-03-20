@@ -7,10 +7,11 @@ import albumentations
 import rasterio
 from shapely import box
 
+from geodataset.dataset.base_dataset import BaseDataset
 from geodataset.utils import rle_segmentation_to_bbox, polygon_segmentation_to_bbox, CocoNameConvention
 
 
-class LabeledRasterCocoDataset(ABC):
+class LabeledRasterCocoDataset(BaseDataset, ABC):
     def __init__(self,
                  fold: str,
                  root_path: Path,
@@ -209,7 +210,7 @@ class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
         return transformed_image, transformed_bboxes
 
 
-class UnlabeledRasterDataset:
+class UnlabeledRasterDataset(BaseDataset):
     def __init__(self,
                  fold: str,
                  root_path: Path,
