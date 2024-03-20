@@ -18,21 +18,21 @@ class DetectionAggregator:
 
     def __init__(self,
                  geojson_output_path: Path,
-                 labels_gdf: gpd.GeoDataFrame,
+                 boxes_gdf: gpd.GeoDataFrame,
                  tiles_extent_gdf: gpd.GeoDataFrame,
                  score_threshold: float = 0.1,
                  nms_threshold: float = 0.8,
                  nms_algorithm: str = 'iou'):
 
         self.geojson_output_path = geojson_output_path
-        self.labels_gdf = labels_gdf
+        self.boxes_gdf = boxes_gdf
         self.tiles_extent_gdf = tiles_extent_gdf
         self.score_threshold = score_threshold
         self.nms_threshold = nms_threshold
         self.nms_algorithm = nms_algorithm
 
-        assert self.labels_gdf.crs, "The provided labels_gdf doesn't have a CRS."
-        assert 'tile_id' in self.labels_gdf, "The provided labels_gdf doesn't have a 'tile_id' column."
+        assert self.boxes_gdf.crs, "The provided boxes_gdf doesn't have a CRS."
+        assert 'tile_id' in self.boxes_gdf, "The provided boxes_gdf doesn't have a 'tile_id' column."
         assert self.tiles_extent_gdf.crs, "The provided tiles_extent_gdf doesn't have a CRS."
         assert 'tile_id' in self.tiles_extent_gdf, "The provided tiles_extent_gdf doesn't have a 'tile_id' column."
         assert self.nms_algorithm in self.SUPPORTED_NMS_ALGORITHMS, \
@@ -40,8 +40,7 @@ class DetectionAggregator:
 
         self.remove_low_score_boxes()
         self.apply_nms_algorithm()
-        # self.remove_intersecting_boxes_with_tiles()
-        self.labels_gdf.to_file(str(geojson_output_path), driver="GeoJSON")
+        self.save_boxes()
 
     @classmethod
     def from_coco(cls,
@@ -84,19 +83,6 @@ class DetectionAggregator:
                 tile_ids_to_boxes[image_id] = [annotation_box]
                 tile_ids_to_scores[image_id] = [score]
 
-        # for image_id, scores in tile_ids_to_scores.items():
-        #     if all(score is None for score in scores):
-        #         # All scores for this image_id are None
-        #         tile_ids_to_scores = None
-        #         break
-        #     elif any(score is None for score in scores):
-        #         # Some scores for this image_id are None (implies at least one score is not None)
-        #         tile_ids_to_scores = None
-        #         break
-        #     else:
-        #         # No scores for this image_id are None (all scores are not None)
-        #         continue
-
         tile_ids_to_path = {}
         for image in coco_data['images']:
             image_path = tiles_folder_path / image['file_name']
@@ -109,7 +95,7 @@ class DetectionAggregator:
                                                                                  tile_ids_to_scores=tile_ids_to_scores)
 
         return cls(geojson_output_path=geojson_output_path,
-                   labels_gdf=all_boxes_gdf,
+                   boxes_gdf=all_boxes_gdf,
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
@@ -138,7 +124,7 @@ class DetectionAggregator:
                                                                                  tile_ids_to_scores=tile_ids_to_scores)
 
         return cls(geojson_output_path=geojson_output_path,
-                   labels_gdf=all_boxes_gdf,
+                   boxes_gdf=all_boxes_gdf,
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
@@ -201,75 +187,18 @@ class DetectionAggregator:
 
     def remove_low_score_boxes(self):
         if self.score_threshold:
-            if "score" in self.labels_gdf:
-                n_before = len(self.labels_gdf)
-                self.labels_gdf.drop(self.labels_gdf[self.labels_gdf["score"] < self.score_threshold].index, inplace=True)
-                n_after = len(self.labels_gdf)
-                print(f"Removed {n_before-n_after} out of {n_before} labels"
-                      f" as they were under the core_threshold={self.score_threshold}.")
+            if "score" in self.boxes_gdf and self.boxes_gdf["score"].any():
+                n_before = len(self.boxes_gdf)
+                self.boxes_gdf.drop(self.boxes_gdf[self.boxes_gdf["score"] < self.score_threshold].index, inplace=True)
+                n_after = len(self.boxes_gdf)
+                print(f"Removed {n_before-n_after} out of {n_before} boxes"
+                      f" as they were under the score_threshold={self.score_threshold}.")
             else:
                 warn(f"Could not apply score_threshold={self.score_threshold} as scores were not found"
-                     f" in the labels_gdf. If you instanced the Aggregator from a COCO file,"
+                     f" in the boxes_gdf. If you instanced the Aggregator from a COCO file,"
                      f" please make sure that ALL annotations have a 'score' key or a ['other_attributes']['score']"
                      f" nested keys. If you instanced the Aggregator from a list of boxes for each tile,"
                      f" make sure you also pass the associated list of scores for each tile.")
-
-    # def remove_intersecting_boxes_with_tiles(self):
-    #     """
-    #     Removes labels that intersect more than a given percentage with any other label within the same tile bounds.
-    #     """
-    #
-    #     n_before = len(self.labels_gdf)
-    #
-    #     tile_iterator = tqdm(self.tiles_extent_gdf.iterrows(), total=self.tiles_extent_gdf.shape[0],
-    #                          desc=f"Removing boxes intersecting at > {self.intersect_remove_ratio*100}%")
-    #
-    #     for _, tile_row in tile_iterator:
-    #         tile_id = tile_row['tile_id']
-    #         tile_geom = tile_row.geometry
-    #
-    #         # Find labels intersecting the current tile
-    #         intersecting_labels = gpd.sjoin(self.labels_gdf,
-    #                                         gpd.GeoDataFrame({'geometry': [tile_geom]}, crs=self.labels_gdf.crs),
-    #                                         how='inner', predicate='intersects')
-    #
-    #         if intersecting_labels.empty:
-    #             continue
-    #
-    #         # Finding the pairs of current tile labels and adjacent/overlapping tiles labels that intersect
-    #         tile_labels = intersecting_labels[intersecting_labels["tile_id"] == tile_id]
-    #         other_tiles_labels = intersecting_labels[intersecting_labels["tile_id"] != tile_id]
-    #         label_pairs = gpd.sjoin(tile_labels, other_tiles_labels, how="inner", predicate="intersects",
-    #                                 lsuffix='left2', rsuffix='right2')
-    #
-    #         if label_pairs.empty:
-    #             continue
-    #
-    #         # Calculate the intersection area for each pair
-    #         label_pairs["intersection_area"] = label_pairs.apply(
-    #             lambda row: row.geometry.intersection(
-    #                 other_tiles_labels.loc[row["index_right2"], "geometry"]).area, axis=1
-    #         )
-    #
-    #         # Calculate the union area for each pair
-    #         label_pairs["union_area"] = label_pairs.apply(
-    #             lambda row: row.geometry.union(
-    #                 other_tiles_labels.loc[row["index_right2"], "geometry"]).area - row["intersection_area"], axis=1
-    #         )
-    #
-    #         # Calculate the IoU for each pair
-    #         label_pairs["iou"] = label_pairs["intersection_area"] / label_pairs["union_area"]
-    #
-    #         # Identify labels to remove based on IoU exceeding the threshold
-    #         labels_to_remove = label_pairs[
-    #             label_pairs["iou"] >= self.intersect_remove_ratio
-    #         ]["index_right2"].unique()
-    #
-    #         self.labels_gdf.drop(labels_to_remove, inplace=True, errors='ignore')
-    #
-    #     n_after = len(self.labels_gdf)
-    #     print(f"Removed {n_before-n_after} out of {n_before} labels after"
-    #           f" applying intersect_remove_ratio={self.intersect_remove_ratio}.")
 
     @staticmethod
     def calculate_iou_for_geometry(gdf, geometry):
@@ -319,58 +248,84 @@ class DetectionAggregator:
         return distances
 
     def apply_nms_algorithm(self):
+        n_before = len(self.boxes_gdf)
         if self.nms_algorithm == "iou":
             self.apply_iou_nms_algorithm()
         if self.nms_algorithm == "diou":
             self.apply_diou_nms_algorithm()
 
+        n_after = len(self.boxes_gdf)
+        print(f"Removed {n_before - n_after} out of {n_before} boxes"
+              f" by applying the Non-Maximum Suppression-{self.nms_algorithm} algorithm.")
+
     def apply_iou_nms_algorithm(self):
-        gdf = self.labels_gdf.copy()
+        gdf = self.boxes_gdf.copy()
         gdf.sort_values(by='score', ascending=False, inplace=True)
 
-        intersect_gdf = gpd.sjoin(gdf, gdf, how='inner', op='intersects')
+        intersect_gdf = gpd.sjoin(gdf, gdf, how='inner', predicate='intersects')
         intersect_gdf = intersect_gdf[intersect_gdf.index != intersect_gdf['index_right']]
 
         keep_ids = set()
         skip_ids = set()
+        progress = tqdm(total=len(gdf), desc="Applying NMS-iou algorithm")
         while not gdf.empty:
             current = gdf.iloc[0]
             current_id = gdf.index[0]
+            progress.update(1)
             if current_id in skip_ids:
                 gdf.drop(current_id, inplace=True, errors="ignore")
                 continue
-            keep_ids.add(current_id)
             if len(gdf) > 1:
-                intersecting_geometries_ids = intersect_gdf[intersect_gdf.index == current.name]['index_right'].unique()
+                intersecting_geometries_ids = intersect_gdf[intersect_gdf.index == current_id]['index_right'].unique()
                 intersecting_geometries_ids = [g_id for g_id in intersecting_geometries_ids if g_id not in skip_ids]
                 ious = self.calculate_iou_for_geometry(gdf.loc[intersecting_geometries_ids], current.geometry)
                 skip_ids.update(list(ious[ious > self.nms_threshold].index))
 
+            keep_ids.add(current_id)
             skip_ids.add(current_id)
             gdf.drop(current_id, inplace=True, errors="ignore")
 
+        progress.close()
         drop_ids = list(skip_ids - keep_ids)
-        self.labels_gdf.drop(drop_ids, inplace=True, errors="ignore")
+        self.boxes_gdf.drop(drop_ids, inplace=True, errors="ignore")
 
     def apply_diou_nms_algorithm(self):
-        gdf = self.labels_gdf.copy()
+        gdf = self.boxes_gdf.copy()
         gdf.sort_values(by='score', ascending=False, inplace=True)
-        gdf["centroid"] = gdf.geometry.centroid
 
+        gdf["centroid"] = gdf.geometry.centroid
         max_distance = np.sqrt(((gdf.total_bounds[2] - gdf.total_bounds[0]) ** 2 +
                                 (gdf.total_bounds[3] - gdf.total_bounds[1]) ** 2))
 
-        keep_ids = []
+        intersect_gdf = gpd.sjoin(gdf, gdf, how='inner', predicate='intersects')
+        intersect_gdf = intersect_gdf[intersect_gdf.index != intersect_gdf['index_right']]
+
+        keep_ids = set()
+        skip_ids = set()
+        progress = tqdm(total=len(gdf), desc="Applying NMS-diou algorithm")
         while not gdf.empty:
             current = gdf.iloc[0]
-            keep_ids.append(gdf.index[0])
-
+            current_id = gdf.index[0]
+            progress.update(1)
+            if current_id in skip_ids:
+                gdf.drop(current_id, inplace=True, errors="ignore")
+                continue
             if len(gdf) > 1:
-                ious = self.calculate_iou_for_geometry(gdf.iloc[1:], current.geometry)
-                center_dists = self.calculate_centroid_distance(gdf.iloc[1:], current.geometry)
+                intersecting_geometries_ids = intersect_gdf[intersect_gdf.index == current_id]['index_right'].unique()
+                intersecting_geometries_ids = [g_id for g_id in intersecting_geometries_ids if g_id not in skip_ids]
+                ious = self.calculate_iou_for_geometry(gdf.loc[intersecting_geometries_ids], current.geometry)
+                center_dists = self.calculate_centroid_distance(gdf.loc[intersecting_geometries_ids], current.geometry)
                 dious = ious - (center_dists / max_distance) ** 2
+                skip_ids.update(list(dious[dious > self.nms_threshold].index))
 
-                gdf.drop(gdf[dious > self.nms_threshold].index, inplace=True, errors="ignore")
+            keep_ids.add(current_id)
+            skip_ids.add(current_id)
+            gdf.drop(current_id, inplace=True, errors="ignore")
 
-            gdf.drop(gdf.index[0])
+        progress.close()
+        drop_ids = list(skip_ids - keep_ids)
+        self.boxes_gdf.drop(drop_ids, inplace=True, errors="ignore")
 
+    def save_boxes(self):
+        self.boxes_gdf.to_file(str(self.geojson_output_path), driver="GeoJSON")
+        print(f"Saved {len(self.boxes_gdf)} boxes in file '{self.geojson_output_path}'.")
