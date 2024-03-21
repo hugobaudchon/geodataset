@@ -85,8 +85,6 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
 
         labels = RasterPolygonLabels(path=self.labels_path,
                                      associated_raster=self.raster,
-                                     ground_resolution=self.ground_resolution,
-                                     scale_factor=self.scale_factor,
                                      main_label_category_column_name=main_label_category_column_name,
                                      other_labels_attributes_column_names=other_labels_attributes_column_names)
 
