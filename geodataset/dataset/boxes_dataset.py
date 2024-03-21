@@ -14,10 +14,11 @@ class BoxesDataset(BaseDataset):
     def __init__(self,
                  raster_path: Path,
                  boxes_path: Path,
-                 ground_resolution: float,
-                 scale_factor: float,
                  padding_percentage: float or None,
-                 min_pixel_padding: int or None):
+                 min_pixel_padding: int or None,
+                 ground_resolution: float = None,
+                 scale_factor: float = None,
+                 ):
 
         self.raster_path = raster_path
         self.boxes_path = boxes_path
