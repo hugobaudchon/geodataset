@@ -254,6 +254,8 @@ class DetectionAggregator:
         if self.nms_algorithm == "diou":
             self.apply_diou_nms_algorithm()
 
+                                                            # TODO add support for adapative-nms: https://arxiv.org/pdf/1904.03629.pdf
+
         n_after = len(self.boxes_gdf)
         print(f"Removed {n_before - n_after} out of {n_before} boxes"
               f" by applying the Non-Maximum Suppression-{self.nms_algorithm} algorithm.")
