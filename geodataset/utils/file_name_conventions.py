@@ -53,7 +53,7 @@ class FileNameConvention(ABC):
 class TileNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^([a-z0-9]+_)+[a-z0-9]+_tile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
+        pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+_tile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
         if not re.match(pattern, name):
             raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
 
@@ -82,7 +82,7 @@ class TileNameConvention(FileNameConvention):
 class CocoNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^([a-z0-9]+_)+[a-z0-9]+_coco_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[a-zA-Z0-9]+\.json$"
+        pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+_coco_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[a-zA-Z0-9]+\.json$"
         if not re.match(pattern, name):
             raise ValueError(f"coco_name {name} does not match the expected format {pattern}.")
 
@@ -110,7 +110,7 @@ class CocoNameConvention(FileNameConvention):
 class AoiTilesImageConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^([a-z0-9]+_)+[a-z0-9]+_aoistiles_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))\.png$"
+        pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+_aoistiles_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))\.png$"
         if not re.match(pattern, name):
             raise ValueError(f"file_name {name} does not match the expected format {pattern}.")
 
