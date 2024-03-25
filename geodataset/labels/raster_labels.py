@@ -15,27 +15,31 @@ class RasterPolygonLabels:
     def __init__(self,
                  path: Path,
                  associated_raster: Raster,
+                 scale_factor: float = 1.0,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None):
 
         self.path = path
         self.ext = self.path.suffix
         self.associated_raster = associated_raster
-        self.ground_resolution = self.associated_raster.ground_resolution
-        self.scale_factor = self.associated_raster.scale_factor
+        self.scale_factor = scale_factor
         self.main_label_category_column_name = main_label_category_column_name
         self.other_labels_attributes_column_names = other_labels_attributes_column_names
 
-        self.geometries_gdf = self._load_labels()
+        assert self.scale_factor == self.associated_raster.scale_factor, \
+            "The specified scale_factor for the labels and Raster are different."
+
+        self.labels_gdf = self._load_labels()
 
     def _load_labels(self):
         # Loading the labels into a GeoDataFrame
         if self.ext.lower() == '.xml':
-            labels_gdf = self._load_xml_labels()
+            labels_gdf, is_bbox = self._load_xml_labels()
         elif self.ext == '.csv':
-            labels_gdf = self._load_csv_labels()
-        elif self.ext in ['.geojson', '.gpkg', '.shp']:
-            labels_gdf = self._load_geopandas_labels()
+            labels_gdf, is_bbox = self._load_csv_labels()
+        elif self.ext in ['.geojson',  '.json', '.gpkg', '.shp']:
+            labels_gdf, is_bbox = self._load_geopandas_labels()
+        
         else:
             raise Exception(f'Annotation format {self.ext} is not yet supported.')
 
@@ -70,7 +74,7 @@ class RasterPolygonLabels:
 
     def _load_geopandas_labels(self):
         # Load polygons
-        if self.ext in ['.geojson', '.gpkg', '.shp']:
+        if self.ext in ['.geojson', '.gpkg', '.shp', ".json"]:
             labels_gdf = gpd.read_file(self.path)
         else:
             raise ValueError("Unsupported file format for polygons. Please use GeoJSON (.geojson), GPKG (.gpkg) or Shapefile (.shp).")
@@ -90,15 +94,14 @@ class RasterPolygonLabels:
                     f' or remove the attribute from the parameter \'other_labels_attributes_column_names\'.' \
                     f' The columns of the geopackages are: {labels_gdf.columns}'
 
-        return labels_gdf
+        return labels_gdf, None#TODO
 
     def _load_xml_labels(self):
         with open(self.path, 'r') as annotation_file:
             annotation = xmltodict.parse(annotation_file.read())
         labels_bboxes = []
         labels_main_categories = []
-        labels_other_attributes = {attribute: [] for attribute in self.other_labels_attributes_column_names}\
-            if self.other_labels_attributes_column_names else {}
+        labels_other_attributes = {attribute: [] for attribute in self.other_labels_attributes_column_names}
         if isinstance(annotation['annotation']['object'], list):
             for bbox in annotation['annotation']['object']:
                 xmin = int(bbox['bndbox']['xmin'])
@@ -132,7 +135,9 @@ class RasterPolygonLabels:
             for attribute, values in labels_other_attributes.items():
                 labels_gdf[attribute] = pd.Series(values)
 
-        return labels_gdf
+        is_bbox = True
+
+        return labels_gdf, is_bbox
 
     def _find_label_attributes_in_xml(self,
                                       bbox_xml_object: dict,
@@ -190,7 +195,9 @@ class RasterPolygonLabels:
                                     f' value from parameter \'other_labels_attributes_column_names\'.'
                                     f' The columns of the CSV are: {labels_df.columns}')
 
-        return labels_gdf
+        is_bbox = True
+
+        return labels_gdf, is_bbox
 
     @staticmethod
     def try_cast_multipolygon_to_polygon(geometry):
