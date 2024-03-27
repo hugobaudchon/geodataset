@@ -2,10 +2,11 @@ import re
 from abc import ABC, abstractmethod
 
 
-def validate_and_convert_product_name(product_name_stem):
+def validate_and_convert_product_name(product_name_stem: str):
     standardized_product_name_stem = product_name_stem.replace(" ", "_").replace("-", "_")
+    standardized_product_name_stem = standardized_product_name_stem.lower()
 
-    pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+$"
+    pattern = r"^([a-z0-9]+_)+[a-z0-9]+$"
     if not re.match(pattern, standardized_product_name_stem):
         raise ValueError(f"The product name stem (without extension) {product_name_stem},"
                          f" which has been standardized to {standardized_product_name_stem}"
