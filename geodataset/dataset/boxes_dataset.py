@@ -101,7 +101,7 @@ class BoxesDataset(BaseDataset):
         # This is done by translating the original geometry to the origin based on the minx and miny of the padded box
         adjusted_box = translate(box(*geom.bounds), xoff=-padded_minx, yoff=-padded_miny)
 
-        return subarray, adjusted_box
+        return subarray, adjusted_box, (padded_minx, padded_miny)
 
     def __len__(self):
         return len(self.boxes.geometries_gdf)
