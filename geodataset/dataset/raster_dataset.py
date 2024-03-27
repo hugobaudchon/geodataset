@@ -233,14 +233,15 @@ class UnlabeledRasterDataset(BaseDataset):
         Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
         """
 
-        for path in directory.iterdir():
-            if path.is_dir() and path.name == 'tiles':
-                for tile_path in path.iterdir():
-                    if tile_path.suffix == ".tif":
-                        self.tile_paths.append(tile_path)
+        if directory.is_dir() and directory.name == 'tiles':
+            for path in directory.iterdir():
+                if path.suffix == ".tif":
+                    self.tile_paths.append(path)
 
-            elif path.is_dir() and path.name != 'tiles':
-                self._find_tiles_paths(directory=path)
+        if directory.is_dir():
+            for path in directory.iterdir():
+                if path.is_dir():
+                    self._find_tiles_paths(directory=path)
 
     def __getitem__(self, idx: int):
         """
