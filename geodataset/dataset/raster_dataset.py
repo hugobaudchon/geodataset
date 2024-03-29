@@ -121,7 +121,6 @@ class LabeledRasterCocoDataset(BaseDataset, ABC):
                 self._find_tiles_paths(directory=path)
 
     def _remove_tiles_not_found(self):
-        # TODO: changer les index de self.tiles 
         original_tiles_number = len(self.tiles)
         tile_ids_to_delete = []
         for tile_id, tile in self.tiles.items():
@@ -141,7 +140,6 @@ class LabeledRasterCocoDataset(BaseDataset, ABC):
 
     def _filter_tiles_without_box(self):
         # Remove tiles without annotation for training
-        # TODO: changer les index de self.tiles 
         original_tiles_number = len(self.tiles)
         if self.fold == 'train':
             tile_ids_without_labels = []
