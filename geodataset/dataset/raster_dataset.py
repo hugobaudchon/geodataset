@@ -1,4 +1,5 @@
 import json
+import numpy as np
 from abc import ABC, abstractmethod
 from warnings import warn
 from pathlib import Path
@@ -32,6 +33,7 @@ class LabeledRasterCocoDataset(BaseDataset, ABC):
         self._load_coco_datasets(directory=self.root_path)
         self._find_tiles_paths(directory=self.root_path)
         self._remove_tiles_not_found()
+        self._filter_tiles_without_box()
 
         if len(self.cocos_detected) == 0:
             raise Exception(f"No COCO datasets for fold '{self.fold}' were found in the specified root folder.")
@@ -133,6 +135,34 @@ class LabeledRasterCocoDataset(BaseDataset, ABC):
         if original_tiles_number != new_tiles_number:
             warn(f"Had to remove {original_tiles_number - new_tiles_number} tiles out of {original_tiles_number}"
                  f" as they could not be found in the root folder or its sub-folders.")
+            # Need to reindex the tile ids for __getitem__
+            self._reindex_tiles()
+
+    def _filter_tiles_without_box(self):
+        # Remove tiles without annotation for training
+        original_tiles_number = len(self.tiles)
+        if self.fold == 'train':
+            tile_ids_without_labels = []
+            for tile_id, tile in self.tiles.items():
+                if len(tile['labels']) == 0:
+                    tile_ids_without_labels.append(tile_id)
+
+            for tile_id in tile_ids_without_labels:
+                del self.tiles[tile_id]
+
+        new_tiles_number = len(self.tiles)
+
+        if original_tiles_number != new_tiles_number:
+            warn(f"Had to remove {original_tiles_number - new_tiles_number} tiles out of {original_tiles_number}"
+                 f" as they do not contain annotation in the training set.")
+            # Need to reindex the tile ids for __getitem__
+            self._reindex_tiles()
+
+    def _reindex_tiles(self):
+        reindexed_tiles = {}
+        for i, (_, tile) in enumerate(self.tiles.items()):
+            reindexed_tiles[i] = tile
+        self.tiles = reindexed_tiles
 
     @abstractmethod
     def __getitem__(self, idx: int):
@@ -205,7 +235,15 @@ class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
             transformed_labels = labels
 
         transformed_image = transformed_image / 255  # normalizing
-        transformed_bboxes = {'boxes': transformed_bboxes, 'labels': transformed_labels}
+        # getting the areas of the boxes, assume pascal_voc box format
+        area = [(bboxe[3] - bboxe[1]) * (bboxe[2] - bboxe[0]) for bboxe in transformed_bboxes]
+        # suppose all instances are not crowd
+        iscrowd = np.zeros((len(transformed_bboxes),))
+        # get tile id
+        image_id = np.array([idx])
+        # group annotations info
+        transformed_bboxes = {'boxes': transformed_bboxes, 'labels': transformed_labels,
+                              'area': area, 'iscrowd': iscrowd, 'image_id': image_id}
 
         return transformed_image, transformed_bboxes
 
