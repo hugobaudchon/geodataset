@@ -10,27 +10,35 @@ from shapely import box, Polygon
 import geopandas as gpd
 from tqdm import tqdm
 
-from geodataset.utils import TileNameConvention, apply_affine_transform
+from geodataset.utils import TileNameConvention, apply_affine_transform, generate_coco
 
 
 class DetectionAggregator:
     SUPPORTED_NMS_ALGORITHMS = ['iou', 'diou']
 
     def __init__(self,
-                 geojson_output_path: Path,
+                 output_path: Path,
                  boxes_gdf: gpd.GeoDataFrame,
                  tiles_extent_gdf: gpd.GeoDataFrame,
+                 tile_ids_to_path: dict,
                  score_threshold: float = 0.1,
                  nms_threshold: float = 0.8,
                  nms_algorithm: str = 'iou'):
 
-        self.geojson_output_path = geojson_output_path
+        self.output_path = output_path
         self.boxes_gdf = boxes_gdf
         self.tiles_extent_gdf = tiles_extent_gdf
+        self.tile_ids_to_path = tile_ids_to_path
         self.score_threshold = score_threshold
         self.nms_threshold = nms_threshold
         self.nms_algorithm = nms_algorithm
 
+        self._check_parameters()
+        self.remove_low_score_boxes()
+        self.apply_nms_algorithm()
+        self.save_boxes()
+
+    def _check_parameters(self):
         assert self.boxes_gdf.crs, "The provided boxes_gdf doesn't have a CRS."
         assert 'tile_id' in self.boxes_gdf, "The provided boxes_gdf doesn't have a 'tile_id' column."
         assert self.tiles_extent_gdf.crs, "The provided tiles_extent_gdf doesn't have a CRS."
@@ -38,13 +46,12 @@ class DetectionAggregator:
         assert self.nms_algorithm in self.SUPPORTED_NMS_ALGORITHMS, \
             f"The nms_algorithm must be one of {self.SUPPORTED_NMS_ALGORITHMS}. Got {self.nms_algorithm}."
 
-        self.remove_low_score_boxes()
-        self.apply_nms_algorithm()
-        self.save_boxes()
+        assert self.output_path.suffix in ['json', 'geojson'], ("The output_path needs to end with either .json"
+                                                                " (coco output) or .geojson (geopackage output).")
 
     @classmethod
     def from_coco(cls,
-                  geojson_output_path: Path,
+                  output_path: Path,
                   tiles_folder_path: Path,
                   coco_json_path: Path,
                   score_threshold: float = 0.1,
@@ -94,16 +101,17 @@ class DetectionAggregator:
                                                                                  tile_ids_to_boxes=tile_ids_to_boxes,
                                                                                  tile_ids_to_scores=tile_ids_to_scores)
 
-        return cls(geojson_output_path=geojson_output_path,
+        return cls(output_path=output_path,
                    boxes_gdf=all_boxes_gdf,
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
-                   nms_algorithm=nms_algorithm)
+                   nms_algorithm=nms_algorithm,
+                   tile_ids_to_path=tile_ids_to_path)
 
     @classmethod
     def from_boxes(cls,
-                   geojson_output_path: Path,
+                   output_path: Path,
                    tiles_paths: List[Path],
                    boxes: List[List[box]],
                    scores: List[List[float]],
@@ -123,12 +131,13 @@ class DetectionAggregator:
                                                                                  tile_ids_to_boxes=tile_ids_to_boxes,
                                                                                  tile_ids_to_scores=tile_ids_to_scores)
 
-        return cls(geojson_output_path=geojson_output_path,
+        return cls(output_path=output_path,
                    boxes_gdf=all_boxes_gdf,
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
-                   nms_algorithm=nms_algorithm)
+                   nms_algorithm=nms_algorithm,
+                   tile_ids_to_path=tile_ids_to_path)
 
     @staticmethod
     def prepare_boxes(tile_ids_to_path: dict, tile_ids_to_boxes: dict, tile_ids_to_scores: dict):
@@ -329,5 +338,12 @@ class DetectionAggregator:
         self.boxes_gdf.drop(drop_ids, inplace=True, errors="ignore")
 
     def save_boxes(self):
-        self.boxes_gdf.to_file(str(self.geojson_output_path), driver="GeoJSON")
-        print(f"Saved {len(self.boxes_gdf)} boxes in file '{self.geojson_output_path}'.")
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if self.output_path.suffix == 'geojson':
+            self.boxes_gdf.to_file(str(self.output_path), driver="GeoJSON")
+        elif self.output_path.suffix == 'json':
+            generate_coco()  # TODO save to COCO
+        else:
+            raise Exception()
+        print(f"Saved {len(self.boxes_gdf)} boxes in file '{self.output_path}'.")

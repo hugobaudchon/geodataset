@@ -1,4 +1,7 @@
 import base64
+import json
+from concurrent.futures import ProcessPoolExecutor
+from datetime import date
 from pathlib import Path
 from typing import List
 
@@ -314,6 +317,72 @@ def generate_label_coco(polygon: shapely.Polygon,
     }
 
     return coco_annotation
+
+
+def process_tile(tile_data):
+    tile_id, (tile_path, tile_boxes, tile_boxes_scores) = tile_data
+    local_detections_coco = []
+
+    assert Path(tile_path).exists(), "Please make sure to save the tiles/images before creating the COCO dataset."
+
+    with rasterio.open(tile_path) as tile:
+        tile_width, tile_height = tile.width, tile.height
+
+    for i in range(len(tile_boxes)):
+        detection = generate_label_coco(
+            polygon=tile_boxes[i],
+            tile_height=tile_height,
+            tile_width=tile_width,
+            tile_id=tile_id,
+            use_rle_for_labels=True,
+            category_id=None,
+            other_attributes_dict={'score': float(tile_boxes_scores[i])}
+        )
+        local_detections_coco.append(detection)
+    return {
+        "image_coco": {
+            "id": tile_id,
+            "width": tile_width,
+            "height": tile_height,
+            "file_name": str(tile_path.name),
+        },
+        "detections_coco": local_detections_coco
+    }
+
+
+def generate_coco(description: str,
+                  tiles_paths: list,
+                  boxes: list,
+                  scores: list,
+                  output_path: Path,
+                  n_workers: int):          # TODO use this function in LabeledTilerizer.
+
+    images_cocos = []
+    detections_cocos = []
+
+    with ProcessPoolExecutor(max_workers=n_workers) as executor:
+        results = list(executor.map(process_tile, enumerate(zip(tiles_paths, boxes, scores))))
+
+    for result in results:
+        images_cocos.append(result["image_coco"])
+        detections_cocos.extend(result["detections_coco"])
+
+    # Save the COCO dataset to a JSON file
+    with output_path.open('w') as f:
+        json.dump({
+            "info": {
+                "description": description,
+                "version": "1.0",
+                "year": str(date.today().year),
+                "date_created": str(date.today())
+            },
+            "licenses": [
+                # add license?
+            ],
+            "images": images_cocos,
+            "annotations": detections_cocos,
+            "categories": None
+        }, f, ensure_ascii=False, indent=2)
 
 
 def apply_affine_transform(geom: shapely.geometry, affine: rasterio.Affine):
