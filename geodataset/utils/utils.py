@@ -294,7 +294,7 @@ class COCOGenerator:
                  output_path: Path,
                  use_rle_for_labels: bool,
                  n_workers: int,
-                 main_label_category_to_id_map: dict):
+                 main_label_category_to_id_map: dict or None):
         self.description = description
         self.tiles_paths = tiles_paths
         self.polygons = polygons
