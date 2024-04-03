@@ -62,8 +62,7 @@ class FixedImageSizePolygonDataset(BaseDataset):
         # Crop the raster to these bounds
         cropped_raster = self.raster.data[:, crop_miny:crop_maxy, crop_minx:crop_maxx]
 
-        # Create a new box for the cropped area (now in pixel coordinates) and translate the geometry to be centered
-        cropped_box = box(crop_minx, crop_miny, crop_maxx, crop_maxy)
+        # Create a new box for the cropped area and translate the geometry to be centered
         translated_geom = translate(geom, xoff=-crop_minx, yoff=-crop_miny)
 
         return cropped_raster, translated_geom, (crop_minx, crop_miny)
