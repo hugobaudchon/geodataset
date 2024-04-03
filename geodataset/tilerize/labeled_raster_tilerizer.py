@@ -1,11 +1,8 @@
-import json
-import warnings
 from functools import partial
 from typing import List
 import geopandas as gpd
 from pathlib import Path
 
-import pandas as pd
 from shapely import box, Polygon
 from shapely.affinity import translate
 
@@ -13,9 +10,8 @@ from geodataset.aoi import AOIConfig
 from geodataset.geodata.tile import Tile
 from geodataset.labels.raster_labels import RasterPolygonLabels
 
-from datetime import date
 
-from geodataset.utils import save_aois_tiles_picture, CocoNameConvention, AoiTilesImageConvention, generate_label_coco
+from geodataset.utils import save_aois_tiles_picture, CocoNameConvention, AoiTilesImageConvention, COCOGenerator
 from geodataset.tilerize import BaseRasterTilerizer
 
 
@@ -35,7 +31,9 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
                  ignore_tiles_without_labels: bool = False,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8,
                  main_label_category_column_name: str = None,
-                 other_labels_attributes_column_names: List[str] = None):
+                 other_labels_attributes_column_names: List[str] = None,
+                 coco_n_workers: int = 5,
+                 main_label_category_to_id_map: dict = None):
         """
         raster_path: Path,
             Path to the raster (.tif, .png...).
@@ -55,6 +53,8 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         scale_factor: float,
             Scale factor for rescaling the data (change pixel resolution).
             Only one of ground_resolution and scale_factor can be set at the same time.
+        use_rle_for_labels: bool,
+            Whether to use RLE encoding for the labels. If False, the labels will be saved as polygons.
         intersection_ratio: float,
             When finding the associated labels to a tile, this ratio will specify the minimal required intersection
             ratio between a candidate polygon and the tile in order to keep this polygon as a label for that tile.
@@ -62,6 +62,10 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
             Whether to ignore (skip) tiles that don't have any associated labels.
         ignore_black_white_alpha_tiles_threshold: bool,
             Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
+        coco_n_workers: int,
+            Number of workers to use when generating the COCO dataset. Useful when use_rle_for_labels=True as it is quite slow.
+        main_label_category_to_id_map: dict,
+            A mapping from the main label category names to their corresponding ids (will be used when generating the COCO files).
         """
         super().__init__(raster_path=raster_path,
                          output_path=output_path,
@@ -76,6 +80,8 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
         self.use_rle_for_labels = use_rle_for_labels
         self.min_intersection_ratio = min_intersection_ratio
         self.ignore_tiles_without_labels = ignore_tiles_without_labels
+        self.coco_n_workers = coco_n_workers
+        self.main_label_category_to_id_map = main_label_category_to_id_map
 
         self.labels = self._load_labels(main_label_category_column_name, other_labels_attributes_column_names)
 
@@ -145,67 +151,6 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
 
         return significant_polygons_inter
 
-    def _generate_coco_categories(self):
-        """
-        Generate COCO categories from the unique label categories in the dataset.
-        """
-        if self.labels.main_label_category_column_name:
-            unique_categories = set(self.labels.geometries_gdf[self.labels.main_label_category_column_name])
-            categories = [{'id': i + 1, 'name': category, 'supercategory': ''} for i, category in
-                          enumerate(unique_categories)]
-            self.category_id_map = {category: i + 1 for i, category in enumerate(unique_categories)}
-        else:
-            categories = {}
-            warnings.warn("The GeoDataFrame containing the labels doesn't contain a category column,"                          
-                           " so labels won't have categories.")
-        return categories
-
-    def _generate_coco_images_and_labels_annotations(self,
-                                                     tiles: List[Tile],
-                                                     labels: List[gpd.GeoDataFrame]):
-        images_coco = []
-        annotations_coco = []
-        annotation_id = 1
-
-        for tile, tile_labels in zip(tiles, labels):
-            # Directly generate COCO image data from the Tile object
-            images_coco.append(tile.to_coco())
-
-            for _, tile_label in tile_labels.iterrows():
-                coco_annotation = self._generate_label_coco(label=tile_label, tile=tile, tile_id=tile.tile_id)
-                coco_annotation['id'] = annotation_id
-                annotation_id += 1
-                annotations_coco.append(coco_annotation)
-
-        return images_coco, annotations_coco
-
-    def _generate_label_coco(self, label: pd.Series, tile: Tile, tile_id: int) -> dict:
-        # Finding the main category if any
-        if self.labels.main_label_category_column_name:
-            category_id = self.category_id_map[label[self.labels.main_label_category_column_name]]
-        else:
-            category_id = None
-
-        # Finding the other attributes if any
-        if self.labels.other_labels_attributes_column_names:
-            other_attributes_dict = {}
-            for attribute in self.labels.other_labels_attributes_column_names:
-                other_attributes_dict[attribute] = label[attribute]
-        else:
-            other_attributes_dict = None
-
-        coco_annotation = generate_label_coco(
-            polygon=label['geometry'],
-            tile_height=tile.metadata['height'],
-            tile_width=tile.metadata['width'],
-            tile_id=tile_id,
-            use_rle_for_labels=self.use_rle_for_labels,
-            category_id=category_id,
-            other_attributes_dict=other_attributes_dict
-        )
-
-        return coco_annotation
-
     def generate_coco_dataset(self):
         aois_tiles, aois_labels = self._get_tiles_and_labels_per_aoi()
 
@@ -225,29 +170,16 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
 
             tiles = aois_tiles[aoi]
             labels = aois_labels[aoi]
-            categories_coco = self._generate_coco_categories()
-            images_coco, annotations_coco = self._generate_coco_images_and_labels_annotations(tiles=tiles, labels=labels)
-            # Assemble the COCO dataset
-            coco_dataset = {
-                "info": {
-                    "description": f"Dataset for the product {self.product_name}"
-                                   f" with fold {aoi}"
-                                   f" and scale_factor {self.scale_factor}"
-                                   f" and ground_resolution {self.ground_resolution}.",
-                    "dataset_name": self.product_name,
-                    "version": "1.0",
-                    "year": str(date.today().year),
-                    "date_created": str(date.today())
-                },
-                "licenses": [
-                    # add license?
-                ],
-                "images": images_coco,
-                "annotations": annotations_coco,
-                "categories": categories_coco
-            }
 
-            # Save the tile images
+            tiles_paths = [self.tiles_path / tile.generate_name() for tile in tiles]
+            polygons = [x['geometry'].to_list() for x in labels]
+            categories_list = [x[self.labels.main_label_category_column_name].to_list() for x in labels]\
+                if self.labels.main_label_category_column_name else None
+            other_attributes_dict_list = [{attribute: label[attribute].to_list() for attribute in
+                                           self.labels.other_labels_attributes_column_names} for label in labels]\
+                if self.labels.other_labels_attributes_column_names else None
+
+            # Saving the tiles
             for tile in aois_tiles[aoi]:
                 tile.save(output_folder=self.tiles_path)
 
@@ -255,9 +187,21 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
                                                                                       ground_resolution=self.ground_resolution,
                                                                                       scale_factor=self.scale_factor,
                                                                                       fold=aoi)
-            # Save the COCO dataset to a JSON file
-            with coco_output_file_path.open('w') as f:
-                json.dump(coco_dataset, f, ensure_ascii=False, indent=2)
 
-            print(f"The COCO dataset for AOI '{aoi}' with {len(coco_dataset['images'])} images"
-                  f" and {len(coco_dataset['annotations'])} labels has been saved to {self.output_path}")
+            coco_generator = COCOGenerator(
+                description=f"Dataset for the product {self.product_name}"
+                            f" with fold {aoi}"
+                            f" and scale_factor {self.scale_factor}"
+                            f" and ground_resolution {self.ground_resolution}.",
+                tiles_paths=tiles_paths,
+                polygons=polygons,
+                scores=None,
+                categories=categories_list,
+                other_attributes=other_attributes_dict_list,
+                output_path=coco_output_file_path,
+                use_rle_for_labels=self.use_rle_for_labels,
+                n_workers=self.coco_n_workers,
+                main_label_category_to_id_map=self.main_label_category_to_id_map
+            )
+
+            coco_generator.generate_coco()

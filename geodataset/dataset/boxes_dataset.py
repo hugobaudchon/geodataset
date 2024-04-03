@@ -40,9 +40,9 @@ class BoxesDataset(BaseDataset):
                         scale_factor=self.scale_factor)
         return raster
 
-    def _load_boxes(self,
-                    main_label_category_column_name: str or None,
-                    other_labels_attributes_column_names: List[str] or None):
+    def _load_polygons(self,
+                       main_label_category_column_name: str or None,
+                       other_labels_attributes_column_names: List[str] or None):
 
         labels = RasterPolygonLabels(path=self.boxes_path,
                                      associated_raster=self.raster,

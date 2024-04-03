@@ -1,6 +1,11 @@
 import base64
+import json
+
+import warnings
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date
 from pathlib import Path
-from typing import List
+from typing import List, Union, Dict
 
 import cv2
 import laspy
@@ -251,7 +256,7 @@ def save_aois_tiles_picture(aois_tiles: dict[str, list], save_path: Path, tile_c
             tile_y_numpy = int(tile.col / tile_coordinate_step)
             display_array[tile_x_numpy, tile_y_numpy] = idx + 1
 
-        base_cmap.append(colors[idx-1])
+        base_cmap.append(colors[idx - 1])
         color_labels.append(aoi)  # Use the dict key as the label
 
     custom_cmap = ListedColormap(base_cmap)
@@ -278,42 +283,175 @@ def strip_all_extensions(path: Path):
     return p.name
 
 
-def generate_label_coco(polygon: shapely.Polygon,
-                        tile_height: int,
-                        tile_width: int,
-                        tile_id: int,
-                        use_rle_for_labels: bool,
-                        category_id: int or None,
-                        other_attributes_dict: dict or None) -> dict:
-    if use_rle_for_labels:
-        # Convert the polygon to a COCO RLE mask
-        segmentation = polygon_to_coco_rle_mask(polygon=polygon,
-                                                tile_height=tile_height,
-                                                tile_width=tile_width)
-    else:
-        # Convert the polygon's exterior coordinates to the format expected by COCO
-        segmentation = polygon_to_coco_coordinates(polygon=polygon)
+class COCOGenerator:
+    def __init__(self,
+                 description: str,
+                 tiles_paths: List[Path],
+                 polygons: List[List[Polygon]],
+                 scores: List[List[float]] or None,
+                 categories: List[List[Union[str, int]]] or None,
+                 other_attributes: List[Dict] or None,
+                 output_path: Path,
+                 use_rle_for_labels: bool,
+                 n_workers: int,
+                 main_label_category_to_id_map: dict):
+        self.description = description
+        self.tiles_paths = tiles_paths
+        self.polygons = polygons
+        self.scores = scores
+        self.categories = categories
+        self.other_attributes = other_attributes
+        self.output_path = output_path
+        self.use_rle_for_labels = use_rle_for_labels
+        self.n_workers = n_workers
+        self.main_label_category_to_id_map = main_label_category_to_id_map
 
-    # Calculate the area of the polygon
-    area = polygon.area
+        assert len(self.tiles_paths) == len(self.polygons), "The number of tiles and polygons must be the same."
+        if self.scores:
+            assert len(self.tiles_paths) == len(self.scores), "The number of tiles and scores must be the same."
+        if self.categories:
+            assert len(self.tiles_paths) == len(self.categories), "The number of tiles and categories must be the same."
+        if self.other_attributes:
+            assert len(self.tiles_paths) == len(
+                self.other_attributes), "The number of tiles and other_attributes must be the same."
 
-    # Get the bounding box in COCO format: [x, y, width, height]
-    bbox = list(polygon.bounds)
-    bbox_coco_format = [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]]
+        if self.scores and self.other_attributes:
+            self.other_attributes = [dict(self.other_attributes[i], score=self.scores[i]) for i in
+                                     range(len(self.tiles_paths))]
+        elif self.scores:
+            self.other_attributes = [{'score': score} for score in self.scores]
 
-    # Generate COCO annotation data from each associated label
-    coco_annotation = {
-        "segmentation": segmentation,
-        "is_rle_format": use_rle_for_labels,
-        "area": area,
-        "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
-        "image_id": tile_id,
-        "bbox": bbox_coco_format,
-        "category_id": category_id,
-        "other_attributes": other_attributes_dict
-    }
+    def generate_coco(self):
+        id_to_category_map, category_to_id_map = self._generate_coco_categories()
 
-    return coco_annotation
+        with ThreadPoolExecutor(self.n_workers) as pool:
+            results = list(pool.map(self._generate_tile_coco, enumerate(
+                zip(self.tiles_paths,
+                    self.polygons,
+                    [[category_to_id_map[c] for c in cs] for cs in self.categories] if self.categories else [None, ]*len(self.tiles_paths),
+                    self.other_attributes if self.other_attributes else [None, ] * len(self.tiles_paths),
+                    [self.use_rle_for_labels, ] * len(self.tiles_paths)
+                    )
+            )))
+
+        images_cocos = []
+        detections_cocos = []
+        for result in results:
+            images_cocos.append(result["image_coco"])
+            detections_cocos.extend(result["detections_coco"])
+
+        # Save the COCO dataset to a JSON file
+        with self.output_path.open('w') as f:
+            json.dump({
+                "info": {
+                    "description": self.description,
+                    "version": "1.0",
+                    "year": str(date.today().year),
+                    "date_created": str(date.today())
+                },
+                "licenses": [
+                    # Placeholder for licenses
+                ],
+                "images": images_cocos,
+                "annotations": detections_cocos,
+                "categories": id_to_category_map
+            }, f, ensure_ascii=False, indent=2)
+
+        print(f'Saved COCO dataset to {self.output_path}.')
+
+    def _generate_tile_coco(self, tile_data):
+        (tile_id,
+         (tile_path, tile_polygons, tiles_polygons_category_ids, tiles_polygons_other_attributes, use_rle_for_labels)) = tile_data
+
+        local_detections_coco = []
+
+        assert Path(tile_path).exists(), "Please make sure to save the tiles/images before creating the COCO dataset."
+
+        with rasterio.open(tile_path) as tile:
+            tile_width, tile_height = tile.width, tile.height
+
+        for i in range(len(tile_polygons)):
+            detection = self._generate_label_coco(
+                polygon=tile_polygons[i],
+                tile_height=tile_height,
+                tile_width=tile_width,
+                tile_id=tile_id,
+                use_rle_for_labels=use_rle_for_labels,
+                category_id=tiles_polygons_category_ids[i] if tiles_polygons_category_ids else None,
+                other_attributes_dict=tiles_polygons_other_attributes[i] if tiles_polygons_other_attributes else None
+            )
+            local_detections_coco.append(detection)
+        return {
+            "image_coco": {
+                "id": tile_id,
+                "width": tile_width,
+                "height": tile_height,
+                "file_name": str(tile_path.name),
+            },
+            "detections_coco": local_detections_coco
+        }
+
+    @staticmethod
+    def _generate_label_coco(polygon: shapely.Polygon,
+                             tile_height: int,
+                             tile_width: int,
+                             tile_id: int,
+                             use_rle_for_labels: bool,
+                             category_id: int or None,
+                             other_attributes_dict: dict or None) -> dict:
+        if use_rle_for_labels:
+            # Convert the polygon to a COCO RLE mask
+            segmentation = polygon_to_coco_rle_mask(polygon=polygon,
+                                                    tile_height=tile_height,
+                                                    tile_width=tile_width)
+        else:
+            # Convert the polygon's exterior coordinates to the format expected by COCO
+            segmentation = polygon_to_coco_coordinates(polygon=polygon)
+
+        # Calculate the area of the polygon
+        area = polygon.area
+
+        # Get the bounding box in COCO format: [x, y, width, height]
+        bbox = list(polygon.bounds)
+        bbox_coco_format = [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]]
+
+        # Generate COCO annotation data from each associated label
+        coco_annotation = {
+            "segmentation": segmentation,
+            "is_rle_format": use_rle_for_labels,
+            "area": area,
+            "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
+            "image_id": tile_id,
+            "bbox": bbox_coco_format,
+            "category_id": category_id,
+            "other_attributes": other_attributes_dict
+        }
+
+        return coco_annotation
+
+    def _generate_coco_categories(self):
+        """
+        Generate COCO categories from the unique label categories in the dataset.
+        """
+        categories_set = set([category for categories in self.categories for category in categories] if self.categories else [])
+        if self.main_label_category_to_id_map:
+            for c in categories_set:
+                if c not in self.main_label_category_to_id_map:
+                    raise Exception(f"Category '{c}' is not in the provided main_label_category_to_id_map.")
+            category_to_id_map = self.main_label_category_to_id_map
+            id_to_category_map = [{'id': category_to_id_map[category], 'name': category, 'supercategory': ''} for category in self.main_label_category_to_id_map.keys()]
+        else:
+            if self.categories:
+                id_to_category_map = [{'id': i + 1, 'name': category, 'supercategory': ''} for i, category in
+                                      enumerate(categories_set)]
+                category_to_id_map = {category: i + 1 for i, category in enumerate(categories_set)}
+            else:
+                id_to_category_map = {}
+                category_to_id_map = {}
+                warnings.warn("The GeoDataFrame containing the labels doesn't contain a category column,"
+                              " so labels won't have categories.")
+
+        return id_to_category_map, category_to_id_map
 
 
 def apply_affine_transform(geom: shapely.geometry, affine: rasterio.Affine):
