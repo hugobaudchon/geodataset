@@ -316,10 +316,11 @@ class COCOGenerator:
                 self.other_attributes), "The number of tiles and other_attributes must be the same."
 
         if self.scores and self.other_attributes:
-            self.other_attributes = [dict(self.other_attributes[i], score=self.scores[i]) for i in
-                                     range(len(self.tiles_paths))]
+            self.other_attributes = [[dict(self.other_attributes[t][i], score=self.scores[t][i]) for i in
+                                     range(len(self.other_attributes[t]))] for t in range(len(self.tiles_paths))]
+
         elif self.scores:
-            self.other_attributes = [{'score': score} for score in self.scores]
+            self.other_attributes = [[{'score': s} for s in tile_scores] for tile_scores in self.scores]
 
     def generate_coco(self):
         id_to_category_map, category_to_id_map = self._generate_coco_categories()
