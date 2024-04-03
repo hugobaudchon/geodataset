@@ -10,7 +10,7 @@ from shapely import box, Polygon
 import geopandas as gpd
 from tqdm import tqdm
 
-from geodataset.utils import TileNameConvention, apply_affine_transform, generate_coco
+from geodataset.utils import TileNameConvention, apply_affine_transform, COCOGenerator
 
 
 class DetectionAggregator:
@@ -46,8 +46,8 @@ class DetectionAggregator:
         assert self.nms_algorithm in self.SUPPORTED_NMS_ALGORITHMS, \
             f"The nms_algorithm must be one of {self.SUPPORTED_NMS_ALGORITHMS}. Got {self.nms_algorithm}."
 
-        assert self.output_path.suffix in ['json', 'geojson'], ("The output_path needs to end with either .json"
-                                                                " (coco output) or .geojson (geopackage output).")
+        assert self.output_path.suffix in ['.json', '.geojson'], ("The output_path needs to end with either .json"
+                                                                  " (coco output) or .geojson (geopackage output).")
 
     @classmethod
     def from_coco(cls,
@@ -340,10 +340,31 @@ class DetectionAggregator:
     def save_boxes(self):
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if self.output_path.suffix == 'geojson':
+        if self.output_path.suffix == '.geojson':
             self.boxes_gdf.to_file(str(self.output_path), driver="GeoJSON")
-        elif self.output_path.suffix == 'json':
-            generate_coco()  # TODO save to COCO
+        elif self.output_path.suffix == '.json':
+            tiles_ids = self.boxes_gdf['tile_id'].unique()
+            coco_generator = COCOGenerator(
+                description=f"Aggregated boxes from multiple tiles.",
+                tiles_paths=[self.tile_ids_to_path[tile_id] for tile_id in tiles_ids],
+                polygons=[self._apply_inverse_transform(boxes=self.boxes_gdf[self.boxes_gdf['tile_id'] == tile_id]['geometry'].tolist(),
+                                                        tile_path=self.tile_ids_to_path[tile_id]) for tile_id in tiles_ids],
+                scores=[self.boxes_gdf[self.boxes_gdf['tile_id'] == tile_id]['score'].tolist() for tile_id in tiles_ids],
+                categories=None,                        # TODO add support for categories
+                other_attributes=None,                  # TODO add support for other_attributes
+                output_path=self.output_path,
+                use_rle_for_labels=True,                # TODO make this a parameter to the class
+                n_workers=5,                            # TODO make this a parameter to the class
+                main_label_category_to_id_map=None      # TODO make this a parameter to the class
+            )
+            coco_generator.generate_coco()
         else:
-            raise Exception()
+            raise Exception("The output_path needs to end with either .json (coco output) or .geojson (geopackage output).")
         print(f"Saved {len(self.boxes_gdf)} boxes in file '{self.output_path}'.")
+
+    @staticmethod
+    def _apply_inverse_transform(boxes: List[Polygon], tile_path: Path):
+        src = rasterio.open(tile_path)
+        inverse_transform = ~src.transform
+        boxes = [apply_affine_transform(box, inverse_transform) for box in boxes]
+        return boxes
