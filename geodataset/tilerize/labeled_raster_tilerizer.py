@@ -178,6 +178,7 @@ class LabeledRasterTilerizer(BaseRasterTilerizer):
             other_attributes_dict_list = [{attribute: label[attribute].to_list() for attribute in
                                            self.labels.other_labels_attributes_column_names} for label in labels]\
                 if self.labels.other_labels_attributes_column_names else None
+            other_attributes_dict_list = [[{k: d[k][i] for k in d} for i in range(len(next(iter(d.values()))))] for d in other_attributes_dict_list]
 
             # Saving the tiles
             for tile in aois_tiles[aoi]:
