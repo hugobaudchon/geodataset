@@ -5,6 +5,8 @@ import rasterio
 from pathlib import Path
 from typing import cast
 
+from tqdm import tqdm
+
 from geodataset.aoi import AOIGenerator, AOIFromPackage
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
 from geodataset.geodata import Raster
@@ -78,8 +80,7 @@ class BaseRasterTilerizer(ABC):
 
         tile_id_counter = 0
         tiles = []
-        for row in range(0, height, self.tile_coordinate_step):
-            print(f'\t Row {row}/{height}')
+        for row in tqdm(range(0, height, self.tile_coordinate_step), desc="Processing rows"):
             for col in range(0, width, self.tile_coordinate_step):
                 window = rasterio.windows.Window(col, row, width=self.tile_size, height=self.tile_size)
                 tile = self.raster.get_tile(window=window,
