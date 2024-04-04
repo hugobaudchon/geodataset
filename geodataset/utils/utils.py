@@ -10,11 +10,13 @@ from typing import List, Union, Dict
 import cv2
 import laspy
 import numpy as np
+import pandas as pd
 import rasterio
 import shapely
 from matplotlib import pyplot as plt, patches as patches
 from matplotlib.colors import ListedColormap
 from pycocotools import mask as mask_utils
+import geopandas as gpd
 
 from rasterio.enums import Resampling
 from shapely import Polygon, box, MultiPolygon
@@ -82,20 +84,30 @@ def rle_segmentation_to_bbox(segmentation: dict) -> box:
     return box(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
 
 
+def polygon_segmentation_to_polygon(segmentation: list) -> Polygon:
+    """
+    Calculates the bounding box from a polygon.
+    """
+    geoms = []
+    for polygon_coords in segmentation:
+        # Reshape the flat list of coords into a list of (x, y) tuples
+        it = iter(polygon_coords)
+        geom = Polygon([(x, y) for x, y in zip(it, it)])
+        geoms.append(geom)
+
+    # Create a MultiPolygon from the list of Polygon objects
+    if len(geoms) == 1:
+        return geoms[0]
+    else:
+        return MultiPolygon(geoms)
+
+
 def polygon_segmentation_to_bbox(segmentation: list) -> box:
     """
     Calculates the bounding box from a polygon.
     """
-    polygons = []
-    for polygon_coords in segmentation:
-        # Reshape the flat list of coords into a list of (x, y) tuples
-        it = iter(polygon_coords)
-        polygon = Polygon([(x, y) for x, y in zip(it, it)])
-        polygons.append(polygon)
-
-    # Create a MultiPolygon from the list of Polygon objects
-    multipolygon = MultiPolygon(polygons)
-    return box(*multipolygon.bounds)
+    polygon = polygon_segmentation_to_polygon(segmentation)
+    return box(*polygon.bounds)
 
 
 def get_tiles_array(tiles: list, tile_coordinate_step: int):
@@ -457,3 +469,81 @@ class COCOGenerator:
 
 def apply_affine_transform(geom: shapely.geometry, affine: rasterio.Affine):
     return transform(lambda x, y: affine * (x, y), geom)
+
+
+def decode_rle_to_polygon(segmentation, size):
+    # Decode the RLE
+    mask = mask_utils.decode({'size': size, 'counts': base64.b64decode(segmentation)})
+
+    # Find contours in the binary mask
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Initialize an empty list to hold the exterior coordinates of the polygons
+    polygons = []
+
+    for contour in contours:
+        # Ensure the contour is of a significant size
+        if len(contour) > 2:
+            # Flatten the array and convert to a list of tuples
+            contour = contour.flatten().tolist()
+            # Reshape the contour to obtain a sequence of coordinates
+            points = list(zip(contour[::2], contour[1::2]))
+            polygons.append(Polygon(points))
+
+    # Return the polygons (Note: This might be a list of polygons if there are multiple disconnected regions)
+    if len(polygons) == 1:
+        return polygons[0]  # Return the single polygon directly if there's only one
+    else:
+        return gpd.GeoSeries(polygons)  # Return a GeoSeries of Polygons if there are multiple
+
+
+def coco_to_geodataframe(coco_json_path: str,
+                         images_directory: str,
+                         geojson_output_path: str) -> gpd.GeoDataFrame:
+    # Load COCO JSON
+    with open(coco_json_path, 'r') as file:
+        coco_data = json.load(file)
+
+    tiles_data = coco_data['images']
+    annotations_data = coco_data['annotations']
+
+    tiles_ids_to_tiles_map = {tile['id']: tile for tile in tiles_data}
+    tiles_ids_to_annotations_map = {tile['id']: [] for tile in tiles_data}
+    for annotation in annotations_data:
+        tiles_ids_to_annotations_map[annotation['image_id']].append(annotation)
+
+    # Getting the first tile CRS as the CRS that will be used for all tiles and their annotations
+    common_crs = rasterio.open(f"{images_directory}/{coco_data['images'][0]['file_name']}").crs
+
+    gdfs = []
+    for tile_id in tiles_ids_to_tiles_map:
+        tile_data = tiles_ids_to_tiles_map[tile_id]
+        tile_annotations = tiles_ids_to_annotations_map[tile_id]
+
+        polygons = []
+        for annotation in tile_annotations:
+            # Check if segmentation data is in RLE format; if so, decode it
+            if annotation.get('is_rle_format', False) or isinstance(annotation['segmentation'], dict):
+                polygon = decode_rle_to_polygon(annotation['segmentation']['counts'], annotation['segmentation']['size'])
+            else:
+                polygon = polygon_segmentation_to_polygon(annotation['segmentation'])
+            polygons.append(polygon)
+
+        gdf = gpd.GeoDataFrame({
+            'geometry': polygons,
+            'tile_id': tile_id,
+            'tile_path': tile_data['file_name'],
+            'category_id': [annotation.get('category_id') for annotation in tile_annotations],
+        })
+
+        tile_src = rasterio.open(f"{images_directory}/{tile_data['file_name']}")
+
+        gdf['geometry'] = gdf.apply(lambda row: apply_affine_transform(row['geometry'], tile_src.transform), axis=1)
+        gdf.crs = tile_src.crs
+        gdf = gdf.to_crs(common_crs)
+        gdfs.append(gdf)
+
+    all_polygons_gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True))
+    all_polygons_gdf.set_geometry('geometry')
+    all_polygons_gdf.crs = common_crs
+    all_polygons_gdf.to_file(geojson_output_path, driver='GeoJSON')
