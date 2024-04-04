@@ -497,9 +497,9 @@ def decode_rle_to_polygon(segmentation, size):
         return gpd.GeoSeries(polygons)  # Return a GeoSeries of Polygons if there are multiple
 
 
-def coco_to_geodataframe(coco_json_path: str,
-                         images_directory: str,
-                         geojson_output_path: str) -> gpd.GeoDataFrame:
+def coco_to_geojson(coco_json_path: str,
+                    images_directory: str,
+                    geojson_output_path: str):
     # Load COCO JSON
     with open(coco_json_path, 'r') as file:
         coco_data = json.load(file)
@@ -547,3 +547,7 @@ def coco_to_geodataframe(coco_json_path: str,
     all_polygons_gdf.set_geometry('geometry')
     all_polygons_gdf.crs = common_crs
     all_polygons_gdf.to_file(geojson_output_path, driver='GeoJSON')
+
+    print(f"Successfully converted the COCO json into a GeoJSON file saved at {geojson_output_path}.")
+
+    return all_polygons_gdf
