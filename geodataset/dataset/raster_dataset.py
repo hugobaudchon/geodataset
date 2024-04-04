@@ -1,6 +1,7 @@
 import json
 import numpy as np
 from abc import ABC, abstractmethod
+from typing import List
 from warnings import warn
 from pathlib import Path
 
@@ -15,7 +16,7 @@ from geodataset.utils import rle_segmentation_to_bbox, polygon_segmentation_to_b
 class LabeledRasterCocoDataset(BaseDataset, ABC):
     def __init__(self,
                  fold: str,
-                 root_path: Path,
+                 root_path: Path or List[Path],
                  transform: albumentations.core.composition.Compose = None):
         """
         Parameters:
@@ -24,14 +25,17 @@ class LabeledRasterCocoDataset(BaseDataset, ABC):
         - transform: albumentations.core.composition.Compose, a composition of transformations to apply to the tiles.
         """
         self.fold = fold
-        self.root_path = Path(root_path)
+        self.root_path = root_path
         self.transform = transform
         self.tiles = {}
-        self.tiles_path_to_id_mapping = {}  # Mapping old image IDs to new ones to ensure uniqueness
+        self.tiles_path_to_id_mapping = {}
         self.cocos_detected = []
 
-        self._load_coco_datasets(directory=self.root_path)
-        self._find_tiles_paths(directory=self.root_path)
+        if isinstance(self.root_path, Path):
+            self.root_path = [self.root_path]
+
+        self._load_coco_datasets(directories=self.root_path)
+        self._find_tiles_paths(directories=self.root_path)
         self._remove_tiles_not_found()
         self._filter_tiles_without_box()
 
@@ -44,21 +48,21 @@ class LabeledRasterCocoDataset(BaseDataset, ABC):
         print(f"Found {len(self.tiles)} tiles and {sum([len(self.tiles[x]['labels']) for x in self.tiles])} labels"
               f" for fold {self.fold}.")
 
-    def _load_coco_datasets(self, directory: Path):
+    def _load_coco_datasets(self, directories: List[Path]):
         """
         Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
         """
-
-        for path in directory.iterdir():
-            if path.is_file() and path.name.endswith(f".json"):
-                try:
-                    product_name, scale_factor, ground_resolution, fold = CocoNameConvention.parse_name(path.name)
-                    if fold == self.fold:
-                        self._load_coco_json(json_path=path)
-                except ValueError:
-                    return
-            elif path.is_dir() and path.name != 'tiles':
-                self._load_coco_datasets(directory=path)
+        for directory in directories:
+            for path in directory.iterdir():
+                if path.is_file() and path.name.endswith(f".json"):
+                    try:
+                        product_name, scale_factor, ground_resolution, fold = CocoNameConvention.parse_name(path.name)
+                        if fold == self.fold:
+                            self._load_coco_json(json_path=path)
+                    except ValueError:
+                        return
+                elif path.is_dir() and path.name != 'tiles':
+                    self._load_coco_datasets(directories=[path])
 
     def _load_coco_json(self, json_path: Path):
         """
@@ -102,23 +106,23 @@ class LabeledRasterCocoDataset(BaseDataset, ABC):
             tile_id = self.tiles_path_to_id_mapping[tile_name]
             self.tiles[tile_id]['labels'].append(annotation)
 
-    def _find_tiles_paths(self, directory: Path):
+    def _find_tiles_paths(self, directories: List[Path]):
         """
         Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
         """
-
-        for path in directory.iterdir():
-            if path.is_dir() and path.name == 'tiles':
-                for tile_path in path.iterdir():
-                    if tile_path.name in self.tiles_path_to_id_mapping:
-                        tile_id = self.tiles_path_to_id_mapping[tile_path.name]
-                        if 'path' in self.tiles[tile_id] and self.tiles[tile_id]['path'] != tile_path:
-                            raise Exception(f"At least two tiles under the root directory {self.root_path} have the same"
-                                            f" name, which is ambiguous. Make sure all tiles have unique names. The 2"
-                                            f" ambiguous tiles are {tile_path} and {self.tiles[tile_id]['path']}.")
-                        self.tiles[tile_id]['path'] = tile_path
-            elif path.is_dir() and path.name != 'tiles':
-                self._find_tiles_paths(directory=path)
+        for directory in directories:
+            for path in directory.iterdir():
+                if path.is_dir() and path.name == 'tiles':
+                    for tile_path in path.iterdir():
+                        if tile_path.name in self.tiles_path_to_id_mapping:
+                            tile_id = self.tiles_path_to_id_mapping[tile_path.name]
+                            if 'path' in self.tiles[tile_id] and self.tiles[tile_id]['path'] != tile_path:
+                                raise Exception(f"At least two tiles under the root directories {self.root_path} have the same"
+                                                f" name, which is ambiguous. Make sure all tiles have unique names. The 2"
+                                                f" ambiguous tiles are {tile_path} and {self.tiles[tile_id]['path']}.")
+                            self.tiles[tile_id]['path'] = tile_path
+                elif path.is_dir() and path.name != 'tiles':
+                    self._find_tiles_paths(directories=[path])
 
     def _remove_tiles_not_found(self):
         original_tiles_number = len(self.tiles)
@@ -183,7 +187,7 @@ class LabeledRasterCocoDataset(BaseDataset, ABC):
 
 
 class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
-    def __init__(self, fold: str, root_path: Path, transform: albumentations.core.composition.Compose = None):
+    def __init__(self, fold: str, root_path: Path or List[Path], transform: albumentations.core.composition.Compose = None):
         super().__init__(fold=fold, root_path=root_path, transform=transform)
 
     def __getitem__(self, idx: int):
@@ -251,7 +255,7 @@ class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
 class UnlabeledRasterDataset(BaseDataset):
     def __init__(self,
                  fold: str,
-                 root_path: Path,
+                 root_path: Path or List[Path],
                  transform: albumentations.core.composition.Compose = None):
         """
         Parameters:
@@ -260,26 +264,30 @@ class UnlabeledRasterDataset(BaseDataset):
         - transform: albumentations.core.composition.Compose, a composition of transformations to apply to the tiles.
         """
         self.fold = fold
-        self.root_path = Path(root_path)
+        self.root_path = root_path
         self.transform = transform
         self.tile_paths = []
 
-        self._find_tiles_paths(directory=self.root_path)
+        if isinstance(self.root_path, Path):
+            self.root_path = [self.root_path]
 
-    def _find_tiles_paths(self, directory: Path):
+        self._find_tiles_paths(directories=self.root_path)
+
+    def _find_tiles_paths(self, directories: List[Path]):
         """
         Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
         """
 
-        if directory.is_dir() and directory.name == 'tiles':
-            for path in directory.iterdir():
-                if path.suffix == ".tif":
-                    self.tile_paths.append(path)
+        for directory in directories:
+            if directory.is_dir() and directory.name == 'tiles':
+                for path in directory.iterdir():
+                    if path.suffix == ".tif":
+                        self.tile_paths.append(path)
 
-        if directory.is_dir():
-            for path in directory.iterdir():
-                if path.is_dir():
-                    self._find_tiles_paths(directory=path)
+            if directory.is_dir():
+                for path in directory.iterdir():
+                    if path.is_dir():
+                        self._find_tiles_paths(directories=[path])
 
     def __getitem__(self, idx: int):
         """
