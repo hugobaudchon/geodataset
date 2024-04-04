@@ -548,4 +548,6 @@ def coco_to_geojson(coco_json_path: str,
     all_polygons_gdf.crs = common_crs
     all_polygons_gdf.to_file(geojson_output_path, driver='GeoJSON')
 
+    print(f"Successfully converted the COCO json into a GeoJSON file saved at {geojson_output_path}.")
+
     return all_polygons_gdf
