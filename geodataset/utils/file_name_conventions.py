@@ -107,6 +107,34 @@ class CocoNameConvention(FileNameConvention):
         return product_name, scale_factor, ground_resolution, fold
 
 
+class GeoJsonNameConvention(FileNameConvention):
+    @staticmethod
+    def _validate_name(name):
+        pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+_coco_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[a-zA-Z0-9]+\.geojson$"
+        if not re.match(pattern, name):
+            raise ValueError(f"coco_name {name} does not match the expected format {pattern}.")
+
+    @staticmethod
+    def create_name(product_name: str, fold: str, scale_factor=None, ground_resolution=None):
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
+        coco_name = f"{product_name}_coco_{specifier}_{fold}.json"
+        GeoJsonNameConvention._validate_name(coco_name)
+        return coco_name
+
+    @staticmethod
+    def parse_name(coco_name: str):
+        GeoJsonNameConvention._validate_name(coco_name)
+
+        parts = coco_name.split("_")
+        product_name = "_".join(parts[:-3])
+        specifier = parts[-2]
+        fold = parts[-1].replace(".json", "")
+
+        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+
+        return product_name, scale_factor, ground_resolution, fold
+
+
 class AoiTilesImageConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
