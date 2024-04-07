@@ -78,6 +78,8 @@ tilerizer = RasterTilerizerGDF(raster_path=Path('/Data/raw/wwf_ecuador/RGB Ortho
                                scale_factor=0.5,                                # optional, ground_resolution must be None if used.
                                ignore_black_white_alpha_tiles_threshold=0.8     # optional
                                )
+
+tiles_boxes_gdf = tilerizer.generate_tiles_gdf()
 ```
 
 
