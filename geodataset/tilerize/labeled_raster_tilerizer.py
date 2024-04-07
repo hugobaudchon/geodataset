@@ -163,6 +163,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                                 tile_coordinate_step=self.tile_coordinate_step)
 
         print('Saving the tiles and COCO json files...')
+        coco_paths = {}
         for aoi in aois_tiles:
             if aoi == 'all' and len(aois_tiles.keys()) > 1:
                 # don't save the 'all' tiles if aois were provided.
@@ -206,3 +207,6 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             )
 
             coco_generator.generate_coco()
+            coco_paths[aoi] = coco_output_file_path
+
+        return coco_paths
