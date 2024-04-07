@@ -5,6 +5,8 @@ import rasterio
 from pathlib import Path
 from typing import cast
 
+from geopandas import GeoDataFrame
+from shapely import Polygon
 from tqdm import tqdm
 
 from geodataset.aoi import AOIGenerator, AOIFromPackage
@@ -206,3 +208,23 @@ class RasterTilerizer(BaseRasterTilerizer):
                 tile.save(output_folder=self.tiles_path)
 
         print(f"The tiles have been saved to {self.tiles_path}.")
+
+    def generate_tiles_gdf(self):
+        tiles = self._create_tiles()
+        aois_tiles = self._get_tiles_per_aoi(tiles=tiles)
+
+        tiles_gdf = GeoDataFrame(
+            {
+                'geometry': [tile.get_bbox() for aoi in aois_tiles for tile in aois_tiles[aoi]],
+                'id': [tile.tile_id for aoi in aois_tiles for tile in aois_tiles[aoi]],
+                'col': [tile.col for aoi in aois_tiles for tile in aois_tiles[aoi]],
+                'row': [tile.row for aoi in aois_tiles for tile in aois_tiles[aoi]],
+                'aoi': [aoi for aoi in aois_tiles for _ in aois_tiles[aoi]]
+            },
+            crs=None
+        )
+
+        if len(aois_tiles.keys()) > 1:
+            tiles_gdf = tiles_gdf[tiles_gdf['aoi'] != 'all']
+
+        return tiles_gdf

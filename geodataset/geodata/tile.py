@@ -1,6 +1,7 @@
 from pathlib import Path
 import numpy as np
 import rasterio
+from shapely import box
 
 from geodataset.utils import TileNameConvention
 
@@ -73,5 +74,12 @@ class Tile:
                                               scale_factor=self.scale_factor,
                                               row=self.row,
                                               col=self.col)
+
+    def get_bbox(self):
+        minx = self.col
+        maxx = self.col + self.metadata['width']
+        miny = self.row
+        maxy = self.row + self.metadata['height']
+        return box(minx, miny, maxx, maxy)
 
 
