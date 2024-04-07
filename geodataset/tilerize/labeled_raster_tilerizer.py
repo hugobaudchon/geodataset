@@ -133,8 +133,13 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                                                             tile.col + tile.metadata['width'],
                                                             tile.row + tile.metadata['height']) for tile in tiles]})
         labels_gdf = self.labels.geometries_gdf
+
+        # Remove the tile_id column if it exists, as it is the result of some previous detection/segmentation runs
+        if 'tile_id' in labels_gdf:
+            labels_gdf.drop(columns='tile_id', inplace=True)
+
         labels_gdf['label_area'] = labels_gdf.geometry.area
-        inter_polygons = gpd.overlay(tiles_gdf, labels_gdf, how='intersection')
+        inter_polygons = gpd.overlay(tiles_gdf, labels_gdf, how='intersection', keep_geom_type=True)
         inter_polygons['area'] = inter_polygons.geometry.area
         inter_polygons['intersection_ratio'] = inter_polygons['area'] / inter_polygons['label_area']
         significant_polygons_inter = inter_polygons[inter_polygons['intersection_ratio'] > self.min_intersection_ratio]
