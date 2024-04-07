@@ -133,8 +133,13 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                                                             tile.col + tile.metadata['width'],
                                                             tile.row + tile.metadata['height']) for tile in tiles]})
         labels_gdf = self.labels.geometries_gdf
+
+        # Remove the tile_id column if it exists, as it is the result of some previous detection/segmentation runs
+        if 'tile_id' in labels_gdf:
+            labels_gdf.drop(columns='tile_id', inplace=True)
+
         labels_gdf['label_area'] = labels_gdf.geometry.area
-        inter_polygons = gpd.overlay(tiles_gdf, labels_gdf, how='intersection')
+        inter_polygons = gpd.overlay(tiles_gdf, labels_gdf, how='intersection', keep_geom_type=True)
         inter_polygons['area'] = inter_polygons.geometry.area
         inter_polygons['intersection_ratio'] = inter_polygons['area'] / inter_polygons['label_area']
         significant_polygons_inter = inter_polygons[inter_polygons['intersection_ratio'] > self.min_intersection_ratio]
@@ -179,7 +184,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             other_attributes_dict_list = [{attribute: label[attribute].to_list() for attribute in
                                            self.labels.other_labels_attributes_column_names} for label in labels]\
                 if self.labels.other_labels_attributes_column_names else None
-            other_attributes_dict_list = [[{k: d[k][i] for k in d} for i in range(len(next(iter(d.values()))))] for d in other_attributes_dict_list]
+            other_attributes_dict_list = [[{k: d[k][i] for k in d} for i in range(len(next(iter(d.values()))))] for d in other_attributes_dict_list]\
+                if self.labels.other_labels_attributes_column_names else None
 
             # Saving the tiles
             for tile in aois_tiles[aoi]:
