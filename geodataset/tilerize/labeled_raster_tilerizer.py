@@ -12,10 +12,10 @@ from geodataset.labels.raster_labels import RasterPolygonLabels
 
 
 from geodataset.utils import save_aois_tiles_picture, CocoNameConvention, AoiTilesImageConvention, COCOGenerator
-from geodataset.tilerize import BaseRasterTilerizer
+from geodataset.tilerize import BaseDiskRasterTilerizer
 
 
-class LabeledRasterTilerizer(BaseRasterTilerizer):
+class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
     def __init__(self,
                  raster_path: Path,

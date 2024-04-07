@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import cast
 
 from geopandas import GeoDataFrame
-from shapely import Polygon
 from tqdm import tqdm
 
 from geodataset.aoi import AOIGenerator, AOIFromPackage
@@ -20,7 +19,6 @@ from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention, v
 class BaseRasterTilerizer(ABC):
     def __init__(self,
                  raster_path: Path,
-                 output_path: Path,
                  tile_size: int,
                  tile_overlap: float,
                  aois_config: AOIConfig = None,
@@ -30,8 +28,6 @@ class BaseRasterTilerizer(ABC):
         """
         raster_path: Path,
             Path to the raster (.tif, .png...).
-        output_path: Path,
-            Path to parent folder where to save the image tiles and associated labels.
         tile_size: int,
             The wanted size of the tiles (tile_size, tile_size).
         tile_overlap: float,
@@ -59,10 +55,6 @@ class BaseRasterTilerizer(ABC):
                                                           " Please only specify one.")
         self.scale_factor = scale_factor
         self.ground_resolution = ground_resolution
-
-        self.output_path = output_path / self.product_name
-        self.tiles_path = self.output_path / 'tiles'
-        self.tiles_path.mkdir(parents=True, exist_ok=True)
 
         self.raster = self._load_raster()
 
@@ -145,7 +137,51 @@ class BaseRasterTilerizer(ABC):
         return False
 
 
-class RasterTilerizer(BaseRasterTilerizer):
+class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
+    def __init__(self,
+                 raster_path: Path,
+                 output_path: Path,
+                 tile_size: int,
+                 tile_overlap: float,
+                 aois_config: AOIConfig = None,
+                 ground_resolution: float = None,
+                 scale_factor: float = None,
+                 ignore_black_white_alpha_tiles_threshold: float = 0.8):
+        """
+        raster_path: Path,
+            Path to the raster (.tif, .png...).
+        output_path: Path,
+            Path to parent folder where to save the image tiles and associated labels.
+        tile_size: int,
+            The wanted size of the tiles (tile_size, tile_size).
+        tile_overlap: float,
+            The overlap between the tiles (should be 0 <= overlap < 1).
+        aois_config: AOIConfig or None,
+            An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
+        ground_resolution: float,
+            The ground resolution in meter per pixel desired when loading the raster.
+            Only one of ground_resolution and scale_factor can be set at the same time.
+        scale_factor: float,
+            Scale factor for rescaling the data (change pixel resolution).
+            Only one of ground_resolution and scale_factor can be set at the same time.
+        ignore_black_white_alpha_tiles_threshold: bool,
+            Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
+        """
+
+        super().__init__(raster_path=raster_path,
+                         tile_size=tile_size,
+                         tile_overlap=tile_overlap,
+                         aois_config=aois_config,
+                         ground_resolution=ground_resolution,
+                         scale_factor=scale_factor,
+                         ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
+
+        self.output_path = output_path / self.product_name
+        self.tiles_path = self.output_path / 'tiles'
+        self.tiles_path.mkdir(parents=True, exist_ok=True)
+
+
+class RasterTilerizer(BaseDiskRasterTilerizer):
     def __init__(self,
                  raster_path: Path,
                  output_path: Path,
@@ -209,6 +245,43 @@ class RasterTilerizer(BaseRasterTilerizer):
 
         print(f"The tiles have been saved to {self.tiles_path}.")
 
+
+class RasterTilerizerGDF(BaseRasterTilerizer):
+    def __init__(self,
+                 raster_path: Path,
+                 tile_size: int,
+                 tile_overlap: float,
+                 aois_config: AOIConfig = None,
+                 ground_resolution: float = None,
+                 scale_factor: float = None,
+                 ignore_black_white_alpha_tiles_threshold: float = 0.8):
+        """
+        raster_path: Path,
+            Path to the raster (.tif, .png...).
+        tile_size: int,
+            The wanted size of the tiles (tile_size, tile_size).
+        tile_overlap: float,
+            The overlap between the tiles (should be 0 <= overlap < 1).
+        aois_config: AOIConfig or None,
+            An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
+        ground_resolution: float,
+            The ground resolution in meter per pixel desired when loading the raster.
+            Only one of ground_resolution and scale_factor can be set at the same time.
+        scale_factor: float,
+            Scale factor for rescaling the data (change pixel resolution).
+            Only one of ground_resolution and scale_factor can be set at the same time.
+        ignore_black_white_alpha_tiles_threshold: bool,
+            Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
+        """
+
+        super().__init__(raster_path=raster_path,
+                         tile_size=tile_size,
+                         tile_overlap=tile_overlap,
+                         aois_config=aois_config,
+                         ground_resolution=ground_resolution,
+                         scale_factor=scale_factor,
+                         ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
+
     def generate_tiles_gdf(self):
         tiles = self._create_tiles()
         aois_tiles = self._get_tiles_per_aoi(tiles=tiles)
@@ -228,3 +301,5 @@ class RasterTilerizer(BaseRasterTilerizer):
             tiles_gdf = tiles_gdf[tiles_gdf['aoi'] != 'all']
 
         return tiles_gdf
+
+

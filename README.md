@@ -43,7 +43,7 @@ aoi_gpkg_config = AOIFromPackageConfig(aois={
 
 ### Unlabeled Raster
 
-The class RasterTilerizer can tilerize a raster, without labels.
+The class RasterTilerizer can tilerize a raster, without labels. The tiles are then stored in the output_path/tiles.
 
 ```python
 from pathlib import Path
@@ -62,6 +62,24 @@ tilerizer = RasterTilerizer(raster_path=Path('/Data/raw/wwf_ecuador/RGB Orthomos
 
 tilerizer.generate_tiles()
 ```
+
+The class RasterTilerizerGDF can tilerize a raster, without labels, and return the tiles as boxes in a GeoDataFrame. It does not output anything to the disk.
+
+```python
+from pathlib import Path
+from geodataset.tilerize import RasterTilerizerGDF
+
+
+tilerizer = RasterTilerizerGDF(raster_path=Path('/Data/raw/wwf_ecuador/RGB Orthomosaics/Carlos Vera Arteaga RGB.tif'),
+                               tile_size=1024,
+                               tile_overlap=0.5,
+                               aois_config=aoi_gen_config,
+                               ground_resolution=0.05,                          # optional, scale_factor must be None if used.
+                               scale_factor=0.5,                                # optional, ground_resolution must be None if used.
+                               ignore_black_white_alpha_tiles_threshold=0.8     # optional
+                               )
+```
+
 
 ### Labeled Raster
 
