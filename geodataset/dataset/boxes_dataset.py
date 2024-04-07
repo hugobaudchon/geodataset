@@ -31,8 +31,8 @@ class BoxesDataset(BaseDataset):
                                                           " Please only specify one.")
 
         self.raster = self._load_raster()
-        self.boxes = self._load_boxes(main_label_category_column_name=None,
-                                      other_labels_attributes_column_names=None)
+        self.boxes = self._load_polygons(main_label_category_column_name=None,
+                                         other_labels_attributes_column_names=None)
 
     def _load_raster(self):
         raster = Raster(path=self.raster_path,
