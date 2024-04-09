@@ -550,10 +550,9 @@ def coco_to_geojson(coco_json_path: str,
             'category_id': [annotation.get('category_id') for annotation in tile_annotations],
         })
 
-        tile_src = rasterio.open(f"{images_directory}/{tile_data['file_name']}")
-
-        gdf['geometry'] = gdf.apply(lambda row: apply_affine_transform(row['geometry'], tile_src.transform), axis=1)
         if convert_to_crs_coordinates:
+            tile_src = rasterio.open(f"{images_directory}/{tile_data['file_name']}")
+            gdf['geometry'] = gdf.apply(lambda row: apply_affine_transform(row['geometry'], tile_src.transform), axis=1)
             gdf.crs = tile_src.crs
             gdf = gdf.to_crs(common_crs)
         gdfs.append(gdf)
