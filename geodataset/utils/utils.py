@@ -66,9 +66,9 @@ def polygon_to_coco_rle_mask(polygon: Polygon or MultiPolygon, tile_height: int,
     return rle
 
 
-def rle_segmentation_to_bbox(segmentation: dict) -> box:
+def rle_segmentation_to_mask(segmentation: dict) -> np.ndarray:
     """
-    Calculates the bounding box from a binary mask.
+    Decodes an RLE segmentation into a binary mask.
     """
     # Decode the counts from base64
     if 'counts' in segmentation and isinstance(segmentation['counts'], str):
@@ -76,6 +76,16 @@ def rle_segmentation_to_bbox(segmentation: dict) -> box:
         segmentation['counts'] = counts
 
     mask = mask_utils.decode(segmentation)
+    return mask
+
+
+def rle_segmentation_to_bbox(segmentation: dict) -> box:
+    """
+    Calculates the bounding box from a binary mask.
+    """
+
+    mask = rle_segmentation_to_mask(segmentation)
+
     rows = np.any(mask, axis=1)
     cols = np.any(mask, axis=0)
     ymin, ymax = np.where(rows)[0][[0, -1]]
@@ -471,9 +481,9 @@ def apply_affine_transform(geom: shapely.geometry, affine: rasterio.Affine):
     return transform(lambda x, y: affine * (x, y), geom)
 
 
-def decode_rle_to_polygon(segmentation, size):
+def decode_rle_to_polygon(segmentation):
     # Decode the RLE
-    mask = mask_utils.decode({'size': size, 'counts': base64.b64decode(segmentation)})
+    mask = rle_segmentation_to_mask(segmentation)
 
     # Find contours in the binary mask
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -499,7 +509,8 @@ def decode_rle_to_polygon(segmentation, size):
 
 def coco_to_geojson(coco_json_path: str,
                     images_directory: str,
-                    geojson_output_path: str):
+                    convert_to_crs_coordinates: bool,
+                    geojson_output_path: str or None):
     # Load COCO JSON
     with open(coco_json_path, 'r') as file:
         coco_data = json.load(file)
@@ -513,7 +524,10 @@ def coco_to_geojson(coco_json_path: str,
         tiles_ids_to_annotations_map[annotation['image_id']].append(annotation)
 
     # Getting the first tile CRS as the CRS that will be used for all tiles and their annotations
-    common_crs = rasterio.open(f"{images_directory}/{coco_data['images'][0]['file_name']}").crs
+    if convert_to_crs_coordinates:
+        common_crs = rasterio.open(f"{images_directory}/{coco_data['images'][0]['file_name']}").crs
+    else:
+        common_crs = None
 
     gdfs = []
     for tile_id in tiles_ids_to_tiles_map:
@@ -524,9 +538,9 @@ def coco_to_geojson(coco_json_path: str,
         for annotation in tile_annotations:
             # Check if segmentation data is in RLE format; if so, decode it
             if annotation.get('is_rle_format', False) or isinstance(annotation['segmentation'], dict):
-                polygon = decode_rle_to_polygon(annotation['segmentation']['counts'], annotation['segmentation']['size'])
+                polygon = decode_rle_to_polygon(segmentation=annotation['segmentation'])
             else:
-                polygon = polygon_segmentation_to_polygon(annotation['segmentation'])
+                polygon = polygon_segmentation_to_polygon(segmentation=annotation['segmentation'])
             polygons.append(polygon)
 
         gdf = gpd.GeoDataFrame({
@@ -539,15 +553,16 @@ def coco_to_geojson(coco_json_path: str,
         tile_src = rasterio.open(f"{images_directory}/{tile_data['file_name']}")
 
         gdf['geometry'] = gdf.apply(lambda row: apply_affine_transform(row['geometry'], tile_src.transform), axis=1)
-        gdf.crs = tile_src.crs
-        gdf = gdf.to_crs(common_crs)
+        if convert_to_crs_coordinates:
+            gdf.crs = tile_src.crs
+            gdf = gdf.to_crs(common_crs)
         gdfs.append(gdf)
 
     all_polygons_gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True))
     all_polygons_gdf.set_geometry('geometry')
     all_polygons_gdf.crs = common_crs
-    all_polygons_gdf.to_file(geojson_output_path, driver='GeoJSON')
-
-    print(f"Successfully converted the COCO json into a GeoJSON file saved at {geojson_output_path}.")
+    if geojson_output_path:
+        all_polygons_gdf.to_file(geojson_output_path, driver='GeoJSON')
+        print(f"Successfully converted the COCO json into a GeoJSON file saved at {geojson_output_path}.")
 
     return all_polygons_gdf
