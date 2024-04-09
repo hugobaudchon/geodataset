@@ -10,7 +10,8 @@ import rasterio
 from shapely import box
 
 from geodataset.dataset.base_dataset import BaseDataset
-from geodataset.utils import rle_segmentation_to_bbox, polygon_segmentation_to_bbox, CocoNameConvention
+from geodataset.utils import rle_segmentation_to_bbox, polygon_segmentation_to_bbox, CocoNameConvention, \
+    rle_segmentation_to_mask
 
 
 class LabeledRasterCocoDataset(BaseDataset, ABC):
@@ -111,18 +112,21 @@ class LabeledRasterCocoDataset(BaseDataset, ABC):
         Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
         """
         for directory in directories:
-            for path in directory.iterdir():
-                if path.is_dir() and path.name == 'tiles':
-                    for tile_path in path.iterdir():
-                        if tile_path.name in self.tiles_path_to_id_mapping:
-                            tile_id = self.tiles_path_to_id_mapping[tile_path.name]
-                            if 'path' in self.tiles[tile_id] and self.tiles[tile_id]['path'] != tile_path:
-                                raise Exception(f"At least two tiles under the root directories {self.root_path} have the same"
-                                                f" name, which is ambiguous. Make sure all tiles have unique names. The 2"
-                                                f" ambiguous tiles are {tile_path} and {self.tiles[tile_id]['path']}.")
-                            self.tiles[tile_id]['path'] = tile_path
-                elif path.is_dir() and path.name != 'tiles':
-                    self._find_tiles_paths(directories=[path])
+            if directory.is_dir() and directory.name == 'tiles':
+                for tile_path in directory.iterdir():
+                    if tile_path.name in self.tiles_path_to_id_mapping:
+                        tile_id = self.tiles_path_to_id_mapping[tile_path.name]
+                        if 'path' in self.tiles[tile_id] and self.tiles[tile_id]['path'] != tile_path:
+                            raise Exception(
+                                f"At least two tiles under the root directories {self.root_path} have the same"
+                                f" name, which is ambiguous. Make sure all tiles have unique names. The 2"
+                                f" ambiguous tiles are {tile_path} and {self.tiles[tile_id]['path']}.")
+                        self.tiles[tile_id]['path'] = tile_path
+
+            if directory.is_dir():
+                for path in directory.iterdir():
+                    if path.is_dir():
+                        self._find_tiles_paths(directories=[path])
 
     def _remove_tiles_not_found(self):
         original_tiles_number = len(self.tiles)
@@ -224,32 +228,93 @@ class DetectionLabeledRasterCocoDataset(LabeledRasterCocoDataset):
                 else:
                     raise NotImplementedError("Could not find the segmentation type (RLE vs polygon coordinates).")
 
-            bboxes.append([int(x) for x in bbox.bounds])
+            bboxes.append(np.array([int(x) for x in bbox.bounds]))
 
-        labels = [1, ] * len(bboxes)
+        category_ids = np.array([label['category_id'] for label in labels])
 
         if self.transform:
-            transformed = self.transform(image=tile.transpose((1, 2, 0)), bboxes=bboxes, labels=labels)
+            transformed = self.transform(image=tile.transpose((1, 2, 0)),
+                                         bboxes=bboxes,
+                                         labels=category_ids)
             transformed_image = transformed['image'].transpose((2, 0, 1))
             transformed_bboxes = transformed['bboxes']
-            transformed_labels = transformed['labels']
+            transformed_category_ids = transformed['labels']
         else:
             transformed_image = tile
             transformed_bboxes = bboxes
-            transformed_labels = labels
+            transformed_category_ids = category_ids
 
         transformed_image = transformed_image / 255  # normalizing
         # getting the areas of the boxes, assume pascal_voc box format
-        area = [(bboxe[3] - bboxe[1]) * (bboxe[2] - bboxe[0]) for bboxe in transformed_bboxes]
+        area = np.array([(bboxe[3] - bboxe[1]) * (bboxe[2] - bboxe[0]) for bboxe in transformed_bboxes])
         # suppose all instances are not crowd
         iscrowd = np.zeros((len(transformed_bboxes),))
         # get tile id
         image_id = np.array([idx])
         # group annotations info
-        transformed_bboxes = {'boxes': transformed_bboxes, 'labels': transformed_labels,
+        transformed_bboxes = {'boxes': transformed_bboxes, 'labels': transformed_category_ids,
                               'area': area, 'iscrowd': iscrowd, 'image_id': image_id}
 
         return transformed_image, transformed_bboxes
+
+
+class SegmentationLabeledRasterCocoDataset(LabeledRasterCocoDataset):
+    def __init__(self, fold: str, root_path: Path or List[Path], transform: albumentations.core.composition.Compose = None):
+        super().__init__(fold=fold, root_path=root_path, transform=transform)
+
+    def __getitem__(self, idx: int):
+        """
+        Retrieves a tile and its segmentations/masks by index, applying any specified transformations.
+
+        Parameters:
+        - idx: int, the index of the tile to retrieve.
+
+        Returns:
+        - A tuple containing the transformed tile and its segmentations/masks.
+        """
+        tile_info = self.tiles[idx]
+
+        with rasterio.open(tile_info['path']) as tile_file:
+            tile = tile_file.read([1, 2, 3])  # Reading the first three bands
+
+        labels = tile_info['labels']
+        masks = []
+
+        for label in labels:
+            if 'segmentation' in label:
+                segmentation = label['segmentation']
+                if ('is_rle_format' in label and label['is_rle_format']) or isinstance(segmentation, dict):
+                    # RLE format
+                    mask = rle_segmentation_to_mask(segmentation)
+                else:
+                    raise NotImplementedError("Please make sure that the masks are encoded using RLE.")
+
+                masks.append(mask)
+
+        category_ids = np.array([label['category_id'] for label in labels])
+
+        if self.transform:
+            transformed = self.transform(image=tile.transpose((1, 2, 0)),
+                                         mask=np.stack(masks, axis=0),
+                                         labels=category_ids)
+            transformed_image = transformed['image'].transpose((2, 0, 1))
+            transformed_masks = [mask for mask in transformed['mask']]
+            transformed_category_ids = transformed['labels']
+        else:
+            transformed_image = tile
+            transformed_masks = masks
+            transformed_category_ids = category_ids
+
+        transformed_image = transformed_image / 255  # normalizing
+        area = np.array([np.sum(mask) for mask in masks])
+        # suppose all instances are not crowd
+        iscrowd = np.zeros((len(transformed_masks),))
+        # get tile id
+        image_id = np.array([idx])
+        transformed_masks = {'masks': transformed_masks, 'labels': transformed_category_ids,
+                             'area': area, 'iscrowd': iscrowd, 'image_id': image_id}
+
+        return transformed_image, transformed_masks
 
 
 class UnlabeledRasterDataset(BaseDataset):
