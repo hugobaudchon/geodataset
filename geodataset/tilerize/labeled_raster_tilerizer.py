@@ -64,8 +64,14 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
         coco_n_workers: int,
             Number of workers to use when generating the COCO dataset. Useful when use_rle_for_labels=True as it is quite slow.
-        main_label_category_to_id_map: dict,
-            A mapping from the main label category names to their corresponding ids (will be used when generating the COCO files).
+        coco_categories_list: dict,
+            A list of category dictionaries in COCO format. Exemple of dict:
+            {
+                "id": "8",
+                "name": "ABBA",
+                "other_names": [],
+                "supercategory": "",
+            }
         """
         super().__init__(raster_path=raster_path,
                          output_path=output_path,
@@ -81,7 +87,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         self.min_intersection_ratio = min_intersection_ratio
         self.ignore_tiles_without_labels = ignore_tiles_without_labels
         self.coco_n_workers = coco_n_workers
-        self.main_label_category_to_id_map = main_label_category_to_id_map
+        self.coco_categories_list = coco_categories_list
 
         self.labels = self._load_labels(main_label_category_column_name, other_labels_attributes_column_names)
 
@@ -209,7 +215,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                 output_path=coco_output_file_path,
                 use_rle_for_labels=self.use_rle_for_labels,
                 n_workers=self.coco_n_workers,
-                main_label_category_to_id_map=self.main_label_category_to_id_map
+                coco_categories_list=self.coco_categories_list
             )
 
             coco_generator.generate_coco()

@@ -316,7 +316,7 @@ class COCOGenerator:
                  output_path: Path,
                  use_rle_for_labels: bool,
                  n_workers: int,
-                 main_label_category_to_id_map: dict or None):
+                 coco_categories_list: List[dict] or None):
         self.description = description
         self.tiles_paths = tiles_paths
         self.polygons = polygons
@@ -326,7 +326,7 @@ class COCOGenerator:
         self.output_path = output_path
         self.use_rle_for_labels = use_rle_for_labels
         self.n_workers = n_workers
-        self.main_label_category_to_id_map = main_label_category_to_id_map
+        self.coco_categories_list = coco_categories_list
 
         assert len(self.tiles_paths) == len(self.polygons), "The number of tiles and polygons must be the same."
         if self.scores:
@@ -345,13 +345,14 @@ class COCOGenerator:
             self.other_attributes = [[{'score': s} for s in tile_scores] for tile_scores in self.scores]
 
     def generate_coco(self):
-        id_to_category_map, category_to_id_map = self._generate_coco_categories()
+        categories_coco, category_to_id_map = self._generate_coco_categories()
 
         with ThreadPoolExecutor(self.n_workers) as pool:
             results = list(pool.map(self._generate_tile_coco, enumerate(
                 zip(self.tiles_paths,
                     self.polygons,
-                    [[category_to_id_map[c] for c in cs] for cs in self.categories] if self.categories else [None, ]*len(self.tiles_paths),
+                    [[category_to_id_map[c] if c in category_to_id_map else None for c in cs] for cs in self.categories]
+                    if self.categories else [None, ]*len(self.tiles_paths),
                     self.other_attributes if self.other_attributes else [None, ] * len(self.tiles_paths),
                     [self.use_rle_for_labels, ] * len(self.tiles_paths)
                     )
@@ -377,7 +378,7 @@ class COCOGenerator:
                 ],
                 "images": images_cocos,
                 "annotations": detections_cocos,
-                "categories": id_to_category_map
+                "categories": categories_coco
             }, f, ensure_ascii=False, indent=2)
 
         print(f'Saved COCO dataset to {self.output_path}.')
@@ -456,25 +457,52 @@ class COCOGenerator:
         """
         Generate COCO categories from the unique label categories in the dataset.
         """
-        categories_set = set([category for categories in self.categories for category in categories] if self.categories else [])
-        if self.main_label_category_to_id_map:
-            for c in categories_set:
-                if c not in self.main_label_category_to_id_map:
-                    raise Exception(f"Category '{c}' is not in the provided main_label_category_to_id_map.")
-            category_to_id_map = self.main_label_category_to_id_map
-            id_to_category_map = [{'id': category_to_id_map[category], 'name': category, 'supercategory': ''} for category in self.main_label_category_to_id_map.keys()]
+
+        categories_set = set([category for categories in self.categories for category in categories]
+                             if self.categories else {})
+
+        if self.coco_categories_list:
+            category_name_to_id_map = {}
+            id_to_category_dict_map = {}
+            for category_dict in self.coco_categories_list:
+                assert 'name' in category_dict, "The id_to_category_map dictionary must contain a 'name' key in each id dict."
+                assert 'id' in category_dict, "The id_to_category_map dictionary must contain an 'id' key in each id dict."
+                assert 'supercategory' in category_dict, "The id_to_category_map dictionary must contain a 'supercategory' key in each id dict."
+                assert category_dict['name'] not in category_name_to_id_map, \
+                    f"The category names ('name' and 'other_names') must be unique. Found {category_dict['name']} twice."
+                assert category_dict['id'] not in id_to_category_dict_map, \
+                    f"The category ids must be unique. Found {category_dict['id']} twice."
+                category_name_to_id_map[category_dict['name']] = category_dict['id']
+
+                if "other_names" in category_dict and category_dict["other_names"]:
+                    for other_name in category_dict["other_names"]:
+                        assert other_name not in category_name_to_id_map, \
+                            f"The category names ('name' and 'other_names') must be unique. Found {other_name} twice."
+                        category_name_to_id_map[other_name] = category_dict['id']
+
+            categories_coco = self.coco_categories_list
+
+            if self.categories:
+                for category in categories_set:
+                    if category not in category_name_to_id_map:
+                        warnings.warn(f"The category '{category}' is not in the provided COCO categories list.")
+                        # raise Exception(f"The category '{category}' is not in the provided COCO categories list.")
+            else:
+                raise Exception("A 'coco_categories_list' was provided,"
+                                " but categories haven't been provided for the polygons."
+                                " Please set 'coco_categories_list' to None.")
         else:
             if self.categories:
-                id_to_category_map = [{'id': i + 1, 'name': category, 'supercategory': ''} for i, category in
-                                      enumerate(categories_set)]
-                category_to_id_map = {category: i + 1 for i, category in enumerate(categories_set)}
+                categories_coco = [{'id': i + 1, 'name': category, 'supercategory': ''} for i, category in
+                                   enumerate(categories_set)]
+                category_name_to_id_map = {category: i + 1 for i, category in enumerate(categories_set)}
             else:
-                id_to_category_map = {}
-                category_to_id_map = {}
+                categories_coco = []
+                category_name_to_id_map = {}
                 warnings.warn("The GeoDataFrame containing the labels doesn't contain a category column,"
                               " so labels won't have categories.")
 
-        return id_to_category_map, category_to_id_map
+        return categories_coco, category_name_to_id_map
 
 
 def apply_affine_transform(geom: shapely.geometry, affine: rasterio.Affine):
