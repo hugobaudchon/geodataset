@@ -33,7 +33,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None,
                  coco_n_workers: int = 5,
-                 main_label_category_to_id_map: dict = None):
+                 coco_categories_list: list[dict] = None):
         """
         raster_path: Path,
             Path to the raster (.tif, .png...).
