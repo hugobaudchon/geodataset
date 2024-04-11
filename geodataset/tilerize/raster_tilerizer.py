@@ -10,8 +10,8 @@ from tqdm import tqdm
 
 from geodataset.aoi import AOIGenerator, AOIFromPackage
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
-from geodataset.geodata import Raster
-from geodataset.geodata.tile import Tile
+from geodataset.aoi import AOIDisambiguator
+from geodataset.geodata import Raster, Tile
 from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention, validate_and_convert_product_name, \
     strip_all_extensions
 
@@ -108,12 +108,17 @@ class BaseRasterTilerizer(ABC):
                 raise Exception(f'aois_config type unsupported: {type(self.aois_config)}')
 
             aois_tiles = aoi_engine.get_aoi_tiles()
+
+            aoi_disambiguator = AOIDisambiguator(aois_tiles=aois_tiles, aois_config=self.aois_config)
+            aois_tiles_blacked_out_zones = aoi_disambiguator.disambiguate()
+
         else:
             aois_tiles = {}
+            aois_tiles_blacked_out_zones = None
 
         aois_tiles['all'] = tiles
 
-        return aois_tiles
+        return aois_tiles, aois_tiles_blacked_out_zones # TODO use this in LabeledRasterTilerizer to remove annotations from blacked out zones
 
     def _check_skip_tile(self, tile, tile_size):
         is_rgb = self.raster.data.shape[0] == 3
