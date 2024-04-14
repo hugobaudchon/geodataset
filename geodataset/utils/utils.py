@@ -39,11 +39,11 @@ def polygon_to_coco_coordinates(polygon: Polygon or MultiPolygon):
     return coordinates
 
 
-def polygon_to_coco_rle_mask(polygon: Polygon or MultiPolygon, tile_height: int, tile_width: int) -> dict:
+def polygon_to_mask(polygon: Polygon or MultiPolygon, array_height: int, array_width: int) -> np.ndarray:
     """
-    Encodes a Polygon or MultiPolygon object into an RLE mask.
+    Encodes a Polygon or MultiPolygon object into a binary mask.
     """
-    binary_mask = np.zeros((tile_height, tile_width), dtype=np.uint8)
+    binary_mask = np.zeros((array_height, array_width), dtype=np.uint8)
 
     # Function to process each polygon
     def process_polygon(p):
@@ -56,7 +56,16 @@ def polygon_to_coco_rle_mask(polygon: Polygon or MultiPolygon, tile_height: int,
         for polygon in polygon.geoms:
             process_polygon(polygon)
     else:
-        raise TypeError("Geometry must be a Polygon or MultiPolygon")
+        raise TypeError(f"Geometry must be a Polygon or MultiPolygon. Got {type(polygon)}.")
+
+    return binary_mask
+
+
+def polygon_to_coco_rle_mask(polygon: Polygon or MultiPolygon, tile_height: int, tile_width: int) -> dict:
+    """
+    Encodes a Polygon or MultiPolygon object into an RLE mask.
+    """
+    binary_mask = polygon_to_mask(polygon, tile_height, tile_width)
 
     binary_mask_fortran = np.asfortranarray(binary_mask)
     rle = mask_utils.encode(binary_mask_fortran)
@@ -532,7 +541,7 @@ def decode_rle_to_polygon(segmentation):
     if len(polygons) == 1:
         return polygons[0]  # Return the single polygon directly if there's only one
     else:
-        return gpd.GeoSeries(polygons)  # Return a GeoSeries of Polygons if there are multiple
+        return MultiPolygon(polygons)  # Return a GeoSeries of Polygons if there are multiple
 
 
 def coco_to_geojson(coco_json_path: str,
