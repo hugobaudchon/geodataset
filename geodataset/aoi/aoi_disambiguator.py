@@ -28,30 +28,14 @@ class AOIDisambiguator:
                                             self.aois_gdf[self.aois_gdf['aoi'] == aoi],
                                             how='intersection')
 
-            def display_image_with_mask_simple(image, mask, alpha=0.5):
-                # Create the figure and axes
-                fig, ax = plt.subplots()
-
-                # Display the image
-                ax.imshow(image)
-
-                # Overlay the mask with the given alpha value
-                # Assuming mask is binary (0 or 1), we directly use it for the alpha channel in overlay
-                ax.imshow(mask, cmap='gray', alpha=alpha)  # `cmap='gray'` for grayscale mask appearance
-
-                # Hide axes and show the plot
-                ax.axis('off')
-                plt.show()
             # For each tile relevant to this AOI
             for tile in tiles:
                 intersection_tile_row = aoi_intersections.loc[aoi_intersections['tile_id'] == tile.tile_id]  # Geometry of the intersection
                 intersection_geometry = translate(list(intersection_tile_row.geometry)[0], -tile.col, -tile.row)
 
                 mask = polygon_to_mask(intersection_geometry, tile.metadata['height'], tile.metadata['width'])
-                # display_image_with_mask_simple(tile.data.transpose((1,2,0)), mask)
                 # Black out the part of the tile which is not in its AOI by multiplying the tile by the mask
                 tile.data = tile.data * mask
-                # display_image_with_mask_simple(tile.data.transpose((1,2,0)), mask)
 
     def redistribute_generated_aois_intersections(self, aois_config: AOIGeneratorConfig):
         self.aois_gdf['total_area'] = self.aois_gdf.geometry.area
