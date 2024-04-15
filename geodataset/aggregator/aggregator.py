@@ -20,7 +20,7 @@ class DetectionAggregator:
                  output_path: Path,
                  boxes_gdf: gpd.GeoDataFrame,
                  tiles_extent_gdf: gpd.GeoDataFrame,
-                 tile_ids_to_path: dict,
+                 tile_ids_to_path: dict or None,
                  score_threshold: float = 0.1,
                  nms_threshold: float = 0.8,
                  nms_algorithm: str = 'iou'):
@@ -48,6 +48,10 @@ class DetectionAggregator:
 
         assert self.output_path.suffix in ['.json', '.geojson'], ("The output_path needs to end with either .json"
                                                                   " (coco output) or .geojson (geopackage output).")
+
+        if self.output_path.suffix == '.json':
+            assert self.tile_ids_to_path is not None, \
+                "The tile_ids_to_path must be provided to save the boxes in COCO format."
 
     @classmethod
     def from_coco(cls,
@@ -355,7 +359,7 @@ class DetectionAggregator:
                 output_path=self.output_path,
                 use_rle_for_labels=True,                # TODO make this a parameter to the class
                 n_workers=5,                            # TODO make this a parameter to the class
-                main_label_category_to_id_map=None      # TODO make this a parameter to the class
+                coco_categories_list=None      # TODO make this a parameter to the class
             )
             coco_generator.generate_coco()
         else:

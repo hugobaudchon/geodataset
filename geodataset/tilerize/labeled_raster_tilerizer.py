@@ -33,7 +33,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None,
                  coco_n_workers: int = 5,
-                 main_label_category_to_id_map: dict = None):
+                 coco_categories_list: list[dict] = None):
         """
         raster_path: Path,
             Path to the raster (.tif, .png...).
@@ -64,8 +64,14 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
         coco_n_workers: int,
             Number of workers to use when generating the COCO dataset. Useful when use_rle_for_labels=True as it is quite slow.
-        main_label_category_to_id_map: dict,
-            A mapping from the main label category names to their corresponding ids (will be used when generating the COCO files).
+        coco_categories_list: dict,
+            A list of category dictionaries in COCO format. Exemple of dict:
+            {
+                "id": "8",
+                "name": "ABBA",
+                "other_names": [],
+                "supercategory": "",
+            }
         """
         super().__init__(raster_path=raster_path,
                          output_path=output_path,
@@ -81,7 +87,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         self.min_intersection_ratio = min_intersection_ratio
         self.ignore_tiles_without_labels = ignore_tiles_without_labels
         self.coco_n_workers = coco_n_workers
-        self.main_label_category_to_id_map = main_label_category_to_id_map
+        self.coco_categories_list = coco_categories_list
 
         self.labels = self._load_labels(main_label_category_column_name, other_labels_attributes_column_names)
 
@@ -98,31 +104,49 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
     def _get_tiles_and_labels_per_aoi(self):
         tiles = self._create_tiles()
-        intersecting_labels = self._find_associated_labels(tiles=tiles)
+        (intersecting_labels_raster_coords,
+         intersecting_labels_tiles_coords) = self._find_associated_labels(tiles=tiles)
 
         # Keeping only the interesting tiles and creating a mapping from tile_ids to their labels
         labeled_tiles = []
-        tile_id_to_labels = {}
         for tile in tiles:
-            associated_labels = intersecting_labels[intersecting_labels['tile_id'] == tile.tile_id]
+            associated_labels = intersecting_labels_tiles_coords[intersecting_labels_tiles_coords['tile_id'] == tile.tile_id]
             if self.ignore_tiles_without_labels and len(associated_labels) == 0:
                 continue
             else:
                 labeled_tiles.append(tile)
-                tile_id_to_labels[tile.tile_id] = associated_labels
 
         # Assigning the tiles to AOIs
-        aois_tiles = self._get_tiles_per_aoi(tiles=labeled_tiles)
+        aois_tiles, aois_gdf = self._get_tiles_per_aoi(tiles=labeled_tiles)
 
-        # Assign the labels to AOIs tiles using the mapping previously created
-        aois_labels = {aoi: [] for aoi in aois_tiles.keys()}
+        # Intersect the labels with the aois, to make sure for a given tile, we only get labels inside its assigned AOI.
+        intersecting_labels_raster_coords['label_id'] = intersecting_labels_raster_coords.index
+        intersecting_labels_raster_coords['label_area'] = intersecting_labels_raster_coords.geometry.area
+        intersecting_labels_aois_raster_coords = gpd.overlay(intersecting_labels_raster_coords, aois_gdf, how='intersection', keep_geom_type=False)
+        intersecting_labels_aois_raster_coords['intersection_area'] = intersecting_labels_aois_raster_coords.geometry.area
+        intersecting_labels_aois_raster_coords['intersection_ratio'] = intersecting_labels_aois_raster_coords['intersection_area'] / intersecting_labels_aois_raster_coords['label_area']
+        intersecting_labels_aois_raster_coords = intersecting_labels_aois_raster_coords[intersecting_labels_aois_raster_coords['intersection_ratio'] > self.min_intersection_ratio]
+
+        final_aois_tiles = {aoi: [] for aoi in list(aois_tiles.keys()) + ['all']}
+        final_aois_labels = {aoi: [] for aoi in list(aois_tiles.keys()) + ['all']}
         for aoi in aois_tiles:
             for tile in aois_tiles[aoi]:
-                aois_labels[aoi].append(tile_id_to_labels[tile.tile_id])
+                labels_crs_coords = intersecting_labels_aois_raster_coords[intersecting_labels_aois_raster_coords['tile_id'] == tile.tile_id]
+                labels_crs_coords = labels_crs_coords[labels_crs_coords['aoi'] == aoi]
+                labels_ids = labels_crs_coords['label_id'].tolist()
+                labels_tiles_coords = intersecting_labels_tiles_coords[intersecting_labels_tiles_coords.index.isin(labels_ids)]
 
-        return aois_tiles, aois_labels
+                if self.ignore_tiles_without_labels and len(labels_tiles_coords) == 0:
+                    continue
 
-    def _find_associated_labels(self, tiles) -> gpd.GeoDataFrame:
+                final_aois_tiles[aoi].append(tile)
+                final_aois_labels[aoi].append(labels_tiles_coords)
+                final_aois_tiles['all'].append(tile)
+                final_aois_labels['all'].append(labels_tiles_coords)
+
+        return final_aois_tiles, final_aois_labels
+
+    def _find_associated_labels(self, tiles) -> (gpd.GeoDataFrame, gpd.GeoDataFrame):
         print("Finding the labels associated to each tile...")
 
         tile_ids = [tile.tile_id for tile in tiles]
@@ -148,13 +172,16 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         def adjust_geometry(polygon: Polygon, tile: Tile):
             return translate(polygon, xoff=-tile.col, yoff=-tile.row)
 
+        intersecting_labels_tiles_coords = significant_polygons_inter.copy()
         for tile_id, tile in zip(tile_ids, tiles):
-            labels_indices = significant_polygons_inter[significant_polygons_inter['tile_id'] == tile_id].index
-            adjusted_geometries = significant_polygons_inter.loc[labels_indices, 'geometry'].astype(object).apply(
+            labels_indices = intersecting_labels_tiles_coords[intersecting_labels_tiles_coords['tile_id'] == tile_id].index
+            adjusted_labels_tiles_coords = intersecting_labels_tiles_coords.loc[labels_indices, 'geometry'].astype(object).apply(
                 partial(adjust_geometry, tile=tile))
-            significant_polygons_inter.loc[labels_indices, 'geometry'] = adjusted_geometries
+            intersecting_labels_tiles_coords.loc[labels_indices, 'geometry'] = adjusted_labels_tiles_coords
 
-        return significant_polygons_inter
+        intersecting_labels_raster_coords = significant_polygons_inter
+
+        return intersecting_labels_raster_coords, intersecting_labels_tiles_coords
 
     def generate_coco_dataset(self):
         aois_tiles, aois_labels = self._get_tiles_and_labels_per_aoi()
@@ -209,7 +236,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                 output_path=coco_output_file_path,
                 use_rle_for_labels=self.use_rle_for_labels,
                 n_workers=self.coco_n_workers,
-                main_label_category_to_id_map=self.main_label_category_to_id_map
+                coco_categories_list=self.coco_categories_list
             )
 
             coco_generator.generate_coco()

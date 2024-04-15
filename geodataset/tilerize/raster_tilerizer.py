@@ -10,8 +10,7 @@ from tqdm import tqdm
 
 from geodataset.aoi import AOIGenerator, AOIFromPackage
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
-from geodataset.geodata import Raster
-from geodataset.geodata.tile import Tile
+from geodataset.geodata import Raster, Tile
 from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention, validate_and_convert_product_name, \
     strip_all_extensions
 
@@ -107,13 +106,23 @@ class BaseRasterTilerizer(ABC):
             else:
                 raise Exception(f'aois_config type unsupported: {type(self.aois_config)}')
 
-            aois_tiles = aoi_engine.get_aoi_tiles()
+            aois_tiles, aois_gdf = aoi_engine.get_aoi_tiles()
+
+            # When the tiles are assigned to AOIs, sometimes part of them are black-out
+            # (pixels within the tile that are outside the assigned AOI),
+            # so we need to check again if the tile has too many black pixels, and remove it if yes.
+            final_aois_tiles = {aoi: [] for aoi in aois_tiles}
+            for aoi in aois_tiles:
+                for tile in aois_tiles[aoi]:
+                    if self._check_skip_tile(tile=tile, tile_size=self.tile_size):
+                        continue
+                    else:
+                        final_aois_tiles[aoi].append(tile)
         else:
-            aois_tiles = {}
+            final_aois_tiles = {}
+            aois_gdf = None
 
-        aois_tiles['all'] = tiles
-
-        return aois_tiles
+        return final_aois_tiles, aois_gdf
 
     def _check_skip_tile(self, tile, tile_size):
         is_rgb = self.raster.data.shape[0] == 3
@@ -223,7 +232,8 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
 
     def generate_tiles(self):
         tiles = self._create_tiles()
-        aois_tiles = self._get_tiles_per_aoi(tiles=tiles)
+        aois_tiles, _ = self._get_tiles_per_aoi(tiles=tiles)
+        aois_tiles['all'] = [tile for tile_list in aois_tiles.values() for tile in tile_list]
 
         save_aois_tiles_picture(aois_tiles=aois_tiles,
                                 save_path=self.output_path / AoiTilesImageConvention.create_name(
@@ -284,7 +294,7 @@ class RasterTilerizerGDF(BaseRasterTilerizer):
 
     def generate_tiles_gdf(self):
         tiles = self._create_tiles()
-        aois_tiles = self._get_tiles_per_aoi(tiles=tiles)
+        aois_tiles, _ = self._get_tiles_per_aoi(tiles=tiles)
 
         tiles_gdf = GeoDataFrame(
             {
