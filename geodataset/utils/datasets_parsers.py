@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from geodataset.aoi import AOIGeneratorConfig
+from geodataset.aoi import AOIGeneratorConfig, AOIFromPackageConfig
 from geodataset.tilerize import LabeledRasterTilerizer
 
 
@@ -14,11 +14,10 @@ def quebec_trees_parser(dataset_root: Path,
 
     output_path = output_path / "quebec_trees"
 
-    aoi_gen_config = AOIGeneratorConfig(aoi_type='band',
-                                        aois={'train': {'percentage': 0.7, 'position': 1},
-                                              'valid': {'percentage': 0.15, 'position': 2},
-                                              'test': {'percentage': 0.15, 'position': 3}
-                                              })
+    aoi_gen_config = AOIFromPackageConfig(aois={'train': Path('./aois/quebec_trees/train_aoi.geojson'),
+                                                'valid': Path('./aois/quebec_trees/valid_aoi.geojson'),
+                                                'test': Path('./aois/quebec_trees/inference_zone.gpkg')
+                                                })
 
     raster_configs = [
         {'raster': dataset_root / '2021-09-02/zone1/2021-09-02-sbl-z1-rgb-cog.tif',
