@@ -204,6 +204,10 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             tiles = aois_tiles[aoi]
             labels = aois_labels[aoi]
 
+            if len(tiles) == 0:
+                print(f"No tiles found for AOI {aoi}, skipping...")
+                continue
+
             tiles_paths = [self.tiles_path / tile.generate_name() for tile in tiles]
             polygons = [x['geometry'].to_list() for x in labels]
             categories_list = [x[self.labels.main_label_category_column_name].to_list() for x in labels]\
