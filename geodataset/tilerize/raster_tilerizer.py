@@ -8,11 +8,10 @@ from typing import cast
 from geopandas import GeoDataFrame
 from tqdm import tqdm
 
-from geodataset.aoi import AOIGenerator, AOIFromPackage
+from geodataset.aoi import AOIGeneratorForTiles, AOIFromPackageForTiles
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
 from geodataset.geodata import Raster, Tile
-from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention, validate_and_convert_product_name, \
-    strip_all_extensions
+from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention
 
 
 class BaseRasterTilerizer(ABC):
@@ -43,7 +42,6 @@ class BaseRasterTilerizer(ABC):
             Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
         """
         self.raster_path = raster_path
-        self.product_name = validate_and_convert_product_name(strip_all_extensions(raster_path))
         self.tile_size = tile_size
         self.tile_overlap = tile_overlap
         self.tile_coordinate_step = int((1 - self.tile_overlap) * self.tile_size)
@@ -76,9 +74,7 @@ class BaseRasterTilerizer(ABC):
         for row in tqdm(range(0, height, self.tile_coordinate_step), desc="Processing rows"):
             for col in range(0, width, self.tile_coordinate_step):
                 window = rasterio.windows.Window(col, row, width=self.tile_size, height=self.tile_size)
-                tile = self.raster.get_tile(window=window,
-                                            product_name=self.product_name,
-                                            tile_id=tile_id_counter)
+                tile = self.raster.get_tile(window=window, tile_id=tile_id_counter)
 
                 if self._check_skip_tile(tile=tile, tile_size=self.tile_size):
                     continue
@@ -93,16 +89,16 @@ class BaseRasterTilerizer(ABC):
 
         if self.aois_config is not None:
             if type(self.aois_config) is AOIGeneratorConfig:
-                aoi_engine = AOIGenerator(tiles=tiles,
-                                          tile_coordinate_step=self.tile_coordinate_step,
-                                          aois_config=cast(AOIGeneratorConfig, self.aois_config))
+                aoi_engine = AOIGeneratorForTiles(tiles=tiles,
+                                                  tile_coordinate_step=self.tile_coordinate_step,
+                                                  aois_config=cast(AOIGeneratorConfig, self.aois_config))
             elif type(self.aois_config) is AOIFromPackageConfig:
-                aoi_engine = AOIFromPackage(tiles=tiles,
-                                            tile_coordinate_step=self.tile_coordinate_step,
-                                            aois_config=cast(AOIFromPackageConfig, self.aois_config),
-                                            associated_raster=self.raster,
-                                            ground_resolution=self.ground_resolution,
-                                            scale_factor=self.scale_factor)
+                aoi_engine = AOIFromPackageForTiles(tiles=tiles,
+                                                    tile_coordinate_step=self.tile_coordinate_step,
+                                                    aois_config=cast(AOIFromPackageConfig, self.aois_config),
+                                                    associated_raster=self.raster,
+                                                    ground_resolution=self.ground_resolution,
+                                                    scale_factor=self.scale_factor)
             else:
                 raise Exception(f'aois_config type unsupported: {type(self.aois_config)}')
 
@@ -185,7 +181,7 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
                          scale_factor=scale_factor,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
 
-        self.output_path = output_path / self.product_name
+        self.output_path = output_path / self.raster.product_name
         self.tiles_path = self.output_path / 'tiles'
         self.tiles_path.mkdir(parents=True, exist_ok=True)
 
@@ -237,7 +233,7 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
 
         save_aois_tiles_picture(aois_tiles=aois_tiles,
                                 save_path=self.output_path / AoiTilesImageConvention.create_name(
-                                    product_name=self.product_name,
+                                    product_name=self.raster.product_name,
                                     ground_resolution=self.ground_resolution,
                                     scale_factor=self.scale_factor
                                 ),

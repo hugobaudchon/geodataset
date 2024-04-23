@@ -1,16 +1,17 @@
 import warnings
-from functools import partial
 from pathlib import Path
 
+import cv2
 import numpy as np
 import rasterio.windows
 import geopandas as gpd
-from shapely import Polygon
-from shapely.ops import transform
+from shapely import Polygon, box
+from shapely.affinity import translate
 
 from geodataset.geodata.base_geodata import BaseGeoData
-from geodataset.geodata.tile import Tile
-from geodataset.utils import read_raster, apply_affine_transform
+from geodataset.geodata.tile import Tile, PolygonTile
+from geodataset.utils import read_raster, apply_affine_transform, validate_and_convert_product_name, \
+    strip_all_extensions
 
 
 class Raster(BaseGeoData):
@@ -21,6 +22,7 @@ class Raster(BaseGeoData):
         self.path = path
         self.name = path.name
         self.ext = path.suffix
+        self.product_name = validate_and_convert_product_name(strip_all_extensions(self.path))
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
                                                           " Please only specify one.")
@@ -53,8 +55,8 @@ class Raster(BaseGeoData):
 
     def get_tile(self,
                  window: rasterio.windows.Window,
-                 product_name: str,
                  tile_id: int or None) -> Tile or None:
+
         tile_data = self.data[
                     :,
                     window.row_off:window.row_off + window.height,
@@ -79,11 +81,79 @@ class Raster(BaseGeoData):
             'transform': window_transform
         }
 
-        tile = Tile(data=tile_data, metadata=tile_metadata, product_name=product_name,
+        tile = Tile(data=tile_data, metadata=tile_metadata, product_name=self.product_name,
                     ground_resolution=self.ground_resolution, scale_factor=self.scale_factor,
                     row=window.row_off, col=window.col_off, tile_id=tile_id)
 
         return tile
+
+    def get_polygon_tile(self,
+                         polygon: Polygon,
+                         polygon_id: int,
+                         tile_size: int) -> PolygonTile:
+
+        # Finding the box centered on the polygon's centroid
+        binary_mask = np.zeros((tile_size, tile_size), dtype=np.uint8)
+        x, y = polygon.centroid.coords[0]
+        x, y = int(x), int(y)
+        mask_box = box(x - 0.5 * tile_size,
+                       y - 0.5 * tile_size,
+                       x + 0.5 * tile_size,
+                       y + 0.5 * tile_size)
+
+        polygon_intersection = mask_box.intersection(polygon)
+
+        translated_polygon_intersection = translate(
+            polygon_intersection,
+            xoff=-mask_box.bounds[0],
+            yoff=-mask_box.bounds[1]
+        )
+
+        contours = np.array(translated_polygon_intersection.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
+        cv2.fillPoly(binary_mask, [contours], 1)
+
+        # Getting the pixels from the raster
+        mask_bounds = mask_box.bounds
+        mask_bounds = [int(x) for x in mask_bounds]
+
+        data = self.data[
+               :,
+               mask_bounds[1]:mask_bounds[3],
+               mask_bounds[0]:mask_bounds[2]
+               ]
+
+        # Masking the pixels around the Polygon
+        masked_data = data * binary_mask
+
+        # Creating the PolygonTile, with the appropriate metadata
+        window = rasterio.windows.Window(
+            mask_box.bounds[1],
+            mask_box.bounds[0],
+            width=tile_size,
+            height=tile_size
+        )
+        window_transform = rasterio.windows.transform(window, self.metadata['transform'])
+
+        tile_metadata = {
+            'driver': 'GTiff',
+            'height': window.height,
+            'width': window.width,
+            'count': self.metadata['count'],
+            'dtype': self.metadata['dtype'],
+            'crs': self.metadata['crs'],
+            'transform': window_transform
+        }
+
+        polygon_tile = PolygonTile(
+            data=masked_data,
+            metadata=tile_metadata,
+            product_name=self.product_name,
+            ground_resolution=self.ground_resolution,
+            scale_factor=self.scale_factor,
+            polygon_id=polygon_id
+        )
+
+        return polygon_tile, translated_polygon_intersection
 
     def adjust_geometries_to_raster_crs_if_necessary(self, gdf: gpd.GeoDataFrame):
         if gdf.crs != self.metadata['crs']:

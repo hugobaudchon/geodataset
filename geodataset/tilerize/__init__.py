@@ -1,2 +1,3 @@
 from .raster_tilerizer import BaseDiskRasterTilerizer, RasterTilerizer, RasterTilerizerGDF
 from .labeled_raster_tilerizer import LabeledRasterTilerizer
+from .polygon_tilerizer import PolygonTilerizer

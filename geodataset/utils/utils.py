@@ -289,7 +289,7 @@ def save_aois_tiles_picture(aois_tiles: dict[str, list], save_path: Path, tile_c
 
         base_cmap.append(colors[idx - 1])
         color_labels.append(aoi)  # Use the dict key as the label
-
+    print(77, color_labels)
     custom_cmap = ListedColormap(base_cmap)
 
     plt.figure(figsize=(10, 10))
@@ -297,10 +297,9 @@ def save_aois_tiles_picture(aois_tiles: dict[str, list], save_path: Path, tile_c
 
     # Create a color bar with a tick and label for each AOI
     ticks = list(range(len(base_cmap)))
-    cbar = plt.colorbar(ticks=ticks)
+    plt.clim(-0.5, len(base_cmap) - 0.5)  # Adjust color limit to include all AOI colors
+    cbar = plt.colorbar(ticks=np.arange(len(base_cmap)))
     cbar.set_ticklabels(color_labels)
-    plt.clim(0, len(base_cmap) - 1)  # Adjust color limit to include all AOI colors
-
     plt.savefig(save_path)
 
 
