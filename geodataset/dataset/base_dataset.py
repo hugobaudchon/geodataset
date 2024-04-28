@@ -103,6 +103,8 @@ class BaseLabeledCocoDataset(BaseDataset, ABC):
                 self.tiles_path_to_id_mapping[tile_name] = new_tile_id
                 self.tiles[new_tile_id] = {
                     'name': tile_name,
+                    'height': image['height'],
+                    'width': image['width'],
                     'labels': []
                 }
 
@@ -114,6 +116,9 @@ class BaseLabeledCocoDataset(BaseDataset, ABC):
             tile_name = coco_tiles[annotation['image_id']]
             # Finding the tile id in this python dataset, not the tile id in the original COCO dataset
             tile_id = self.tiles_path_to_id_mapping[tile_name]
+            if not annotation['category_id']:
+                # Making sure any annotation without category is assigned None as category
+                annotation['category_id'] = None
             self.tiles[tile_id]['labels'].append(annotation)
 
     def _find_tiles_paths(self, directories: List[Path]):
