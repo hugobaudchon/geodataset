@@ -23,13 +23,13 @@ class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
         :param aois_config: An instanced AOIGeneratorConfig.
         """
 
-        self.tiles_array = get_tiles_array(tiles=self.tiles, tile_coordinate_step=self.tile_coordinate_step)
-        self.n_tiles = len(tiles)
-
         assert type(aois_config) is AOIGeneratorConfig
 
         AOIBaseForTiles.__init__(self, tiles=tiles, tile_coordinate_step=tile_coordinate_step)
         AOIBaseGenerator.__init__(self, aois_config=aois_config)
+
+        self.tiles_array = get_tiles_array(tiles=self.tiles, tile_coordinate_step=self.tile_coordinate_step)
+        self.n_tiles = len(tiles)
 
         self.aois = self.aois_config.aois
         self.aoi_type = self.aois_config.aoi_type
