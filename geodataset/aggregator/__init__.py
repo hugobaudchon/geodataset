@@ -1,1 +1,1 @@
-from .aggregator import DetectionAggregator
+from .aggregator import Aggregator
