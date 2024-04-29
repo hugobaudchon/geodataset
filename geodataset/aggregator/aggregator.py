@@ -37,6 +37,7 @@ class Aggregator:
         self.nms_algorithm = nms_algorithm
 
         self._check_parameters()
+        self.validate_polygons()
         self.remove_low_score_polygons()
         self.apply_nms_algorithm()
         self.save_polygons()
@@ -212,6 +213,15 @@ class Aggregator:
 
         return all_polygons_gdf, all_tiles_extents_gdf
 
+    def validate_polygons(self):
+        def fix_geometry(geom):
+            if not geom.is_valid:
+                fixed_geom = geom.buffer(0)
+                return fixed_geom
+            return geom
+
+        self.polygons_gdf['geometry'] = self.polygons_gdf['geometry'].astype(object).apply(fix_geometry)
+
     def remove_low_score_polygons(self):
         if self.score_threshold:
             if "score" in self.polygons_gdf and self.polygons_gdf["score"].any():
@@ -240,6 +250,14 @@ class Aggregator:
         Returns:
         - A pandas Series containing the IoU values between the single_row geometry and each geometry in gdf.
         """
+
+        # # To avoid some warnings where the geometries are noisy/invalid
+        # gdf['geometry'] = gdf.geometry.astype(object).apply(lambda x: x if x.is_valid else x.buffer(0))
+        # geometry = geometry if geometry.is_valid else geometry.buffer(0)
+
+        # print(geometry)
+        # print(gdf)
+        # print(set([type(x) for x in gdf.geometry]))
         # Calculate intersection areas
         intersections = gdf.geometry.intersection(geometry).area
 
@@ -295,8 +313,8 @@ class Aggregator:
         intersect_gdf = gpd.sjoin(gdf, gdf, how='inner', predicate='intersects')
         intersect_gdf = intersect_gdf[intersect_gdf.index != intersect_gdf['index_right']]
 
-        keep_ids = set()
         skip_ids = set()
+        id_to_final_polygon = {}
         progress = tqdm(total=len(gdf), desc="Applying NMS-iou algorithm")
         while not gdf.empty:
             current = gdf.iloc[0]
@@ -305,21 +323,55 @@ class Aggregator:
             if current_id in skip_ids:
                 gdf.drop(current_id, inplace=True, errors="ignore")
                 continue
+            if current.geometry.area == 0:
+                skip_ids.add(current_id)
+                gdf.drop(current_id, inplace=True, errors="ignore")
+                continue
             if len(gdf) > 1:
                 intersecting_geometries_ids = intersect_gdf[intersect_gdf.index == current_id]['index_right'].unique()
                 intersecting_geometries_ids = [g_id for g_id in intersecting_geometries_ids if g_id not in skip_ids]
-                ious = self.calculate_iou_for_geometry(gdf.loc[intersecting_geometries_ids], current.geometry)
-                skip_ids.update(list(ious[ious > self.nms_threshold].index))
+                if len(intersecting_geometries_ids) != 0:
+                    ious = self.calculate_iou_for_geometry(gdf.loc[intersecting_geometries_ids], current.geometry)
+                    if self.polygon_type == 'box':
+                        skip_ids.update(list(ious[ious > self.nms_threshold].index))
+                    elif self.polygon_type == 'segmentation':
+                        for g_id, iou in ious.items():
+                            # We have to re-compute the IOU as intersect_gdf might not be up to date anymore after some polygons were modified in previous iterations.
+                            intersection = gdf.at[current_id, 'geometry'].intersection(gdf.at[g_id, 'geometry'])
+                            updated_iou = intersection.area / (gdf.at[current_id, 'geometry'].area + gdf.at[g_id, 'geometry'].area)
+                            if updated_iou > self.nms_threshold:
+                                skip_ids.add(g_id)
+                            else:
+                                gdf.at[current_id, 'geometry'] = gdf.at[current_id, 'geometry'].union(intersection)
+                                new_geometry = gdf.at[g_id, 'geometry'].difference(intersection)
+                                if gdf.at[g_id, 'geometry'].geom_type == 'Polygon' and gdf.at[g_id, 'geometry'].geom_type == new_geometry.geom_type:
+                                    # If the Polygon was split in 2 or more parts after removing the intersection area, we remove it
+                                    skip_ids.add(g_id)
+                                if new_geometry.area > 0:
+                                    gdf.at[g_id, 'geometry'] = new_geometry
+                                else:
+                                    skip_ids.add(g_id)
+                    else:
+                        raise Exception(f"Unsupported polygon_type: {self.polygon_type}."
+                                        f" Supported types are: {self.SUPPORTED_POLYGON_TYPES}.")
 
-            keep_ids.add(current_id)
+            id_to_final_polygon[current_id] = current.geometry
             skip_ids.add(current_id)
             gdf.drop(current_id, inplace=True, errors="ignore")
 
+        keep_ids = list(id_to_final_polygon.keys())
+        final_polygons = gpd.GeoDataFrame(geometry=[id_to_final_polygon[k] for k in keep_ids],
+                                          index=keep_ids)
+
         progress.close()
-        drop_ids = list(skip_ids - keep_ids)
+
+        self.polygons_gdf.loc[final_polygons.index, 'geometry'] = final_polygons['geometry']
+        drop_ids = list(skip_ids - set(keep_ids))
         self.polygons_gdf.drop(drop_ids, inplace=True, errors="ignore")
 
     def apply_diou_nms_algorithm(self):
+        if self.polygon_type == 'segmentation':
+            raise NotImplementedError("The DIOU NMS algorithm has to be updated for polygon_type='segmentation'.")
         gdf = self.polygons_gdf.copy()
         gdf.sort_values(by='score', ascending=False, inplace=True)
 

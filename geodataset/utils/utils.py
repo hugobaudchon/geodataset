@@ -289,7 +289,7 @@ def save_aois_tiles_picture(aois_tiles: dict[str, list], save_path: Path, tile_c
 
         base_cmap.append(colors[idx - 1])
         color_labels.append(aoi)  # Use the dict key as the label
-    print(77, color_labels)
+
     custom_cmap = ListedColormap(base_cmap)
 
     plt.figure(figsize=(10, 10))
