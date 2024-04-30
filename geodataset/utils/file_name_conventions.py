@@ -53,7 +53,7 @@ class FileNameConvention(ABC):
 class TileNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+_tile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
+        pattern = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
         if not re.match(pattern, name):
             raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
 
@@ -82,7 +82,7 @@ class TileNameConvention(FileNameConvention):
 class CocoNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+_coco_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[a-zA-Z0-9]+\.json$"
+        pattern = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_coco_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[a-zA-Z0-9]+\.json$"
         if not re.match(pattern, name):
             raise ValueError(f"coco_name {name} does not match the expected format {pattern}.")
 
@@ -107,10 +107,38 @@ class CocoNameConvention(FileNameConvention):
         return product_name, scale_factor, ground_resolution, fold
 
 
+class GeoJsonNameConvention(FileNameConvention):
+    @staticmethod
+    def _validate_name(name):
+        pattern = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[a-zA-Z0-9]+\.geojson$"
+        if not re.match(pattern, name):
+            raise ValueError(f"geojson_name {name} does not match the expected format {pattern}.")
+
+    @staticmethod
+    def create_name(product_name: str, fold: str, scale_factor=None, ground_resolution=None):
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
+        geojson_name = f"{product_name}_{specifier}_{fold}.geojson"
+        GeoJsonNameConvention._validate_name(geojson_name)
+        return geojson_name
+
+    @staticmethod
+    def parse_name(geojson_name: str):
+        GeoJsonNameConvention._validate_name(geojson_name)
+
+        parts = geojson_name.split("_")
+        product_name = "_".join(parts[:-2])
+        specifier = parts[-2]
+        fold = parts[-1].replace(".geojson", "")
+
+        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+
+        return product_name, scale_factor, ground_resolution, fold
+
+
 class AoiTilesImageConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^([a-zA-Z0-9]+_)+[a-zA-Z0-9]+_aoistiles_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))\.png$"
+        pattern = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_aoistiles_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))\.png$"
         if not re.match(pattern, name):
             raise ValueError(f"file_name {name} does not match the expected format {pattern}.")
 

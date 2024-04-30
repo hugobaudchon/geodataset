@@ -1,6 +1,7 @@
 from pathlib import Path
 import numpy as np
 import rasterio
+from shapely import box
 
 from geodataset.utils import TileNameConvention
 
@@ -59,11 +60,7 @@ class Tile:
     def save(self, output_folder: Path):
         assert output_folder.exists(), f"The output folder {output_folder} doesn't exist yet."
 
-        tile_name = TileNameConvention.create_name(product_name=self.product_name,
-                                                   ground_resolution=self.ground_resolution,
-                                                   scale_factor=self.scale_factor,
-                                                   row=self.row,
-                                                   col=self.col)
+        tile_name = self.generate_name()
 
         with rasterio.open(
                 output_folder / tile_name,
@@ -71,33 +68,18 @@ class Tile:
                 **self.metadata) as tile_raster:
             tile_raster.write(self.data)
 
-    def to_coco(self):
-        """
-        Generate a COCO-format dictionary for the tile image.
+    def generate_name(self):
+        return TileNameConvention.create_name(product_name=self.product_name,
+                                              ground_resolution=self.ground_resolution,
+                                              scale_factor=self.scale_factor,
+                                              row=self.row,
+                                              col=self.col)
 
-        Returns:
-            dict: A dictionary formatted according to COCO specifications for an image.
-        """
-
-        # Extract entries from the metadata
-        width = self.metadata['width']
-        height = self.metadata['height']
-
-        # Generate file name
-        tile_name = TileNameConvention.create_name(product_name=self.product_name,
-                                                   ground_resolution=self.ground_resolution,
-                                                   scale_factor=self.scale_factor,
-                                                   row=self.row,
-                                                   col=self.col)
-
-        # Construct the COCO representation for the image
-        coco_image = {
-            "id": self.tile_id,
-            "width": width,
-            "height": height,
-            "file_name": tile_name,
-        }
-
-        return coco_image
+    def get_bbox(self):
+        minx = self.col
+        maxx = self.col + self.metadata['width']
+        miny = self.row
+        maxy = self.row + self.metadata['height']
+        return box(minx, miny, maxx, maxy)
 
 

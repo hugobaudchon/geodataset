@@ -4,6 +4,7 @@ import geopandas as gpd
 import pandas as pd
 from shapely import MultiPolygon, Polygon, box
 
+from .aoi_disambiguator import AOIDisambiguator
 from .aoi_config import AOIFromPackageConfig
 from .aoi_base import AOIBase
 from geodataset.geodata import Tile, Raster
@@ -62,7 +63,7 @@ class AOIFromPackage(AOIBase):
 
         return loaded_aois
 
-    def get_aoi_tiles(self):
+    def get_aoi_tiles(self) -> (dict[str, List[Tile]], dict[str, gpd.GeoDataFrame]):
 
         aois_frames = []
         for aoi, gdf in self.loaded_aois.items():
@@ -83,5 +84,14 @@ class AOIFromPackage(AOIBase):
         max_intersection_per_tile = intersections.loc[intersections.groupby('tile_id')['intersection_area'].idxmax()]
         aois_tiles = max_intersection_per_tile.groupby('aoi')['tile'].apply(list).to_dict()
 
-        return aois_tiles
+        tiles_gdf = gpd.GeoDataFrame(tiles_gdf.merge(max_intersection_per_tile[['tile_id', 'aoi']], on='tile_id', how='left'))
+        tiles_gdf = tiles_gdf.dropna(subset=['aoi'])
 
+        aoi_disambiguator = AOIDisambiguator(
+            tiles_gdf=tiles_gdf,
+            aois_tiles=aois_tiles,
+            aois_gdf=aois_gdf
+        )
+        aoi_disambiguator.disambiguate_tiles()
+
+        return aois_tiles, aois_gdf
