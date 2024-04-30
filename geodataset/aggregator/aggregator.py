@@ -14,7 +14,7 @@ from tqdm import tqdm
 from geodataset.utils import TileNameConvention, apply_affine_transform, COCOGenerator, decode_rle_to_polygon
 
 
-class Aggregator(ABC):
+class AggregatorBase(ABC):
     SUPPORTED_POLYGON_TYPES = ['box', 'segmentation']
     SUPPORTED_NMS_ALGORITHMS = ['iou', 'diou']
 
@@ -103,7 +103,7 @@ class Aggregator(ABC):
                                          f" in tiles_folder_path='{tiles_folder_path}'")
             tile_ids_to_path[image['id']] = image_path
 
-        all_polygons_gdf, all_tiles_extents_gdf = Aggregator.prepare_polygons(
+        all_polygons_gdf, all_tiles_extents_gdf = AggregatorBase.prepare_polygons(
             tile_ids_to_path=tile_ids_to_path,
             tile_ids_to_polygons=tile_ids_to_polygons,
             tile_ids_to_scores=tile_ids_to_scores)
@@ -128,7 +128,7 @@ class Aggregator(ABC):
         tile_ids_to_polygons = {k: v for k, v in zip(ids, polygons)}
         tile_ids_to_scores = {k: v for k, v in zip(ids, scores)}
 
-        all_polygons_gdf, all_tiles_extents_gdf = Aggregator.prepare_polygons(
+        all_polygons_gdf, all_tiles_extents_gdf = AggregatorBase.prepare_polygons(
             tile_ids_to_path=tile_ids_to_path,
             tile_ids_to_polygons=tile_ids_to_polygons,
             tile_ids_to_scores=tile_ids_to_scores)
@@ -325,7 +325,7 @@ class Aggregator(ABC):
         return polygons
 
 
-class DetectorAggregator(Aggregator):
+class DetectorAggregator(AggregatorBase):
     polygon_type = 'box'
 
     def __init__(self,
@@ -451,7 +451,7 @@ class DetectorAggregator(Aggregator):
         self.polygons_gdf.drop(drop_ids, inplace=True, errors="ignore")
 
 
-class SegmentationAggregator(Aggregator):
+class SegmentationAggregator(AggregatorBase):
     polygon_type = 'segmentation'
 
     def __init__(self,
