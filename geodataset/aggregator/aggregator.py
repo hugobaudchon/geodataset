@@ -1,4 +1,5 @@
 import json
+import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List
@@ -7,7 +8,7 @@ from warnings import warn
 import numpy as np
 import pandas as pd
 import rasterio
-from shapely import box, Polygon, MultiPolygon
+from shapely import box, Polygon, MultiPolygon, GeometryCollection
 import geopandas as gpd
 from tqdm import tqdm
 
@@ -461,8 +462,12 @@ class SegmentationAggregator(AggregatorBase):
                  tile_ids_to_path: dict or None,
                  score_threshold: float = 0.1,
                  nms_threshold: float = 0.8,
-                 nms_algorithm: str = 'iou'
+                 nms_algorithm: str = 'iou',
+                 best_geom_keep_area_ratio: float = 0.8
                  ):
+
+        self.best_geom_keep_area_ratio = best_geom_keep_area_ratio
+
         super().__init__(output_path=output_path,
                          polygons_gdf=polygons_gdf,
                          tiles_extent_gdf=tiles_extent_gdf,
@@ -498,11 +503,9 @@ class SegmentationAggregator(AggregatorBase):
         gdf = self.polygons_gdf.copy()
         gdf.sort_values(by='score', ascending=False, inplace=True)
 
-        # print number of each geometries geom_type:
-        print(gdf['geometry'].astype(object).apply(lambda x: x.geom_type).value_counts())
-
         intersect_gdf = gpd.sjoin(gdf, gdf, how='inner', predicate='intersects')
         intersect_gdf = intersect_gdf[intersect_gdf.index != intersect_gdf['index_right']]
+
         skip_ids = set()
         id_to_final_polygon = {}
         progress = tqdm(total=len(gdf), desc="Applying NMS-iou algorithm")
@@ -523,32 +526,33 @@ class SegmentationAggregator(AggregatorBase):
                 if len(intersecting_geometries_ids) != 0:
                     for g_id in intersecting_geometries_ids:
                         # We have to re-compute the IOU as intersect_gdf might not be up-to-date anymore after some polygons were modified in previous iterations.
-                        intersection = gdf.at[current_id, 'geometry'].intersection(gdf.at[g_id, 'geometry'])
+                        with warnings.catch_warnings(record=True) as w:
+                            intersection = gdf.at[current_id, 'geometry'].intersection(gdf.at[g_id, 'geometry'])
+                            # 'invalid value encountered in intersection'
+
                         if intersection.geom_type == 'GeometryCollection':
-                            polygons = []
-                            # Iterate through each geometry in the collection
-                            for geom in intersection.geoms:
-                                if geom.geom_type == 'Polygon':
-                                    polygons.append(geom)
-                                elif geom.geom_type == 'LineString':
-                                    # Check if the LineString is closed and can be considered a polygon
-                                    if geom.is_ring:
-                                        # Convert the LineString to a Polygon
-                                        polygons.append(Polygon(geom))
-                            intersection = MultiPolygon(polygons)
-                        updated_iou = intersection.area / (
-                                gdf.at[current_id, 'geometry'].area + gdf.at[g_id, 'geometry'].area)
+                            intersection = self.geometry_collection_to_multi_polygon(intersection)
+
+                        updated_iou = intersection.area / (gdf.at[current_id, 'geometry'].area + gdf.at[g_id, 'geometry'].area)
                         if updated_iou > self.nms_threshold:
                             skip_ids.add(g_id)
                         else:
                             gdf.at[current_id, 'geometry'] = gdf.at[current_id, 'geometry'].union(intersection)
                             new_geometry = gdf.at[g_id, 'geometry'].difference(intersection)
                             if new_geometry.geom_type == 'GeometryCollection':
-                                skip_ids.add(g_id)
-                            elif gdf.at[g_id, 'geometry'].geom_type == 'Polygon' and gdf.at[
-                                g_id, 'geometry'].geom_type == new_geometry.geom_type:
-                                # If the Polygon was split in 2 or more parts after removing the intersection area, we remove it
-                                skip_ids.add(g_id)
+                                # skip_ids.add(g_id)
+                                new_geometry = self.geometry_collection_to_multi_polygon(new_geometry)
+
+                            if not new_geometry.is_valid:
+                                new_geometry = new_geometry.buffer(0)
+
+                            if new_geometry.geom_type == 'MultiPolygon':
+                                # If the largest Polygon represent more than 80% of the total area, we only keep that Polygon
+                                largest_polygon = max(new_geometry.geoms, key=lambda x: x.area)
+                                if largest_polygon.area / new_geometry.area > self.best_geom_keep_area_ratio:
+                                    gdf.at[g_id, 'geometry'] = largest_polygon
+                                else:
+                                    skip_ids.add(g_id)
                             elif new_geometry.area > 0:
                                 gdf.at[g_id, 'geometry'] = new_geometry
                             else:
@@ -570,3 +574,17 @@ class SegmentationAggregator(AggregatorBase):
 
     def apply_diou_nms_algorithm(self):
         raise NotImplementedError("The DIOU NMS algorithm has to be implemented for polygon_type='segmentation'.")
+
+    @staticmethod
+    def geometry_collection_to_multi_polygon(geometry_collection: GeometryCollection):
+        polygons = []
+        # Iterate through each geometry in the collection
+        for geom in geometry_collection.geoms:
+            if geom.geom_type == 'Polygon':
+                polygons.append(geom)
+            elif geom.geom_type == 'LineString':
+                # Check if the LineString is closed and can be considered a polygon
+                if geom.is_ring:
+                    # Convert the LineString to a Polygon
+                    polygons.append(Polygon(geom))
+        return MultiPolygon(polygons)
