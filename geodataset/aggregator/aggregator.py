@@ -1,4 +1,5 @@
 import json
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List
 from warnings import warn
@@ -6,19 +7,18 @@ from warnings import warn
 import numpy as np
 import pandas as pd
 import rasterio
-from shapely import box, Polygon
+from shapely import box, Polygon, MultiPolygon
 import geopandas as gpd
 from tqdm import tqdm
 
 from geodataset.utils import TileNameConvention, apply_affine_transform, COCOGenerator, decode_rle_to_polygon
 
 
-class Aggregator:
+class Aggregator(ABC):
     SUPPORTED_POLYGON_TYPES = ['box', 'segmentation']
     SUPPORTED_NMS_ALGORITHMS = ['iou', 'diou']
 
     def __init__(self,
-                 polygon_type: str,
                  output_path: Path,
                  polygons_gdf: gpd.GeoDataFrame,
                  tiles_extent_gdf: gpd.GeoDataFrame,
@@ -27,7 +27,6 @@ class Aggregator:
                  nms_threshold: float = 0.8,
                  nms_algorithm: str = 'iou'):
 
-        self.polygon_type = polygon_type
         self.output_path = output_path
         self.polygons_gdf = polygons_gdf
         self.tiles_extent_gdf = tiles_extent_gdf
@@ -43,8 +42,6 @@ class Aggregator:
         self.save_polygons()
 
     def _check_parameters(self):
-        assert self.polygon_type in self.SUPPORTED_POLYGON_TYPES, \
-            f"The polygon_type must be one of {self.SUPPORTED_POLYGON_TYPES}. Got {self.polygon_type}."
         assert self.polygons_gdf.crs, "The provided polygons_gdf doesn't have a CRS."
         assert 'tile_id' in self.polygons_gdf, "The provided polygons_gdf doesn't have a 'tile_id' column."
         assert self.tiles_extent_gdf.crs, "The provided tiles_extent_gdf doesn't have a CRS."
@@ -59,15 +56,10 @@ class Aggregator:
             assert self.tile_ids_to_path is not None, \
                 "The tile_ids_to_path must be provided to save the polygons in COCO format."
 
-    @classmethod
-    def from_coco(cls,
-                  polygon_type: str,
-                  output_path: Path,
-                  tiles_folder_path: Path,
-                  coco_json_path: Path,
-                  score_threshold: float = 0.1,
-                  nms_threshold: float = 0.8,
-                  nms_algorithm: str = 'iou'):
+    @staticmethod
+    def _from_coco(polygon_type: str,
+                   tiles_folder_path: Path,
+                   coco_json_path: Path):
 
         # Read the JSON file
         with open(coco_json_path, 'r') as f:
@@ -116,18 +108,10 @@ class Aggregator:
             tile_ids_to_polygons=tile_ids_to_polygons,
             tile_ids_to_scores=tile_ids_to_scores)
 
-        return cls(polygon_type=polygon_type,
-                   output_path=output_path,
-                   polygons_gdf=all_polygons_gdf,
-                   tiles_extent_gdf=all_tiles_extents_gdf,
-                   score_threshold=score_threshold,
-                   nms_threshold=nms_threshold,
-                   nms_algorithm=nms_algorithm,
-                   tile_ids_to_path=tile_ids_to_path)
+        return all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path
 
     @classmethod
     def from_polygons(cls,
-                      polygon_type: str,
                       output_path: Path,
                       tiles_paths: List[Path],
                       polygons: List[List[Polygon]],
@@ -149,8 +133,7 @@ class Aggregator:
             tile_ids_to_polygons=tile_ids_to_polygons,
             tile_ids_to_scores=tile_ids_to_scores)
 
-        return cls(polygon_type=polygon_type,
-                   output_path=output_path,
+        return cls(output_path=output_path,
                    polygons_gdf=all_polygons_gdf,
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
@@ -250,14 +233,6 @@ class Aggregator:
         Returns:
         - A pandas Series containing the IoU values between the single_row geometry and each geometry in gdf.
         """
-
-        # # To avoid some warnings where the geometries are noisy/invalid
-        # gdf['geometry'] = gdf.geometry.astype(object).apply(lambda x: x if x.is_valid else x.buffer(0))
-        # geometry = geometry if geometry.is_valid else geometry.buffer(0)
-
-        # print(geometry)
-        # print(gdf)
-        # print(set([type(x) for x in gdf.geometry]))
         # Calculate intersection areas
         intersections = gdf.geometry.intersection(geometry).area
 
@@ -306,13 +281,102 @@ class Aggregator:
         print(f"Removed {n_before - n_after} out of {n_before} polygons"
               f" by applying the Non-Maximum Suppression-{self.nms_algorithm} algorithm.")
 
+    @abstractmethod
+    def apply_iou_nms_algorithm(self):
+        pass
+
+    @abstractmethod
+    def apply_diou_nms_algorithm(self):
+        pass
+
+    def save_polygons(self):
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if self.output_path.suffix == '.geojson':
+            self.polygons_gdf.to_file(str(self.output_path), driver="GeoJSON")
+        elif self.output_path.suffix == '.json':
+            tiles_ids = self.polygons_gdf['tile_id'].unique()
+            coco_generator = COCOGenerator(
+                description=f"Aggregated polygons from multiple tiles.",
+                tiles_paths=[self.tile_ids_to_path[tile_id] for tile_id in tiles_ids],
+                polygons=[self._apply_inverse_transform(
+                    polygons=self.polygons_gdf[self.polygons_gdf['tile_id'] == tile_id]['geometry'].tolist(),
+                    tile_path=self.tile_ids_to_path[tile_id]) for tile_id in tiles_ids],
+                scores=[self.polygons_gdf[self.polygons_gdf['tile_id'] == tile_id]['score'].tolist() for tile_id in
+                        tiles_ids],
+                categories=None,  # TODO add support for categories
+                other_attributes=None,  # TODO add support for other_attributes
+                output_path=self.output_path,
+                use_rle_for_labels=True,  # TODO make this a parameter to the class
+                n_workers=5,  # TODO make this a parameter to the class
+                coco_categories_list=None  # TODO make this a parameter to the class
+            )
+            coco_generator.generate_coco()
+        else:
+            raise Exception(
+                "The output_path needs to end with either .json (coco output) or .geojson (geopackage output).")
+        print(f"Saved {len(self.polygons_gdf)} polygons in file '{self.output_path}'.")
+
+    @staticmethod
+    def _apply_inverse_transform(polygons: List[Polygon], tile_path: Path):
+        src = rasterio.open(tile_path)
+        inverse_transform = ~src.transform
+        polygons = [apply_affine_transform(polygon, inverse_transform) for polygon in polygons]
+        return polygons
+
+
+class DetectorAggregator(Aggregator):
+    polygon_type = 'box'
+
+    def __init__(self,
+                 output_path: Path,
+                 polygons_gdf: gpd.GeoDataFrame,
+                 tiles_extent_gdf: gpd.GeoDataFrame,
+                 tile_ids_to_path: dict or None,
+                 score_threshold: float = 0.1,
+                 nms_threshold: float = 0.8,
+                 nms_algorithm: str = 'iou'
+                 ):
+        super().__init__(output_path=output_path,
+                         polygons_gdf=polygons_gdf,
+                         tiles_extent_gdf=tiles_extent_gdf,
+                         tile_ids_to_path=tile_ids_to_path,
+                         score_threshold=score_threshold,
+                         nms_threshold=nms_threshold,
+                         nms_algorithm=nms_algorithm)
+
+    @classmethod
+    def from_coco(cls,
+                  output_path: Path,
+                  tiles_folder_path: Path,
+                  coco_json_path: Path,
+                  score_threshold: float = 0.1,
+                  nms_threshold: float = 0.8,
+                  nms_algorithm: str = 'iou'):
+
+        all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path = cls._from_coco(
+            polygon_type=cls.polygon_type,
+            tiles_folder_path=tiles_folder_path,
+            coco_json_path=coco_json_path
+        )
+
+        return cls(output_path=output_path,
+                   polygons_gdf=all_polygons_gdf,
+                   tiles_extent_gdf=all_tiles_extents_gdf,
+                   score_threshold=score_threshold,
+                   nms_threshold=nms_threshold,
+                   nms_algorithm=nms_algorithm,
+                   tile_ids_to_path=tile_ids_to_path)
+
     def apply_iou_nms_algorithm(self):
         gdf = self.polygons_gdf.copy()
         gdf.sort_values(by='score', ascending=False, inplace=True)
 
+        # print number of each geometries geom_type:
+        print(gdf['geometry'].astype(object).apply(lambda x: x.geom_type).value_counts())
+
         intersect_gdf = gpd.sjoin(gdf, gdf, how='inner', predicate='intersects')
         intersect_gdf = intersect_gdf[intersect_gdf.index != intersect_gdf['index_right']]
-
         skip_ids = set()
         id_to_final_polygon = {}
         progress = tqdm(total=len(gdf), desc="Applying NMS-iou algorithm")
@@ -330,30 +394,8 @@ class Aggregator:
             if len(gdf) > 1:
                 intersecting_geometries_ids = intersect_gdf[intersect_gdf.index == current_id]['index_right'].unique()
                 intersecting_geometries_ids = [g_id for g_id in intersecting_geometries_ids if g_id not in skip_ids]
-                if len(intersecting_geometries_ids) != 0:
-                    ious = self.calculate_iou_for_geometry(gdf.loc[intersecting_geometries_ids], current.geometry)
-                    if self.polygon_type == 'box':
-                        skip_ids.update(list(ious[ious > self.nms_threshold].index))
-                    elif self.polygon_type == 'segmentation':
-                        for g_id, iou in ious.items():
-                            # We have to re-compute the IOU as intersect_gdf might not be up to date anymore after some polygons were modified in previous iterations.
-                            intersection = gdf.at[current_id, 'geometry'].intersection(gdf.at[g_id, 'geometry'])
-                            updated_iou = intersection.area / (gdf.at[current_id, 'geometry'].area + gdf.at[g_id, 'geometry'].area)
-                            if updated_iou > self.nms_threshold:
-                                skip_ids.add(g_id)
-                            else:
-                                gdf.at[current_id, 'geometry'] = gdf.at[current_id, 'geometry'].union(intersection)
-                                new_geometry = gdf.at[g_id, 'geometry'].difference(intersection)
-                                if gdf.at[g_id, 'geometry'].geom_type == 'Polygon' and gdf.at[g_id, 'geometry'].geom_type == new_geometry.geom_type:
-                                    # If the Polygon was split in 2 or more parts after removing the intersection area, we remove it
-                                    skip_ids.add(g_id)
-                                if new_geometry.area > 0:
-                                    gdf.at[g_id, 'geometry'] = new_geometry
-                                else:
-                                    skip_ids.add(g_id)
-                    else:
-                        raise Exception(f"Unsupported polygon_type: {self.polygon_type}."
-                                        f" Supported types are: {self.SUPPORTED_POLYGON_TYPES}.")
+                ious = self.calculate_iou_for_geometry(gdf.loc[intersecting_geometries_ids], current.geometry)
+                skip_ids.update(list(ious[ious > self.nms_threshold].index))
 
             id_to_final_polygon[current_id] = current.geometry
             skip_ids.add(current_id)
@@ -408,37 +450,123 @@ class Aggregator:
         drop_ids = list(skip_ids - keep_ids)
         self.polygons_gdf.drop(drop_ids, inplace=True, errors="ignore")
 
-    def save_polygons(self):
-        self.output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if self.output_path.suffix == '.geojson':
-            self.polygons_gdf.to_file(str(self.output_path), driver="GeoJSON")
-        elif self.output_path.suffix == '.json':
-            tiles_ids = self.polygons_gdf['tile_id'].unique()
-            coco_generator = COCOGenerator(
-                description=f"Aggregated polygons from multiple tiles.",
-                tiles_paths=[self.tile_ids_to_path[tile_id] for tile_id in tiles_ids],
-                polygons=[self._apply_inverse_transform(
-                    polygons=self.polygons_gdf[self.polygons_gdf['tile_id'] == tile_id]['geometry'].tolist(),
-                    tile_path=self.tile_ids_to_path[tile_id]) for tile_id in tiles_ids],
-                scores=[self.polygons_gdf[self.polygons_gdf['tile_id'] == tile_id]['score'].tolist() for tile_id in
-                        tiles_ids],
-                categories=None,  # TODO add support for categories
-                other_attributes=None,  # TODO add support for other_attributes
-                output_path=self.output_path,
-                use_rle_for_labels=True,  # TODO make this a parameter to the class
-                n_workers=5,  # TODO make this a parameter to the class
-                coco_categories_list=None  # TODO make this a parameter to the class
-            )
-            coco_generator.generate_coco()
-        else:
-            raise Exception(
-                "The output_path needs to end with either .json (coco output) or .geojson (geopackage output).")
-        print(f"Saved {len(self.polygons_gdf)} polygons in file '{self.output_path}'.")
+class SegmentationAggregator(Aggregator):
+    polygon_type = 'segmentation'
 
-    @staticmethod
-    def _apply_inverse_transform(polygons: List[Polygon], tile_path: Path):
-        src = rasterio.open(tile_path)
-        inverse_transform = ~src.transform
-        polygons = [apply_affine_transform(polygon, inverse_transform) for polygon in polygons]
-        return polygons
+    def __init__(self,
+                 output_path: Path,
+                 polygons_gdf: gpd.GeoDataFrame,
+                 tiles_extent_gdf: gpd.GeoDataFrame,
+                 tile_ids_to_path: dict or None,
+                 score_threshold: float = 0.1,
+                 nms_threshold: float = 0.8,
+                 nms_algorithm: str = 'iou'
+                 ):
+        super().__init__(output_path=output_path,
+                         polygons_gdf=polygons_gdf,
+                         tiles_extent_gdf=tiles_extent_gdf,
+                         tile_ids_to_path=tile_ids_to_path,
+                         score_threshold=score_threshold,
+                         nms_threshold=nms_threshold,
+                         nms_algorithm=nms_algorithm)
+
+    @classmethod
+    def from_coco(cls,
+                  output_path: Path,
+                  tiles_folder_path: Path,
+                  coco_json_path: Path,
+                  score_threshold: float = 0.1,
+                  nms_threshold: float = 0.8,
+                  nms_algorithm: str = 'iou'):
+
+        all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path = cls._from_coco(
+            polygon_type=cls.polygon_type,
+            tiles_folder_path=tiles_folder_path,
+            coco_json_path=coco_json_path
+        )
+
+        return cls(output_path=output_path,
+                   polygons_gdf=all_polygons_gdf,
+                   tiles_extent_gdf=all_tiles_extents_gdf,
+                   score_threshold=score_threshold,
+                   nms_threshold=nms_threshold,
+                   nms_algorithm=nms_algorithm,
+                   tile_ids_to_path=tile_ids_to_path)
+
+    def apply_iou_nms_algorithm(self):
+        gdf = self.polygons_gdf.copy()
+        gdf.sort_values(by='score', ascending=False, inplace=True)
+
+        # print number of each geometries geom_type:
+        print(gdf['geometry'].astype(object).apply(lambda x: x.geom_type).value_counts())
+
+        intersect_gdf = gpd.sjoin(gdf, gdf, how='inner', predicate='intersects')
+        intersect_gdf = intersect_gdf[intersect_gdf.index != intersect_gdf['index_right']]
+        skip_ids = set()
+        id_to_final_polygon = {}
+        progress = tqdm(total=len(gdf), desc="Applying NMS-iou algorithm")
+        while not gdf.empty:
+            current = gdf.iloc[0]
+            current_id = gdf.index[0]
+            progress.update(1)
+            if current_id in skip_ids:
+                gdf.drop(current_id, inplace=True, errors="ignore")
+                continue
+            if current.geometry.area == 0:
+                skip_ids.add(current_id)
+                gdf.drop(current_id, inplace=True, errors="ignore")
+                continue
+            if len(gdf) > 1:
+                intersecting_geometries_ids = intersect_gdf[intersect_gdf.index == current_id]['index_right'].unique()
+                intersecting_geometries_ids = [g_id for g_id in intersecting_geometries_ids if g_id not in skip_ids]
+                if len(intersecting_geometries_ids) != 0:
+                    for g_id in intersecting_geometries_ids:
+                        # We have to re-compute the IOU as intersect_gdf might not be up-to-date anymore after some polygons were modified in previous iterations.
+                        intersection = gdf.at[current_id, 'geometry'].intersection(gdf.at[g_id, 'geometry'])
+                        if intersection.geom_type == 'GeometryCollection':
+                            polygons = []
+                            # Iterate through each geometry in the collection
+                            for geom in intersection.geoms:
+                                if geom.geom_type == 'Polygon':
+                                    polygons.append(geom)
+                                elif geom.geom_type == 'LineString':
+                                    # Check if the LineString is closed and can be considered a polygon
+                                    if geom.is_ring:
+                                        # Convert the LineString to a Polygon
+                                        polygons.append(Polygon(geom))
+                            intersection = MultiPolygon(polygons)
+                        updated_iou = intersection.area / (
+                                gdf.at[current_id, 'geometry'].area + gdf.at[g_id, 'geometry'].area)
+                        if updated_iou > self.nms_threshold:
+                            skip_ids.add(g_id)
+                        else:
+                            gdf.at[current_id, 'geometry'] = gdf.at[current_id, 'geometry'].union(intersection)
+                            new_geometry = gdf.at[g_id, 'geometry'].difference(intersection)
+                            if new_geometry.geom_type == 'GeometryCollection':
+                                skip_ids.add(g_id)
+                            elif gdf.at[g_id, 'geometry'].geom_type == 'Polygon' and gdf.at[
+                                g_id, 'geometry'].geom_type == new_geometry.geom_type:
+                                # If the Polygon was split in 2 or more parts after removing the intersection area, we remove it
+                                skip_ids.add(g_id)
+                            elif new_geometry.area > 0:
+                                gdf.at[g_id, 'geometry'] = new_geometry
+                            else:
+                                skip_ids.add(g_id)
+
+            id_to_final_polygon[current_id] = current.geometry
+            skip_ids.add(current_id)
+            gdf.drop(current_id, inplace=True, errors="ignore")
+
+        keep_ids = list(id_to_final_polygon.keys())
+        final_polygons = gpd.GeoDataFrame(geometry=[id_to_final_polygon[k] for k in keep_ids],
+                                          index=keep_ids)
+
+        progress.close()
+
+        self.polygons_gdf.loc[final_polygons.index, 'geometry'] = final_polygons['geometry']
+        drop_ids = list(skip_ids - set(keep_ids))
+        self.polygons_gdf.drop(drop_ids, inplace=True, errors="ignore")
+
+    def apply_diou_nms_algorithm(self):
+        raise NotImplementedError("The DIOU NMS algorithm has to be implemented for polygon_type='segmentation'.")
