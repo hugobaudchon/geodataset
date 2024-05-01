@@ -79,7 +79,7 @@ class LabeledRasterCocoDataset(BaseDataset, ABC):
         self.cocos_detected.append(json_path)
 
     def _reindex_coco_data(self, coco_data: dict):
-        """s
+        """
         Re-indexes the COCO data to ensure unique tile and annotation IDs.
 
         Parameters:
