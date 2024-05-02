@@ -1,6 +1,7 @@
+import json
 from pathlib import Path
 
-from geodataset.aoi import AOIGeneratorConfig
+from geodataset.aoi import AOIGeneratorConfig, AOIFromPackageConfig
 from geodataset.tilerize import LabeledRasterTilerizer
 
 
@@ -14,24 +15,23 @@ def quebec_trees_parser(dataset_root: Path,
 
     output_path = output_path / "quebec_trees"
 
-    aoi_gen_config = AOIGeneratorConfig(aoi_type='band',
-                                        aois={'train': {'percentage': 0.7, 'position': 1},
-                                              'valid': {'percentage': 0.15, 'position': 2},
-                                              'test': {'percentage': 0.15, 'position': 3}
-                                              })
+    aoi_gpkg_config = AOIFromPackageConfig(aois={'train': Path('./aois/quebec_trees/train_aoi.geojson'),
+                                                 'valid': Path('./aois/quebec_trees/valid_aoi.geojson'),
+                                                 'test': Path('./aois/quebec_trees/inference_zone.gpkg')
+                                                 })
 
     raster_configs = [
         {'raster': dataset_root / '2021-09-02/zone1/2021-09-02-sbl-z1-rgb-cog.tif',
          'labels': dataset_root / 'Z1_polygons.gpkg',
-         'aoi_config': aoi_gen_config
+         'aoi_config': aoi_gpkg_config
          },
         {'raster': dataset_root / '2021-09-02/zone2/2021-09-02-sbl-z2-rgb-cog.tif',
          'labels': dataset_root / 'Z2_polygons.gpkg',
-         'aoi_config': aoi_gen_config
+         'aoi_config': aoi_gpkg_config
          },
         {'raster': dataset_root / '2021-09-02/zone3/2021-09-02-sbl-z3-rgb-cog.tif',
          'labels': dataset_root / 'Z3_polygons.gpkg',
-         'aoi_config': aoi_gen_config
+         'aoi_config': aoi_gpkg_config
          }
     ]
 
@@ -47,7 +47,9 @@ def quebec_trees_parser(dataset_root: Path,
                 ground_resolution=ground_resolution,
                 ignore_black_white_alpha_tiles_threshold=0.8,
                 ignore_tiles_without_labels=True,
-                main_label_category_column_name='Label')
+                main_label_category_column_name='Label',
+                coco_categories_list=json.load(open('./categories/quebec_trees/quebec_trees_categories.json', "rb"))['categories']
+            )
             tilerizer.generate_coco_dataset()
         except Exception as e:
             print(e)
@@ -308,8 +310,8 @@ def savanna_trees_parser(dataset_root: Path,
 
 
 if __name__ == "__main__":
-    quebec_trees_parser(dataset_root=Path('/home/hugobaudchon/Documents/Data/raw/quebec_trees_dataset_2021-09-02'),
-                        output_path=Path('/home/hugobaudchon/Documents/Data/pre_processed/all_datasets'),
+    quebec_trees_parser(dataset_root=Path('C:/Users/Hugo/Documents/Data/raw/quebec_trees_dataset_2021-09-02'),
+                        output_path=Path('C:/Users/Hugo/Documents/Data/pre_processed/final_dataset'),
                         ground_resolution=0.05,
                         tile_size=1024,
                         tile_overlap=0.5)

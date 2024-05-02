@@ -50,8 +50,20 @@ class RasterPolygonLabels:
         # Making sure the labels and associated raster CRS are matching.
         labels_gdf = self.associated_raster.adjust_geometries_to_raster_crs_if_necessary(gdf=labels_gdf)
 
+        # Making sure the labels polygons are valid (they are not None)
+        n_labels = len(labels_gdf)
+        labels_gdf = labels_gdf.dropna(subset=['geometry'])
+        if n_labels != len(labels_gdf):
+            warnings.warn(f"Removed {n_labels - len(labels_gdf)} out of {n_labels} labels as they have 'None' geometries.")
+
         # Scaling the geometries to pixel coordinates aligned with the Raster
         labels_gdf = self.associated_raster.adjust_geometries_to_raster_pixel_coordinates(gdf=labels_gdf)
+
+        # Making sure the polygons have an area > 0
+        n_labels = len(labels_gdf)
+        labels_gdf = labels_gdf[labels_gdf.geometry.area > 0]
+        if n_labels != len(labels_gdf):
+            warnings.warn(f"Removed {n_labels - len(labels_gdf)} out of {n_labels} labels as they have an area of 0.")
 
         # Checking if most of the labels are intersecting the Raster.
         # If not, something probably went wrong with the CRS, transform or scaling factor.

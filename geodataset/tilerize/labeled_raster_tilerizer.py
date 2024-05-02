@@ -188,7 +188,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
         save_aois_tiles_picture(aois_tiles=aois_tiles,
                                 save_path=self.output_path / AoiTilesImageConvention.create_name(
-                                    product_name=self.product_name,
+                                    product_name=self.raster.product_name,
                                     ground_resolution=self.ground_resolution,
                                     scale_factor=self.scale_factor
                                 ),
@@ -204,6 +204,14 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             tiles = aois_tiles[aoi]
             labels = aois_labels[aoi]
 
+            if len(tiles) == 0:
+                print(f"No tiles found for AOI {aoi}, skipping...")
+                continue
+
+            if len(tiles) == 0:
+                print(f"No tiles found for AOI {aoi}. Skipping...")
+                continue
+
             tiles_paths = [self.tiles_path / tile.generate_name() for tile in tiles]
             polygons = [x['geometry'].to_list() for x in labels]
             categories_list = [x[self.labels.main_label_category_column_name].to_list() for x in labels]\
@@ -218,13 +226,13 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             for tile in aois_tiles[aoi]:
                 tile.save(output_folder=self.tiles_path)
 
-            coco_output_file_path = self.output_path / CocoNameConvention.create_name(product_name=self.product_name,
+            coco_output_file_path = self.output_path / CocoNameConvention.create_name(product_name=self.raster.product_name,
                                                                                       ground_resolution=self.ground_resolution,
                                                                                       scale_factor=self.scale_factor,
                                                                                       fold=aoi)
 
             coco_generator = COCOGenerator(
-                description=f"Dataset for the product {self.product_name}"
+                description=f"Dataset for the product {self.raster.product_name}"
                             f" with fold {aoi}"
                             f" and scale_factor {self.scale_factor}"
                             f" and ground_resolution {self.ground_resolution}.",

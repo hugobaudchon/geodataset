@@ -2,15 +2,16 @@ from typing import List
 
 import geopandas as gpd
 import pandas as pd
-from shapely import MultiPolygon, Polygon, box
+from shapely import box
 
 from .aoi_disambiguator import AOIDisambiguator
 from .aoi_config import AOIFromPackageConfig
-from .aoi_base import AOIBase
+from .aoi_base import AOIBaseForTiles, AOIBaseForPolygons, AOIBaseFromPackage
 from geodataset.geodata import Tile, Raster
+from ..labels import RasterPolygonLabels
 
 
-class AOIFromPackage(AOIBase):
+class AOIFromPackageForTiles(AOIBaseForTiles, AOIBaseFromPackage):
     def __init__(self,
                  tiles: List[Tile],
                  tile_coordinate_step: int,
@@ -21,9 +22,6 @@ class AOIFromPackage(AOIBase):
         """
         :param aois_config: An instanced AOIFromPackageConfig.
         """
-        super().__init__(tiles=tiles,
-                         tile_coordinate_step=tile_coordinate_step,
-                         aois_config=aois_config)
 
         self.associated_raster = associated_raster
         self.ground_resolution = ground_resolution
@@ -35,33 +33,8 @@ class AOIFromPackage(AOIBase):
             "The specified scale_factor for the labels and Raster are different."
         assert type(aois_config) is AOIFromPackageConfig
 
-        self.loaded_aois = self._load_aois()
-
-    def _load_aois(self):
-        """
-        Load the AOI from the provided path, converting it to a MultiPolygon if necessary.
-        """
-
-        loaded_aois = {}
-        for aoi_name in self.aois_config.aois:
-            # Load the AOI using geopandas
-            aoi_gdf = gpd.read_file(self.aois_config.aois[aoi_name])
-
-            # Ensure the geometry is a MultiPolygon
-            aoi_gdf['geometry'] = aoi_gdf['geometry'].astype(object).apply(
-                lambda geom: MultiPolygon([geom]) if isinstance(geom, Polygon) else geom
-            )
-
-            # Making sure the geometries have the same CRS as the raster
-            aoi_gdf = self.associated_raster.adjust_geometries_to_raster_crs_if_necessary(gdf=aoi_gdf)
-
-            # Scaling the geometries to pixel coordinates aligned with the Raster
-            aoi_gdf = self.associated_raster.adjust_geometries_to_raster_pixel_coordinates(gdf=aoi_gdf)
-
-            # Store the loaded data
-            loaded_aois[aoi_name] = aoi_gdf
-
-        return loaded_aois
+        AOIBaseForTiles.__init__(self, tiles=tiles, tile_coordinate_step=tile_coordinate_step)
+        AOIBaseFromPackage.__init__(self, associated_raster=associated_raster, aois_config=aois_config)
 
     def get_aoi_tiles(self) -> (dict[str, List[Tile]], dict[str, gpd.GeoDataFrame]):
 
@@ -95,3 +68,41 @@ class AOIFromPackage(AOIBase):
         aoi_disambiguator.disambiguate_tiles()
 
         return aois_tiles, aois_gdf
+
+
+class AOIFromPackageForPolygons(AOIBaseForPolygons, AOIBaseFromPackage):
+    def __init__(self,
+                 labels: RasterPolygonLabels,
+                 associated_raster: Raster,
+                 aois_config: AOIFromPackageConfig):
+        """
+        :param aois_config: An instanced AOIFromPackageConfig.
+        """
+
+        assert type(aois_config) is AOIFromPackageConfig
+
+        AOIBaseForPolygons.__init__(self, labels=labels)
+        AOIBaseFromPackage.__init__(self, associated_raster=associated_raster, aois_config=aois_config)
+
+    def get_aoi_polygons(self) -> (dict[str, gpd.GeoDataFrame], dict[str, gpd.GeoDataFrame]):
+
+        aois_frames = []
+        for aoi, gdf in self.loaded_aois.items():
+            gdf = gdf.copy()
+            gdf['aoi'] = aoi
+            aois_frames.append(gdf)
+        aois_gdf = gpd.GeoDataFrame(pd.concat(aois_frames, ignore_index=True)).reset_index()
+
+        polygons = self.labels.geometries_gdf.copy()
+        polygons['geometry_id'] = polygons.index
+
+        intersections = gpd.overlay(polygons, aois_gdf, how='intersection')
+        intersections['intersection_area'] = intersections.geometry.area
+
+        max_intersection_per_polygon = intersections.groupby('geometry_id')['intersection_area'].idxmax()
+
+        aois_polygons_ids = intersections.loc[max_intersection_per_polygon].groupby('aoi')['geometry_id'].apply(list).to_dict()
+
+        aois_polygons = {aoi: polygons.loc[aois_polygons_ids[aoi]] for aoi in aois_polygons_ids}
+
+        return aois_polygons, aois_gdf
