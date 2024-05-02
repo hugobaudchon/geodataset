@@ -557,6 +557,7 @@ def coco_to_geojson(coco_json_path: str,
 
     # Create a mapping of category IDs to category names
     categories_ids_to_names_map = {category['id']: category['name'] for category in categories_data}
+    categories_ids_to_names_map[None] = None
 
     tiles_ids_to_tiles_map = {tile['id']: tile for tile in tiles_data}
     tiles_ids_to_annotations_map = {tile['id']: [] for tile in tiles_data}
