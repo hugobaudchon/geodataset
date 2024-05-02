@@ -4,6 +4,9 @@ setup(
     name='geodataset',
     version='0.0.2',
     packages=find_packages(),
+    package_data={
+        '': ['utils/categories/*/*.json', 'utils/aois/*/*.geojson', 'utils/aois/*/*.gpkg']
+    },
     install_requires=[
         'albumentations==1.4.0',
         'einops==0.7.0',
