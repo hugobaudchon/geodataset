@@ -553,6 +553,10 @@ def coco_to_geojson(coco_json_path: str,
 
     tiles_data = coco_data['images']
     annotations_data = coco_data['annotations']
+    categories_data = coco_data['categories']
+
+    # Create a mapping of category IDs to category names
+    categories_ids_to_names_map = {category['id']: category['name'] for category in categories_data}
 
     tiles_ids_to_tiles_map = {tile['id']: tile for tile in tiles_data}
     tiles_ids_to_annotations_map = {tile['id']: [] for tile in tiles_data}
@@ -584,6 +588,7 @@ def coco_to_geojson(coco_json_path: str,
             'tile_id': tile_id,
             'tile_path': tile_data['file_name'],
             'category_id': [annotation.get('category_id') for annotation in tile_annotations],
+            'category_name': [categories_ids_to_names_map[annotation.get('category_id')] for annotation in tile_annotations]
         })
 
         if convert_to_crs_coordinates:

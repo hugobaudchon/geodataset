@@ -1,5 +1,6 @@
 import warnings
 from pathlib import Path
+from typing import Tuple
 
 import cv2
 import numpy as np
@@ -90,7 +91,7 @@ class Raster(BaseGeoData):
     def get_polygon_tile(self,
                          polygon: Polygon,
                          polygon_id: int,
-                         tile_size: int) -> PolygonTile:
+                         tile_size: int) -> Tuple[PolygonTile, Polygon]:
 
         # Finding the box centered on the polygon's centroid
         binary_mask = np.zeros((tile_size, tile_size), dtype=np.uint8)
@@ -101,6 +102,9 @@ class Raster(BaseGeoData):
                        x + 0.5 * tile_size,
                        y + 0.5 * tile_size)
 
+        # Making sure the polygon is valid
+        polygon = polygon.buffer(0)
+
         polygon_intersection = mask_box.intersection(polygon)
 
         translated_polygon_intersection = translate(
@@ -109,6 +113,11 @@ class Raster(BaseGeoData):
             yoff=-mask_box.bounds[1]
         )
 
+        # Making sure the polygon is a Polygon and not a GeometryCollection (GeometryCollection can happen on Raster edges due to intersection)
+        if translated_polygon_intersection.geom_type != 'Polygon':
+            # Get the Polygon with the largest area
+            translated_polygon_intersection = max(translated_polygon_intersection.geoms, key=lambda x: x.area)
+
         contours = np.array(translated_polygon_intersection.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
         cv2.fillPoly(binary_mask, [contours], 1)
 
@@ -116,19 +125,34 @@ class Raster(BaseGeoData):
         mask_bounds = mask_box.bounds
         mask_bounds = [int(x) for x in mask_bounds]
 
+        # Handling bounds outside the data
+        start_row = max(mask_bounds[1], 0)
+        end_row = min(mask_bounds[3], self.data.shape[1])
+        start_col = max(mask_bounds[0], 0)
+        end_col = min(mask_bounds[2], self.data.shape[2])
+
         data = self.data[
                :,
-               mask_bounds[1]:mask_bounds[3],
-               mask_bounds[0]:mask_bounds[2]
+               start_row:end_row,
+               start_col:end_col
                ]
+
+        # Padding to tile_size if necessary
+        pre_row_pad = max(0, -mask_bounds[1])
+        post_row_pad = max(0, mask_bounds[3] - self.data.shape[1])
+        pre_col_pad = max(0, -mask_bounds[0])
+        post_col_pad = max(0, mask_bounds[2] - self.data.shape[2])
+
+        data = np.pad(data, [(0, 0), (pre_row_pad, post_row_pad), (pre_col_pad, post_col_pad)], mode='constant',
+                      constant_values=0)
 
         # Masking the pixels around the Polygon
         masked_data = data * binary_mask
 
         # Creating the PolygonTile, with the appropriate metadata
         window = rasterio.windows.Window(
-            mask_box.bounds[1],
             mask_box.bounds[0],
+            mask_box.bounds[1],
             width=tile_size,
             height=tile_size
         )

@@ -1,12 +1,14 @@
 from pathlib import Path
-from typing import List
+from typing import List, cast
 
 import geopandas as gpd
+from shapely import box
+from tqdm import tqdm
 
-from geodataset.aoi import AOIFromPackageConfig
+from geodataset.aoi import AOIFromPackageConfig, AOIGeneratorConfig
 from geodataset.aoi.aoi_from_package import AOIFromPackageForPolygons
 from geodataset.geodata import Raster
-from geodataset.geodata.tile import TileSaver
+from geodataset.geodata.tile import TileSaver, PolygonTile
 from geodataset.labels import RasterPolygonLabels
 from geodataset.utils import CocoNameConvention, COCOGenerator
 
@@ -25,7 +27,8 @@ class PolygonTilerizer:
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None,
                  coco_n_workers: int = 5,
-                 coco_categories_list: list[dict] = None):
+                 coco_categories_list: list[dict] = None,
+                 tile_batch_size: int = 1000):
 
         self.raster_path = raster_path
         self.labels_path = labels_path
@@ -36,6 +39,7 @@ class PolygonTilerizer:
         self.min_intersection_ratio = min_intersection_ratio
         self.coco_n_workers = coco_n_workers
         self.coco_categories_list = coco_categories_list
+        self.tile_batch_size = tile_batch_size
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
                                                           " Please only specify one.")
@@ -46,8 +50,8 @@ class PolygonTilerizer:
         self.labels = self._load_labels(main_label_category_column_name, other_labels_attributes_column_names)
 
         self.output_path = output_path / self.raster.product_name
-        self.tiles_path = self.output_path / 'tiles'
-        self.tiles_path.mkdir(parents=True, exist_ok=True)
+        self.tiles_folder_path = self.output_path / 'tiles'
+        self.tiles_folder_path.mkdir(parents=True, exist_ok=True)
 
     def _load_raster(self):
         raster = Raster(path=self.raster_path,
@@ -67,23 +71,43 @@ class PolygonTilerizer:
         return labels
 
     def _generate_aois_polygons(self):
-        aoi_engine = AOIFromPackageForPolygons(
-            aois_config=self.aois_config,
-            associated_raster=self.raster,
-            labels=self.labels,
-        )
+        if self.aois_config is not None:
+            if type(self.aois_config) is AOIGeneratorConfig:
+                if len(self.aois_config.aois) > 1 or next(iter(self.aois_config.aois.values()))['percentage'] != 1:
+                    raise Exception("Currently only supports inference on whole raster.")
 
-        aois_polygons, aois_labels = aoi_engine.get_aoi_polygons()
+                polygons = self.labels.geometries_gdf.copy()
+                polygons['geometry_id'] = range(len(polygons))
 
-        return aois_polygons, aois_labels
+                aois_polygons = {next(iter(self.aois_config.aois.keys())): polygons}
+                # Get the raster extent and create a polygon and gdf for it
+
+                raster_extent = box(0, 0, self.raster.metadata['width'], self.raster.metadata['height'])
+                aois_gdf = {next(iter(self.aois_config.aois.keys())): gpd.GeoDataFrame(geometry=[raster_extent])}
+
+            elif type(self.aois_config) is AOIFromPackageConfig:
+                aoi_engine = AOIFromPackageForPolygons(labels=self.labels,
+                                                       aois_config=cast(AOIFromPackageConfig, self.aois_config),
+                                                       associated_raster=self.raster)
+
+                aois_polygons, aois_gdf = aoi_engine.get_aoi_polygons()
+            else:
+                raise Exception(f'aois_config type unsupported: {type(self.aois_config)}')
+        else:
+            raise Exception("No AOI configuration provided.")
+
+        return aois_polygons, aois_gdf
 
     def _generate_aois_tiles_and_polygons(self):
         aois_polygons, aois_labels = self._generate_aois_polygons()
 
-        final_aois_tiles = {aoi: [] for aoi in aois_polygons.keys()}
+        final_aois_tiles_paths = {aoi: [] for aoi in aois_polygons.keys()}
         final_aois_polygons = {aoi: [] for aoi in aois_polygons.keys()}
+        tiles_batch = []
         for aoi, polygons in aois_polygons.items():
-            for i, polygon_row in polygons.iterrows():
+            for i, polygon_row in tqdm(polygons.iterrows(),
+                                       f"Generating polygon tiles for AOI {aoi}...", total=len(polygons)):
+
                 polygon = polygon_row['geometry']
 
                 polygon_tile, translated_polygon = self.raster.get_polygon_tile(
@@ -92,7 +116,7 @@ class PolygonTilerizer:
                     tile_size=self.tile_size
                 )
 
-                final_aois_tiles[aoi].append(polygon_tile)
+                tiles_batch.append(polygon_tile)
 
                 gdf = gpd.GeoDataFrame(polygon_row.to_frame().transpose(), geometry='geometry')
                 gdf['geometry'] = translated_polygon
@@ -100,31 +124,45 @@ class PolygonTilerizer:
 
                 final_aois_polygons[aoi].append(gdf)
 
-        return final_aois_tiles, final_aois_polygons
+                if len(tiles_batch) == self.tile_batch_size:
+                    tiles_paths = self._save_tiles_batch(tiles_batch)
+                    tiles_batch = []
+                    final_aois_tiles_paths[aoi].extend(tiles_paths)
+
+            if len(tiles_batch) > 0:
+                tiles_paths = self._save_tiles_batch(tiles_batch)
+                tiles_batch = []
+                final_aois_tiles_paths[aoi].extend(tiles_paths)
+
+        return final_aois_tiles_paths, final_aois_polygons
+
+    def _save_tiles_batch(self, tiles: List[PolygonTile]):
+        tiles_paths = [self.tiles_folder_path / tile.generate_name() for tile in tiles]
+        tile_saver = TileSaver(tiles_path=self.tiles_folder_path, n_workers=self.coco_n_workers)
+        tile_saver.save_all_tiles(tiles)
+
+        return tiles_paths
 
     def generate_coco_dataset(self):
-        aois_tiles, aois_polygons = self._generate_aois_tiles_and_polygons()
-
-        tile_saver = TileSaver(tiles_path=self.tiles_path, n_workers=self.coco_n_workers)
+        aois_tiles_paths, aois_polygons = self._generate_aois_tiles_and_polygons()
 
         coco_paths = {}
-        for aoi in aois_tiles:
-            if aoi == 'all' and len(aois_tiles.keys()) > 1:
+        for aoi in aois_tiles_paths:
+            if aoi == 'all' and len(aois_tiles_paths.keys()) > 1:
                 # don't save the 'all' tiles if aois were provided.
                 continue
 
-            tiles = aois_tiles[aoi]
+            tiles_paths = aois_tiles_paths[aoi]
             polygons = aois_polygons[aoi]
 
-            if len(tiles) == 0:
+            if len(tiles_paths) == 0:
                 print(f"No tiles found for AOI {aoi}, skipping...")
                 continue
 
-            if len(tiles) == 0:
+            if len(tiles_paths) == 0:
                 print(f"No tiles found for AOI {aoi}. Skipping...")
                 continue
 
-            tiles_paths = [self.tiles_path / tile.generate_name() for tile in tiles]
             polygons_list = [x['geometry'].to_list() for x in polygons]
             categories_list = [x[self.labels.main_label_category_column_name].to_list() for x in polygons]\
                 if self.labels.main_label_category_column_name else None
@@ -133,9 +171,6 @@ class PolygonTilerizer:
                 if self.labels.other_labels_attributes_column_names else None
             other_attributes_dict_list = [[{k: d[k][i] for k in d} for i in range(len(next(iter(d.values()))))] for d in other_attributes_dict_list]\
                 if self.labels.other_labels_attributes_column_names else None
-
-            # Saving the tiles
-            tile_saver.save_all_tiles(tiles)
 
             coco_output_file_path = self.output_path / CocoNameConvention.create_name(
                 product_name=self.raster.product_name,
