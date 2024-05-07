@@ -163,14 +163,14 @@ class BaseLabeledCocoDataset(BaseDataset, ABC):
     def _filter_tiles_without_box(self):
         # Remove tiles without annotation for training
         original_tiles_number = len(self.tiles)
-        if self.fold == 'train':
-            tile_ids_without_labels = []
-            for tile_id, tile in self.tiles.items():
-                if len(tile['labels']) == 0:
-                    tile_ids_without_labels.append(tile_id)
 
-            for tile_id in tile_ids_without_labels:
-                del self.tiles[tile_id]
+        tile_ids_without_labels = []
+        for tile_id, tile in self.tiles.items():
+            if len(tile['labels']) == 0:
+                tile_ids_without_labels.append(tile_id)
+
+        for tile_id in tile_ids_without_labels:
+            del self.tiles[tile_id]
 
         new_tiles_number = len(self.tiles)
 

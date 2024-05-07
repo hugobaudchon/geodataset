@@ -50,7 +50,8 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
 
             bboxes.append(np.array([int(x) for x in bbox.bounds]))
 
-        category_ids = np.array([label['category_id'] for label in labels])
+        category_ids = np.array([0 if label['category_id'] is None else label['category_id']
+                                 for label in labels])
 
         if self.transform:
             transformed = self.transform(image=tile.transpose((1, 2, 0)),
@@ -111,7 +112,8 @@ class SegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
 
                 masks.append(mask)
 
-        category_ids = np.array([label['category_id'] for label in labels])
+        category_ids = np.array([0 if label['category_id'] is None else label['category_id']
+                                 for label in labels])
 
         if self.transform:
             transformed = self.transform(image=tile.transpose((1, 2, 0)),
