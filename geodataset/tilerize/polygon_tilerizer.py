@@ -24,6 +24,7 @@ class PolygonTilerizer:
                  scale_factor: float or None,
                  use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.5,
+                 geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None,
                  coco_n_workers: int = 5,
@@ -47,7 +48,11 @@ class PolygonTilerizer:
         self.ground_resolution = ground_resolution
 
         self.raster = self._load_raster()
-        self.labels = self._load_labels(main_label_category_column_name, other_labels_attributes_column_names)
+        self.labels = self._load_labels(
+            geopackage_layer_name=geopackage_layer_name,
+            main_label_category_column_name=main_label_category_column_name,
+            other_labels_attributes_column_names=other_labels_attributes_column_names
+        )
 
         self.output_path = output_path / self.raster.product_name
         self.tiles_folder_path = self.output_path / 'tiles'
@@ -60,11 +65,13 @@ class PolygonTilerizer:
         return raster
 
     def _load_labels(self,
+                     geopackage_layer_name: str or None,
                      main_label_category_column_name: str or None,
                      other_labels_attributes_column_names: List[str] or None):
 
         labels = RasterPolygonLabels(path=self.labels_path,
                                      associated_raster=self.raster,
+                                     geopackage_layer_name=geopackage_layer_name,
                                      main_label_category_column_name=main_label_category_column_name,
                                      other_labels_attributes_column_names=other_labels_attributes_column_names)
 

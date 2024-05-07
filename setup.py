@@ -13,7 +13,7 @@ setup(
         'geopandas>=0.13.2',
         'laspy>=2.5.3',
         'lazrs>=0.5.2',
-        'matplotlib>=3.8.2',
+        'matplotlib==3.8.2',
         'numpy>=1.25.0',
         'opencv-python>=4.9.0.80',
         'pandas>=2.2.0',

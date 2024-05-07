@@ -2,144 +2,162 @@
   "categories": [
     {
       "id": 1,
-      "name": "Pinaceae",
-      "common_name": null,
-      "other_names": null,
-      "supercategory": ""
+      "name": "Dead",
+      "global_id": -1,
+      "other_names": ["Mort"],
+      "supercategory": null
     },
     {
       "id": 2,
-      "name": "Sapindaceae",
-      "common_name": null,
-      "other_names": null,
-      "supercategory": ""
+      "name": "Pinaceae",
+      "global_id": 3925,
+      "rank": "FAMILY",
+      "other_names": [],
+      "supercategory": null
     },
     {
       "id": 3,
-      "name": "Betulaceae",
-      "common_name": null,
-      "other_names": null,
-      "supercategory": ""
+      "name": "Sapindaceae",
+      "global_id": 6657,
+      "rank": "FAMILY",
+      "other_names": [],
+      "supercategory": null
     },
     {
       "id": 4,
-      "name": "Fagaceae",
-      "common_name": null,
-      "other_names": null,
-      "supercategory": ""
+      "name": "Betulaceae",
+      "global_id": 4688,
+      "rank": "FAMILY",
+      "other_names": [],
+      "supercategory": null
     },
     {
       "id": 5,
-      "name": "Salicaceae",
-      "common_name": null,
-      "other_names": null,
-      "supercategory": ""
+      "name": "Fagaceae",
+      "global_id": 4689,
+      "rank": "FAMILY",
+      "other_names": [],
+      "supercategory": null
     },
     {
       "id": 6,
-      "name": "Cupressaceae",
-      "common_name": null,
-      "other_names": null,
-      "supercategory": ""
+      "name": "Salicaceae",
+      "global_id": 6664,
+      "rank": "FAMILY",
+      "other_names": [],
+      "supercategory": null
     },
     {
       "id": 7,
-      "name": "Dead",
-      "common_name": null,
-      "other_names": ["Mort"],
-      "supercategory": ""
+      "name": "Cupressaceae",
+      "global_id": 8144,
+      "rank": "FAMILY",
+      "other_names": [],
+      "supercategory": null
     },
-
     {
       "id": 8,
-      "name": "ABBA",
-      "common_name": "balsam fir",
-      "other_names": null,
-      "supercategory": "1"
+      "name": "Abies balsamea",
+      "global_id": 2685383,
+      "rank": "SPECIES",
+      "other_names": ["ABBA"],
+      "supercategory": 2
     },
     {
       "id": 9,
-      "name": "ACPE",
-      "common_name": "striped maple",
-      "other_names": null,
-      "supercategory": "2"
+      "name": "Acer pensylvanicum",
+      "global_id": 3189836,
+      "rank": "SPECIES",
+      "other_names": ["ACPE"],
+      "supercategory": 3
     },
     {
       "id": 10,
-      "name": "ACRU",
-      "common_name": "red maple",
-      "other_names": null,
-      "supercategory": "2"
+      "name": "Acer rubrum",
+      "global_id": 3189883,
+      "rank": "SPECIES",
+      "other_names": ["ACRU"],
+      "supercategory": 3
     },
     {
       "id": 11,
-      "name": "ACSA",
-      "common_name": "sugar maple",
-      "other_names": null,
-      "supercategory": "2"
+      "name": "Acer saccharum",
+      "global_id": 3189859,
+      "rank": "SPECIES",
+      "other_names": ["ACSA"],
+      "supercategory": 3
     },
     {
       "id": 12,
-      "name": "BEAL",
-      "common_name": "yellow birch",
-      "other_names": null,
-      "supercategory": "3"
+      "name": "Betula alleghaniensis",
+      "global_id": 5331779,
+      "rank": "SPECIES",
+      "other_names": ["BEAL"],
+      "supercategory": 4
     },
     {
       "id": 13,
-      "name": "BEPA",
-      "common_name": "paper birch",
-      "other_names": null,
-      "supercategory": "3"
+      "name": "Betula papyrifera",
+      "global_id": 5332120,
+      "rank": "SPECIES",
+      "other_names": ["BEPA"],
+      "supercategory": 4
     },
     {
       "id": 14,
-      "name": "FAGR",
-      "common_name": "american beach",
-      "other_names": null,
-      "supercategory": "4"
+      "name": "Fagus grandifolia",
+      "global_id": 2882274,
+      "rank": "SPECIES",
+      "other_names": ["FAGR"],
+      "supercategory": 5
     },
     {
       "id": 15,
-      "name": "LALA",
-      "common_name": "tamarack",
-      "other_names": null,
-      "supercategory": "1"
+      "name": "Larix laricina",
+      "global_id": 2686231,
+      "rank": "SPECIES",
+      "other_names": ["LALA"],
+      "supercategory": 2
     },
     {
       "id": 16,
       "name": "Picea",
-      "common_name": "spruce",
+      "global_id": 7606064,
+      "rank": "GENUS",
       "other_names": ["PIGL", "PIMA", "PIRU"],
-      "supercategory": "1"
+      "supercategory": 2
     },
     {
       "id": 17,
-      "name": "PIST",
-      "common_name": "white pine",
-      "other_names": null,
-      "supercategory": "1"
+      "name": "Pinus strobus",
+      "global_id": 5284982,
+      "rank": "SPECIES",
+      "other_names": ["PIST"],
+      "supercategory": 2
     },
     {
       "id": 18,
       "name": "Populus",
-      "common_name": "aspen",
+      "global_id": 3040183,
+      "rank": "GENUS",
       "other_names": ["POGR", "POTR"],
-      "supercategory": "5"
+      "supercategory": 6
     },
     {
       "id": 19,
-      "name": "THOC",
-      "common_name": "eastern white cedar",
-      "other_names": null,
-      "supercategory": "6"
+      "name": "Thuja occidentalis",
+      "global_id": 2684178,
+      "rank": "SPECIES",
+      "other_names": ["THOC"],
+      "supercategory": 7
     },
     {
       "id": 20,
-      "name": "TSCA",
-      "common_name": "eastern hemlock",
-      "other_names": null,
-      "supercategory": "1"
+      "name": "Tsuga canadensis",
+      "global_id": 2687182,
+      "rank": "SPECIES",
+      "other_names": ["TSCA"],
+      "supercategory": 2
     }
   ]
 }

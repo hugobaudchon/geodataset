@@ -30,6 +30,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                  min_intersection_ratio: float = 0.9,
                  ignore_tiles_without_labels: bool = False,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8,
+                 geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None,
                  coco_n_workers: int = 5,
@@ -60,6 +61,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             ratio between a candidate polygon and the tile in order to keep this polygon as a label for that tile.
         ignore_tiles_without_labels: bool,
             Whether to ignore (skip) tiles that don't have any associated labels.
+        geopackage_layer_name: str,
+            The name of the layer in the geopackage file to use as labels. Only used if the labels_path is a .gpkg, .geojson or .shp file.
         ignore_black_white_alpha_tiles_threshold: bool,
             Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
         coco_n_workers: int,
@@ -89,14 +92,20 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         self.coco_n_workers = coco_n_workers
         self.coco_categories_list = coco_categories_list
 
-        self.labels = self._load_labels(main_label_category_column_name, other_labels_attributes_column_names)
+        self.labels = self._load_labels(
+            geopackage_layer_name=geopackage_layer_name,
+            main_label_category_column_name=main_label_category_column_name,
+            other_labels_attributes_column_names=other_labels_attributes_column_names
+        )
 
     def _load_labels(self,
+                     geopackage_layer_name: str or None,
                      main_label_category_column_name: str or None,
                      other_labels_attributes_column_names: List[str] or None):
 
         labels = RasterPolygonLabels(path=self.labels_path,
                                      associated_raster=self.raster,
+                                     geopackage_layer_name=geopackage_layer_name,
                                      main_label_category_column_name=main_label_category_column_name,
                                      other_labels_attributes_column_names=other_labels_attributes_column_names)
 

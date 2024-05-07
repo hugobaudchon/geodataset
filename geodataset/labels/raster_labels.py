@@ -15,12 +15,14 @@ class RasterPolygonLabels:
     def __init__(self,
                  path: Path,
                  associated_raster: Raster,
+                 geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None):
 
         self.path = path
         self.ext = self.path.suffix
         self.associated_raster = associated_raster
+        self.geopackage_layer_name = geopackage_layer_name
         self.ground_resolution = self.associated_raster.ground_resolution
         self.scale_factor = self.associated_raster.scale_factor
         self.main_label_category_column_name = main_label_category_column_name
@@ -83,7 +85,7 @@ class RasterPolygonLabels:
     def _load_geopandas_labels(self):
         # Load polygons
         if self.ext in ['.geojson', '.gpkg', '.shp']:
-            labels_gdf = gpd.read_file(self.path)
+            labels_gdf = gpd.read_file(self.path, layer=self.geopackage_layer_name)
         else:
             raise ValueError("Unsupported file format for polygons. Please use GeoJSON (.geojson), GPKG (.gpkg) or Shapefile (.shp).")
 

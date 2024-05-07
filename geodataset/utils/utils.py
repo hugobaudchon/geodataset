@@ -555,6 +555,8 @@ def coco_to_geojson(coco_json_path: str,
     annotations_data = coco_data['annotations']
     categories_data = coco_data['categories']
 
+    print("Found {} tiles and {} annotations.".format(len(tiles_data), len(annotations_data)))
+
     # Create a mapping of category IDs to category names
     categories_ids_to_names_map = {category['id']: category['name'] for category in categories_data}
     categories_ids_to_names_map[None] = None
@@ -592,7 +594,7 @@ def coco_to_geojson(coco_json_path: str,
             'category_name': [categories_ids_to_names_map[annotation.get('category_id')] for annotation in tile_annotations]
         })
 
-        if convert_to_crs_coordinates:
+        if len(gdf) > 0 and convert_to_crs_coordinates:
             tile_src = rasterio.open(f"{images_directory}/{tile_data['file_name']}")
             gdf['geometry'] = gdf.apply(lambda row: apply_affine_transform(row['geometry'], tile_src.transform), axis=1)
             gdf.crs = tile_src.crs
