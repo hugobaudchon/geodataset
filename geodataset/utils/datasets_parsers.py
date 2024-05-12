@@ -181,7 +181,12 @@ def refores_trees_parser(dataset_root: Path,
                          output_path: Path,
                          tile_size: int,
                          tile_overlap: float,
-                         scale_factor: float = 0.3):
+                         ground_resolution: float = 0.05):
+
+    # Can't use ground_resolution directly here as the rasters CRS are in degree,
+    # not in meter, and changing CRS un-aligns the rasters with their labels by a few tens of meters.
+    gr_0p05_equivalent_scale_factor = 0.3
+    scale_factor = gr_0p05_equivalent_scale_factor / (0.05 / ground_resolution)
 
     # Dataset can be found here: https://zenodo.org/records/6813783
 
@@ -310,11 +315,11 @@ def savanna_trees_parser(dataset_root: Path,
 
 
 if __name__ == "__main__":
-    quebec_trees_parser(dataset_root=Path('C:/Users/Hugo/Documents/Data/raw/quebec_trees_dataset_2021-09-02'),
-                        output_path=Path('C:/Users/Hugo/Documents/Data/pre_processed/final_dataset'),
-                        ground_resolution=0.05,
-                        tile_size=1024,
-                        tile_overlap=0.5)
+    quebec_trees_parser(dataset_root=Path('D:/XPrize/Data/raw/quebec_trees_dataset/quebec_trees_dataset_2021-09-02'),
+                        output_path=Path('D:/XPrize/Data/pre_processed/quebec_test_256_005_overlap03'),
+                        ground_resolution=0.2,
+                        tile_size=256,
+                        tile_overlap=0.3)
 
     # neon_train_parser(dataset_root=Path('/home/hugobaudchon/Documents/Data/raw/NeonTreeEvaluation/training'),
     #                   output_path=Path('/home/hugobaudchon/Documents/Data/pre_processed/all_datasets'),
@@ -324,9 +329,7 @@ if __name__ == "__main__":
     #
     # refores_trees_parser(dataset_root=Path('/home/hugobaudchon/Documents/Data/raw/wwf_ecuador'),
     #                      output_path=Path('/home/hugobaudchon/Documents/Data/pre_processed/all_datasets'),
-    #                      scale_factor=0.3,      # Can't use ground_resolution here as the rasters CRS are in degree,
-    #                                             # not in meter, and changing CRS un-aligns the rasters with their
-    #                                             # labels by a few tens of meters.
+    #                      ground_resolution=0.05,
     #                      tile_size=1024,
     #                      tile_overlap=0.5)
 
