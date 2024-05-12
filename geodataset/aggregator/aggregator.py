@@ -533,8 +533,9 @@ class SegmentationAggregator(AggregatorBase):
                         if intersection.geom_type == 'GeometryCollection':
                             intersection = self.geometry_collection_to_multi_polygon(intersection)
 
-                        updated_iou = intersection.area / (gdf.at[current_id, 'geometry'].area + gdf.at[g_id, 'geometry'].area)
-                        if updated_iou > self.nms_threshold:
+                        # Instead of using IOU in the SegmenterAggregator, we only look at the intersection area over the lower-scored geometry area
+                        updated_intersection_over_geom_area = intersection.area / gdf.at[g_id, 'geometry'].area
+                        if updated_intersection_over_geom_area > self.nms_threshold:
                             skip_ids.add(g_id)
                         else:
                             gdf.at[current_id, 'geometry'] = gdf.at[current_id, 'geometry'].union(intersection)
