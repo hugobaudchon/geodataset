@@ -102,7 +102,7 @@ class RasterPolygonLabels:
 
         if self.other_labels_attributes_column_names:
             for attribute in self.other_labels_attributes_column_names:
-                assert self.main_label_category_column_name in labels_gdf, \
+                assert attribute in labels_gdf, \
                     f'Could not find the attribute {attribute}' \
                     f' in the geopackage. Please manually double check the geopackage polygons attributes' \
                     f' or remove the attribute from the parameter \'other_labels_attributes_column_names\'.' \
