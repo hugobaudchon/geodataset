@@ -15,9 +15,11 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
                  fold: str,
                  root_path: Path or List[Path],
                  transform: albumentations.core.composition.Compose = None,
-                 box_padding_percentage: float = 0.0):
+                 box_padding_percentage: float = 0.0,
+                 force_binary_class = None):
         super().__init__(fold=fold, root_path=root_path, transform=transform)
         self.box_padding_percentage = box_padding_percentage
+        self.force_binary_class = force_binary_class
 
         assert 0 <= self.box_padding_percentage <= 1
 
@@ -71,8 +73,11 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
 
             bboxes.append(np.array([int(x) for x in bbox.bounds]))
 
-        category_ids = np.array([0 if label['category_id'] is None else label['category_id']
-                                 for label in labels])
+        if self.force_binary_class:
+            category_ids = np.array([1 for label in labels])
+        else:
+            category_ids = np.array([0 if label['category_id'] is None else label['category_id']
+                                     for label in labels])
 
         if self.transform:
             transformed = self.transform(image=tile.transpose((1, 2, 0)),
