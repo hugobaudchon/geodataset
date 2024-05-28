@@ -2,12 +2,13 @@ import json
 import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 from warnings import warn
 
 import numpy as np
 import pandas as pd
 import rasterio
+import shapely
 from shapely import box, Polygon, MultiPolygon, GeometryCollection
 import geopandas as gpd
 from tqdm import tqdm
@@ -22,6 +23,7 @@ class AggregatorBase(ABC):
     def __init__(self,
                  output_path: Path,
                  polygons_gdf: gpd.GeoDataFrame,
+                 scores_names: List[str],
                  tiles_extent_gdf: gpd.GeoDataFrame,
                  tile_ids_to_path: dict or None,
                  score_threshold: float = 0.1,
@@ -30,6 +32,7 @@ class AggregatorBase(ABC):
 
         self.output_path = output_path
         self.polygons_gdf = polygons_gdf
+        self.scores_names = scores_names
         self.tiles_extent_gdf = tiles_extent_gdf
         self.tile_ids_to_path = tile_ids_to_path
         self.score_threshold = score_threshold
@@ -38,6 +41,7 @@ class AggregatorBase(ABC):
 
         self._check_parameters()
         self.validate_polygons()
+        self.prepare_scores()
         self.remove_low_score_polygons()
         self.apply_nms_algorithm()
         self.save_polygons()
@@ -60,7 +64,8 @@ class AggregatorBase(ABC):
     @staticmethod
     def _from_coco(polygon_type: str,
                    tiles_folder_path: Path,
-                   coco_json_path: Path):
+                   coco_json_path: Path,
+                   scores_names: list):
 
         # Read the JSON file
         with open(coco_json_path, 'r') as f:
@@ -81,21 +86,30 @@ class AggregatorBase(ABC):
             else:
                 annotation_polygon = decode_rle_to_polygon(annotation['segmentation'])
 
-            if "score" in annotation:
-                score = annotation["score"]
-            elif ("other_attributes" in annotation
-                  and annotation["other_attributes"]
-                  and "score" in annotation["other_attributes"]):
-                score = annotation["other_attributes"]["score"]
-            else:
-                score = None
+            scores = {}
+            warn_scores_not_found = []
+            for score_name in scores_names:
+                if score_name in annotation:
+                    scores[score_name] = annotation["score_name"]
+                elif ("other_attributes" in annotation
+                      and annotation["other_attributes"]
+                      and score_name in annotation["other_attributes"]):
+                    scores[score_name] = annotation["other_attributes"][score_name]
+                else:
+                    scores[score_name] = 0
+                    warn_scores_not_found.append(score_name)
+
+            if len(warn_scores_not_found) > 0:
+                warn(f"The following scores keys could not be found in the annotation, or in the 'other_attributes' key"
+                     f" of the annotation: {warn_scores_not_found}")
 
             if image_id in tile_ids_to_polygons:
                 tile_ids_to_polygons[image_id].append(annotation_polygon)
-                tile_ids_to_scores[image_id].append(score)
+                for score_name in scores.keys():
+                    tile_ids_to_scores[image_id][score_name].append(scores[score_name])
             else:
                 tile_ids_to_polygons[image_id] = [annotation_polygon]
-                tile_ids_to_scores[image_id] = [score]
+                tile_ids_to_scores[image_id] = {score_name: [scores[score_name]] for score_name in scores.keys()}
 
         tile_ids_to_path = {}
         for image in coco_data['images']:
@@ -116,7 +130,7 @@ class AggregatorBase(ABC):
                       output_path: Path,
                       tiles_paths: List[Path],
                       polygons: List[List[Polygon]],
-                      scores: List[List[float]],
+                      scores: List[List[float]] or Dict[str, List[List[float]]],
                       score_threshold: float = 0.1,
                       nms_threshold: float = 0.8,
                       nms_algorithm: str = 'iou'):
@@ -127,7 +141,16 @@ class AggregatorBase(ABC):
         ids = list(range(len(tiles_paths)))
         tile_ids_to_path = {k: v for k, v in zip(ids, tiles_paths)}
         tile_ids_to_polygons = {k: v for k, v in zip(ids, polygons)}
-        tile_ids_to_scores = {k: v for k, v in zip(ids, scores)}
+
+        if type(scores) is list:
+            scores = {'score': scores}
+
+        tile_ids_to_scores = {}
+        for tile_id in ids:
+            id_scores = {}
+            for score_name, score_values in scores.items():
+                id_scores[score_name] = score_values[tile_id]
+            tile_ids_to_scores[tile_id] = id_scores
 
         all_polygons_gdf, all_tiles_extents_gdf = AggregatorBase.prepare_polygons(
             tile_ids_to_path=tile_ids_to_path,
@@ -136,6 +159,7 @@ class AggregatorBase(ABC):
 
         return cls(output_path=output_path,
                    polygons_gdf=all_polygons_gdf,
+                   scores_names=list(scores.keys()),
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
@@ -165,7 +189,8 @@ class AggregatorBase(ABC):
             )
             gdf_polygons.crs = src.crs
             gdf_polygons['tile_id'] = tile_id
-            gdf_polygons['score'] = tile_ids_to_scores[tile_id]
+            for score_name in tile_ids_to_scores[tile_id].keys():
+                gdf_polygons[score_name] = tile_ids_to_scores[tile_id][score_name]
             all_gdfs_polygons.append(gdf_polygons)
 
             bounds = src.bounds
@@ -205,6 +230,11 @@ class AggregatorBase(ABC):
             return geom
 
         self.polygons_gdf['geometry'] = self.polygons_gdf['geometry'].astype(object).apply(fix_geometry)
+
+    def prepare_scores(self):
+        self.polygons_gdf['score'] = [s if s else 0 for s in self.polygons_gdf[self.scores_names[0]]]
+        for score_name in self.scores_names[1:]:
+            self.polygons_gdf['score'] *= [s if s else 0 for s in self.polygons_gdf[score_name]]
 
     def remove_low_score_polygons(self):
         if self.score_threshold:
@@ -297,16 +327,27 @@ class AggregatorBase(ABC):
             self.polygons_gdf.to_file(str(self.output_path), driver="GeoJSON")
         elif self.output_path.suffix == '.json':
             tiles_ids = self.polygons_gdf['tile_id'].unique()
+
+            other_attributes = []
+            for tile_id in tiles_ids:
+                tile_scores = []
+                for label_index in self.polygons_gdf[self.polygons_gdf['tile_id'] == tile_id].index:
+                    label_data = self.polygons_gdf.loc[label_index]
+                    label_scores = {score_name: label_data[score_name] for score_name in self.scores_names}
+                    label_scores['score'] = label_data['score']
+                    tile_scores.append(label_scores)
+
+                other_attributes.append(tile_scores)
+
             coco_generator = COCOGenerator(
                 description=f"Aggregated polygons from multiple tiles.",
                 tiles_paths=[self.tile_ids_to_path[tile_id] for tile_id in tiles_ids],
                 polygons=[self._apply_inverse_transform(
                     polygons=self.polygons_gdf[self.polygons_gdf['tile_id'] == tile_id]['geometry'].tolist(),
                     tile_path=self.tile_ids_to_path[tile_id]) for tile_id in tiles_ids],
-                scores=[self.polygons_gdf[self.polygons_gdf['tile_id'] == tile_id]['score'].tolist() for tile_id in
-                        tiles_ids],
+                scores=None,    # Using other_attributes instead
                 categories=None,  # TODO add support for categories
-                other_attributes=None,  # TODO add support for other_attributes
+                other_attributes=other_attributes,
                 output_path=self.output_path,
                 use_rle_for_labels=True,  # TODO make this a parameter to the class
                 n_workers=5,  # TODO make this a parameter to the class
@@ -332,6 +373,7 @@ class DetectorAggregator(AggregatorBase):
     def __init__(self,
                  output_path: Path,
                  polygons_gdf: gpd.GeoDataFrame,
+                 scores_names: List[str],
                  tiles_extent_gdf: gpd.GeoDataFrame,
                  tile_ids_to_path: dict or None,
                  score_threshold: float = 0.1,
@@ -340,6 +382,7 @@ class DetectorAggregator(AggregatorBase):
                  ):
         super().__init__(output_path=output_path,
                          polygons_gdf=polygons_gdf,
+                         scores_names=scores_names,
                          tiles_extent_gdf=tiles_extent_gdf,
                          tile_ids_to_path=tile_ids_to_path,
                          score_threshold=score_threshold,
@@ -353,16 +396,22 @@ class DetectorAggregator(AggregatorBase):
                   coco_json_path: Path,
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
-                  nms_algorithm: str = 'iou'):
+                  nms_algorithm: str = 'iou',
+                  scores_names: List[str] = None):
+
+        if scores_names is None:
+            scores_names = ['score']
 
         all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path = cls._from_coco(
             polygon_type=cls.polygon_type,
             tiles_folder_path=tiles_folder_path,
-            coco_json_path=coco_json_path
+            coco_json_path=coco_json_path,
+            scores_names=scores_names
         )
 
         return cls(output_path=output_path,
                    polygons_gdf=all_polygons_gdf,
+                   scores_names=scores_names,
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
@@ -372,9 +421,6 @@ class DetectorAggregator(AggregatorBase):
     def apply_iou_nms_algorithm(self):
         gdf = self.polygons_gdf.copy()
         gdf.sort_values(by='score', ascending=False, inplace=True)
-
-        # print number of each geometries geom_type:
-        print(gdf['geometry'].astype(object).apply(lambda x: x.geom_type).value_counts())
 
         intersect_gdf = gpd.sjoin(gdf, gdf, how='inner', predicate='intersects')
         intersect_gdf = intersect_gdf[intersect_gdf.index != intersect_gdf['index_right']]
@@ -458,6 +504,7 @@ class SegmentationAggregator(AggregatorBase):
     def __init__(self,
                  output_path: Path,
                  polygons_gdf: gpd.GeoDataFrame,
+                 scores_names: List[str],
                  tiles_extent_gdf: gpd.GeoDataFrame,
                  tile_ids_to_path: dict or None,
                  score_threshold: float = 0.1,
@@ -470,6 +517,7 @@ class SegmentationAggregator(AggregatorBase):
 
         super().__init__(output_path=output_path,
                          polygons_gdf=polygons_gdf,
+                         scores_names=scores_names,
                          tiles_extent_gdf=tiles_extent_gdf,
                          tile_ids_to_path=tile_ids_to_path,
                          score_threshold=score_threshold,
@@ -483,16 +531,22 @@ class SegmentationAggregator(AggregatorBase):
                   coco_json_path: Path,
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
-                  nms_algorithm: str = 'iou'):
+                  nms_algorithm: str = 'iou',
+                  scores_names: List[str] = None):
+
+        if scores_names is None:
+            scores_names = ['score']
 
         all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path = cls._from_coco(
             polygon_type=cls.polygon_type,
             tiles_folder_path=tiles_folder_path,
-            coco_json_path=coco_json_path
+            coco_json_path=coco_json_path,
+            scores_names=scores_names
         )
 
         return cls(output_path=output_path,
                    polygons_gdf=all_polygons_gdf,
+                   scores_names=scores_names,
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
@@ -502,6 +556,10 @@ class SegmentationAggregator(AggregatorBase):
     def apply_iou_nms_algorithm(self):
         gdf = self.polygons_gdf.copy()
         gdf.sort_values(by='score', ascending=False, inplace=True)
+
+        gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: self.check_geometry_collection(x))
+        gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: self.check_remove_bad_geometries(x))
+        gdf = gdf[gdf['geometry'].notnull()]
 
         intersect_gdf = gpd.sjoin(gdf, gdf, how='inner', predicate='intersects')
         intersect_gdf = intersect_gdf[intersect_gdf.index != intersect_gdf['index_right']]
@@ -516,10 +574,7 @@ class SegmentationAggregator(AggregatorBase):
             if current_id in skip_ids:
                 gdf.drop(current_id, inplace=True, errors="ignore")
                 continue
-            if current.geometry.area == 0:
-                skip_ids.add(current_id)
-                gdf.drop(current_id, inplace=True, errors="ignore")
-                continue
+
             if len(gdf) > 1:
                 intersecting_geometries_ids = intersect_gdf[intersect_gdf.index == current_id]['index_right'].unique()
                 intersecting_geometries_ids = [g_id for g_id in intersecting_geometries_ids if g_id not in skip_ids]
@@ -527,21 +582,24 @@ class SegmentationAggregator(AggregatorBase):
                     for g_id in intersecting_geometries_ids:
                         # We have to re-compute the IOU as intersect_gdf might not be up-to-date anymore after some polygons were modified in previous iterations.
                         with warnings.catch_warnings(record=True) as w:
+                            gdf.at[current_id, 'geometry'] = self.check_geometry_collection(
+                                gdf.at[current_id, 'geometry'])
                             intersection = gdf.at[current_id, 'geometry'].intersection(gdf.at[g_id, 'geometry'])
                             # 'invalid value encountered in intersection'
 
-                        if intersection.geom_type == 'GeometryCollection':
-                            intersection = self.geometry_collection_to_multi_polygon(intersection)
+                        intersection = self.check_geometry_collection(intersection)
 
-                        updated_iou = intersection.area / (gdf.at[current_id, 'geometry'].area + gdf.at[g_id, 'geometry'].area)
-                        if updated_iou > self.nms_threshold:
+                        if not self.check_remove_bad_geometries(intersection):
+                            continue
+
+                        # Instead of using IOU in the SegmenterAggregator, we only look at the intersection area over the lower-scored geometry area
+                        updated_intersection_over_geom_area = intersection.area / gdf.at[g_id, 'geometry'].area
+                        if updated_intersection_over_geom_area > self.nms_threshold:
                             skip_ids.add(g_id)
                         else:
                             gdf.at[current_id, 'geometry'] = gdf.at[current_id, 'geometry'].union(intersection)
                             new_geometry = gdf.at[g_id, 'geometry'].difference(intersection)
-                            if new_geometry.geom_type == 'GeometryCollection':
-                                # skip_ids.add(g_id)
-                                new_geometry = self.geometry_collection_to_multi_polygon(new_geometry)
+                            new_geometry = self.check_geometry_collection(new_geometry)
 
                             if not new_geometry.is_valid:
                                 new_geometry = new_geometry.buffer(0)
@@ -576,15 +634,25 @@ class SegmentationAggregator(AggregatorBase):
         raise NotImplementedError("The DIOU NMS algorithm has to be implemented for polygon_type='segmentation'.")
 
     @staticmethod
-    def geometry_collection_to_multi_polygon(geometry_collection: GeometryCollection):
-        polygons = []
-        # Iterate through each geometry in the collection
-        for geom in geometry_collection.geoms:
-            if geom.geom_type == 'Polygon':
-                polygons.append(geom)
-            elif geom.geom_type == 'LineString':
-                # Check if the LineString is closed and can be considered a polygon
-                if geom.is_ring:
-                    # Convert the LineString to a Polygon
-                    polygons.append(Polygon(geom))
-        return MultiPolygon(polygons)
+    def check_remove_bad_geometries(geometry):
+        if not geometry.is_valid or geometry.area == 0:
+            return None
+        else:
+            return geometry
+
+    @staticmethod
+    def check_geometry_collection(geometry: shapely.Geometry):
+        if geometry.geom_type == 'GeometryCollection':
+            final_geoms = []
+            # Iterate through each geometry in the collection
+            for geom in geometry.geoms:
+                if geom.geom_type == 'Polygon':
+                    final_geoms.append(geom)
+                elif geom.geom_type == 'LineString':
+                    # Check if the LineString is closed and can be considered a polygon
+                    if geom.is_ring:
+                        # Convert the LineString to a Polygon
+                        final_geoms.append(Polygon(geom))
+            return MultiPolygon(final_geoms)
+        else:
+            return geometry

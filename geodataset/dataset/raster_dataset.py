@@ -11,8 +11,15 @@ from geodataset.utils import rle_segmentation_to_bbox, polygon_segmentation_to_b
 
 
 class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
-    def __init__(self, fold: str, root_path: Path or List[Path], transform: albumentations.core.composition.Compose = None):
+    def __init__(self,
+                 fold: str,
+                 root_path: Path or List[Path],
+                 transform: albumentations.core.composition.Compose = None,
+                 box_padding_percentage: float = 0.0):
         super().__init__(fold=fold, root_path=root_path, transform=transform)
+        self.box_padding_percentage = box_padding_percentage
+
+        assert 0 <= self.box_padding_percentage <= 1
 
     def __getitem__(self, idx: int):
         """
@@ -48,6 +55,20 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
                 else:
                     raise NotImplementedError("Could not find the segmentation type (RLE vs polygon coordinates).")
 
+            if self.box_padding_percentage:
+                minx, miny, maxx, maxy = bbox.bounds
+                width = maxx - minx
+                height = maxy - miny
+                padding_x = width * (self.box_padding_percentage / 100)
+                padding_y = height * (self.box_padding_percentage / 100)
+
+                new_minx = max(0, minx - padding_x)
+                new_miny = max(0, miny - padding_y)
+                new_maxx = min(tile.shape[0], maxx + padding_x)
+                new_maxy = min(tile.shape[1], maxy + padding_y)
+
+                bbox = box(new_minx, new_miny, new_maxx, new_maxy)
+
             bboxes.append(np.array([int(x) for x in bbox.bounds]))
 
         category_ids = np.array([0 if label['category_id'] is None else label['category_id']
@@ -80,7 +101,8 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
 
 
 class SegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
-    def __init__(self, fold: str, root_path: Path or List[Path], transform: albumentations.core.composition.Compose = None):
+    def __init__(self, fold: str, root_path: Path or List[Path],
+                 transform: albumentations.core.composition.Compose = None):
         super().__init__(fold=fold, root_path=root_path, transform=transform)
 
     def __getitem__(self, idx: int):
