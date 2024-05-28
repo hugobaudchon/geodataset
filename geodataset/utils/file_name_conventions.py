@@ -79,6 +79,34 @@ class TileNameConvention(FileNameConvention):
         return product_name, scale_factor, ground_resolution, col, row
 
 
+class PolygonTileNameConvention(FileNameConvention):
+    @staticmethod
+    def _validate_name(name):
+        pattern = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_polygontile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+\.tif$"
+        if not re.match(pattern, name):
+            raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
+
+    @staticmethod
+    def create_name(product_name: str, polygon_id: int, scale_factor=None, ground_resolution=None):
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
+        tile_name = f"{product_name}_polygontile_{specifier}_{polygon_id}.tif"
+        PolygonTileNameConvention._validate_name(tile_name)
+        return tile_name
+
+    @staticmethod
+    def parse_name(tile_name: str):
+        PolygonTileNameConvention._validate_name(tile_name)
+
+        parts = tile_name.split("_")
+        product_name = "_".join(parts[:-3])
+        specifier = parts[-2]
+        polygon_id = parts[-1].replace('.tif', '')
+
+        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+
+        return product_name, scale_factor, ground_resolution, polygon_id
+
+
 class CocoNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):

@@ -297,10 +297,9 @@ def save_aois_tiles_picture(aois_tiles: dict[str, list], save_path: Path, tile_c
 
     # Create a color bar with a tick and label for each AOI
     ticks = list(range(len(base_cmap)))
-    cbar = plt.colorbar(ticks=ticks)
+    plt.clim(-0.5, len(base_cmap) - 0.5)  # Adjust color limit to include all AOI colors
+    cbar = plt.colorbar(ticks=np.arange(len(base_cmap)))
     cbar.set_ticklabels(color_labels)
-    plt.clim(0, len(base_cmap) - 1)  # Adjust color limit to include all AOI colors
-
     plt.savefig(save_path)
 
 
@@ -554,6 +553,13 @@ def coco_to_geojson(coco_json_path: str,
 
     tiles_data = coco_data['images']
     annotations_data = coco_data['annotations']
+    categories_data = coco_data['categories']
+
+    print("Found {} tiles and {} annotations.".format(len(tiles_data), len(annotations_data)))
+
+    # Create a mapping of category IDs to category names
+    categories_ids_to_names_map = {category['id']: category['name'] for category in categories_data}
+    categories_ids_to_names_map[None] = None
 
     tiles_ids_to_tiles_map = {tile['id']: tile for tile in tiles_data}
     tiles_ids_to_annotations_map = {tile['id']: [] for tile in tiles_data}
@@ -585,9 +591,24 @@ def coco_to_geojson(coco_json_path: str,
             'tile_id': tile_id,
             'tile_path': tile_data['file_name'],
             'category_id': [annotation.get('category_id') for annotation in tile_annotations],
+            'category_name': [categories_ids_to_names_map[annotation.get('category_id')] for annotation in tile_annotations],
         })
 
-        if convert_to_crs_coordinates:
+        if 'other_attributes' in tile_annotations[0] and type(tile_annotations[0]['other_attributes']) is dict:
+            other_attributes = set()
+            for tile_annotation in tile_annotations:
+                other_attributes = other_attributes.union(set(tile_annotation['other_attributes'].keys()))
+
+            for other_attribute in other_attributes:
+                gdf[other_attribute] = [annotation['other_attributes'][other_attribute]
+                                        if (other_attribute in annotation['other_attributes']
+                                            and type(annotation['other_attributes'][other_attribute])
+                                            in [str, int, float]) else None for annotation in tile_annotations]
+
+        if 'score' in tile_annotations[0]:
+            gdf['score'] = [annotation['score'] for annotation in tile_annotations]
+
+        if len(gdf) > 0 and convert_to_crs_coordinates:
             tile_src = rasterio.open(f"{images_directory}/{tile_data['file_name']}")
             gdf['geometry'] = gdf.apply(lambda row: apply_affine_transform(row['geometry'], tile_src.transform), axis=1)
             gdf.crs = tile_src.crs

@@ -1,5 +1,5 @@
 import random
-from typing import List, cast
+from typing import List
 
 import numpy as np
 import geopandas as gpd
@@ -9,12 +9,12 @@ from shapely import box
 
 from .aoi_disambiguator import AOIDisambiguator
 from .aoi_config import AOIGeneratorConfig
-from .aoi_base import AOIBase
+from .aoi_base import AOIBaseForTiles, AOIBaseGenerator
 from geodataset.geodata import Tile
 from ..utils import get_tiles_array
 
 
-class AOIGenerator(AOIBase):
+class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
     def __init__(self,
                  tiles: List[Tile],
                  tile_coordinate_step: int,
@@ -23,15 +23,13 @@ class AOIGenerator(AOIBase):
         :param aois_config: An instanced AOIGeneratorConfig.
         """
 
-        super().__init__(tiles=tiles,
-                         tile_coordinate_step=tile_coordinate_step,
-                         aois_config=aois_config)
+        assert type(aois_config) is AOIGeneratorConfig
+
+        AOIBaseForTiles.__init__(self, tiles=tiles, tile_coordinate_step=tile_coordinate_step)
+        AOIBaseGenerator.__init__(self, aois_config=aois_config)
 
         self.tiles_array = get_tiles_array(tiles=self.tiles, tile_coordinate_step=self.tile_coordinate_step)
         self.n_tiles = len(tiles)
-
-        assert type(aois_config) is AOIGeneratorConfig
-        self.aois_config = cast(AOIGeneratorConfig, aois_config)
 
         self.aois = self.aois_config.aois
         self.aoi_type = self.aois_config.aoi_type

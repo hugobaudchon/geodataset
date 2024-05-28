@@ -30,6 +30,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                  min_intersection_ratio: float = 0.9,
                  ignore_tiles_without_labels: bool = False,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8,
+                 geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None,
                  coco_n_workers: int = 5,
@@ -60,6 +61,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             ratio between a candidate polygon and the tile in order to keep this polygon as a label for that tile.
         ignore_tiles_without_labels: bool,
             Whether to ignore (skip) tiles that don't have any associated labels.
+        geopackage_layer_name: str,
+            The name of the layer in the geopackage file to use as labels. Only used if the labels_path is a .gpkg, .geojson or .shp file.
         ignore_black_white_alpha_tiles_threshold: bool,
             Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
         coco_n_workers: int,
@@ -89,14 +92,20 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         self.coco_n_workers = coco_n_workers
         self.coco_categories_list = coco_categories_list
 
-        self.labels = self._load_labels(main_label_category_column_name, other_labels_attributes_column_names)
+        self.labels = self._load_labels(
+            geopackage_layer_name=geopackage_layer_name,
+            main_label_category_column_name=main_label_category_column_name,
+            other_labels_attributes_column_names=other_labels_attributes_column_names
+        )
 
     def _load_labels(self,
+                     geopackage_layer_name: str or None,
                      main_label_category_column_name: str or None,
                      other_labels_attributes_column_names: List[str] or None):
 
         labels = RasterPolygonLabels(path=self.labels_path,
                                      associated_raster=self.raster,
+                                     geopackage_layer_name=geopackage_layer_name,
                                      main_label_category_column_name=main_label_category_column_name,
                                      other_labels_attributes_column_names=other_labels_attributes_column_names)
 
@@ -135,6 +144,13 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                 labels_crs_coords = labels_crs_coords[labels_crs_coords['aoi'] == aoi]
                 labels_ids = labels_crs_coords['label_id'].tolist()
                 labels_tiles_coords = intersecting_labels_tiles_coords[intersecting_labels_tiles_coords.index.isin(labels_ids)]
+
+                # removing boxes that have an area of 0.0
+                labels_tiles_coords = labels_tiles_coords[labels_tiles_coords.geometry.area > 0.0]
+
+                # remove boxes where x2 - x1 <= 0.5 or y2 - y1 <= 0.5, as they are too small and will cause issues when rounding the coordinates (area=0)
+                labels_tiles_coords = labels_tiles_coords[(labels_tiles_coords.geometry.bounds['maxx'] - labels_tiles_coords.geometry.bounds['minx']) > 0.5]
+                labels_tiles_coords = labels_tiles_coords[(labels_tiles_coords.geometry.bounds['maxy'] - labels_tiles_coords.geometry.bounds['miny']) > 0.5]
 
                 if self.ignore_tiles_without_labels and len(labels_tiles_coords) == 0:
                     continue
@@ -188,7 +204,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
         save_aois_tiles_picture(aois_tiles=aois_tiles,
                                 save_path=self.output_path / AoiTilesImageConvention.create_name(
-                                    product_name=self.product_name,
+                                    product_name=self.raster.product_name,
                                     ground_resolution=self.ground_resolution,
                                     scale_factor=self.scale_factor
                                 ),
@@ -204,6 +220,14 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             tiles = aois_tiles[aoi]
             labels = aois_labels[aoi]
 
+            if len(tiles) == 0:
+                print(f"No tiles found for AOI {aoi}, skipping...")
+                continue
+
+            if len(tiles) == 0:
+                print(f"No tiles found for AOI {aoi}. Skipping...")
+                continue
+
             tiles_paths = [self.tiles_path / tile.generate_name() for tile in tiles]
             polygons = [x['geometry'].to_list() for x in labels]
             categories_list = [x[self.labels.main_label_category_column_name].to_list() for x in labels]\
@@ -218,13 +242,13 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             for tile in aois_tiles[aoi]:
                 tile.save(output_folder=self.tiles_path)
 
-            coco_output_file_path = self.output_path / CocoNameConvention.create_name(product_name=self.product_name,
+            coco_output_file_path = self.output_path / CocoNameConvention.create_name(product_name=self.raster.product_name,
                                                                                       ground_resolution=self.ground_resolution,
                                                                                       scale_factor=self.scale_factor,
                                                                                       fold=aoi)
 
             coco_generator = COCOGenerator(
-                description=f"Dataset for the product {self.product_name}"
+                description=f"Dataset for the product {self.raster.product_name}"
                             f" with fold {aoi}"
                             f" and scale_factor {self.scale_factor}"
                             f" and ground_resolution {self.ground_resolution}.",
