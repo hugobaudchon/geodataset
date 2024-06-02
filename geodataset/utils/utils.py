@@ -320,7 +320,7 @@ class COCOGenerator:
                  polygons: List[List[Polygon]],
                  scores: List[List[float]] or None,
                  categories: List[List[Union[str, int]]] or None,
-                 other_attributes: List[Dict] or None,
+                 other_attributes: List[List[Dict]] or None,
                  output_path: Path,
                  use_rle_for_labels: bool,
                  n_workers: int,

@@ -424,29 +424,27 @@ class DetectorAggregator(AggregatorBase):
 
         intersect_gdf = gpd.sjoin(gdf, gdf, how='inner', predicate='intersects')
         intersect_gdf = intersect_gdf[intersect_gdf.index != intersect_gdf['index_right']]
+        intersect_gdf_ids = intersect_gdf.groupby(intersect_gdf.index)['index_right'].unique()
+
         skip_ids = set()
         id_to_final_polygon = {}
         progress = tqdm(total=len(gdf), desc="Applying NMS-iou algorithm")
-        while not gdf.empty:
-            current = gdf.iloc[0]
-            current_id = gdf.index[0]
+        for current_id in gdf.index:
+            current = gdf.loc[current_id]
             progress.update(1)
             if current_id in skip_ids:
-                gdf.drop(current_id, inplace=True, errors="ignore")
                 continue
             if current.geometry.area == 0:
                 skip_ids.add(current_id)
-                gdf.drop(current_id, inplace=True, errors="ignore")
                 continue
-            if len(gdf) > 1:
-                intersecting_geometries_ids = intersect_gdf[intersect_gdf.index == current_id]['index_right'].unique()
+            if current_id in intersect_gdf_ids.index:
+                intersecting_geometries_ids = intersect_gdf_ids.loc[current_id]
                 intersecting_geometries_ids = [g_id for g_id in intersecting_geometries_ids if g_id not in skip_ids]
                 ious = self.calculate_iou_for_geometry(gdf.loc[intersecting_geometries_ids], current.geometry)
                 skip_ids.update(list(ious[ious > self.nms_threshold].index))
 
             id_to_final_polygon[current_id] = current.geometry
             skip_ids.add(current_id)
-            gdf.drop(current_id, inplace=True, errors="ignore")
 
         keep_ids = list(id_to_final_polygon.keys())
         final_polygons = gpd.GeoDataFrame(geometry=[id_to_final_polygon[k] for k in keep_ids],
@@ -459,6 +457,8 @@ class DetectorAggregator(AggregatorBase):
         self.polygons_gdf.drop(drop_ids, inplace=True, errors="ignore")
 
     def apply_diou_nms_algorithm(self):
+        raise NotImplementedError("This algorithm has to be updated to follow the optimizations made for iou_nms.")
+
         if self.polygon_type == 'segmentation':
             raise NotImplementedError("The DIOU NMS algorithm has to be updated for polygon_type='segmentation'.")
         gdf = self.polygons_gdf.copy()
@@ -563,20 +563,19 @@ class SegmentationAggregator(AggregatorBase):
 
         intersect_gdf = gpd.sjoin(gdf, gdf, how='inner', predicate='intersects')
         intersect_gdf = intersect_gdf[intersect_gdf.index != intersect_gdf['index_right']]
+        intersect_gdf_ids = intersect_gdf.groupby(intersect_gdf.index)['index_right'].unique()
 
         skip_ids = set()
         id_to_final_polygon = {}
         progress = tqdm(total=len(gdf), desc="Applying NMS-iou algorithm")
-        while not gdf.empty:
-            current = gdf.iloc[0]
-            current_id = gdf.index[0]
+        for current_id in gdf.index:
+            current = gdf.loc[current_id]
             progress.update(1)
             if current_id in skip_ids:
-                gdf.drop(current_id, inplace=True, errors="ignore")
                 continue
 
-            if len(gdf) > 1:
-                intersecting_geometries_ids = intersect_gdf[intersect_gdf.index == current_id]['index_right'].unique()
+            if current_id in intersect_gdf_ids.index:
+                intersecting_geometries_ids = intersect_gdf_ids.loc[current_id]
                 intersecting_geometries_ids = [g_id for g_id in intersecting_geometries_ids if g_id not in skip_ids]
                 if len(intersecting_geometries_ids) != 0:
                     for g_id in intersecting_geometries_ids:
@@ -618,7 +617,6 @@ class SegmentationAggregator(AggregatorBase):
 
             id_to_final_polygon[current_id] = current.geometry
             skip_ids.add(current_id)
-            gdf.drop(current_id, inplace=True, errors="ignore")
 
         keep_ids = list(id_to_final_polygon.keys())
         final_polygons = gpd.GeoDataFrame(geometry=[id_to_final_polygon[k] for k in keep_ids],
