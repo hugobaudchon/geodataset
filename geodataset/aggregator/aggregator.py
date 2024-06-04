@@ -24,6 +24,7 @@ class AggregatorBase(ABC):
                  output_path: Path,
                  polygons_gdf: gpd.GeoDataFrame,
                  scores_names: List[str],
+                 scores_weights: List[float],
                  tiles_extent_gdf: gpd.GeoDataFrame,
                  tile_ids_to_path: dict or None,
                  score_threshold: float = 0.1,
@@ -33,6 +34,7 @@ class AggregatorBase(ABC):
         self.output_path = output_path
         self.polygons_gdf = polygons_gdf
         self.scores_names = scores_names
+        self.scores_weights = scores_weights
         self.tiles_extent_gdf = tiles_extent_gdf
         self.tile_ids_to_path = tile_ids_to_path
         self.score_threshold = score_threshold
@@ -65,7 +67,7 @@ class AggregatorBase(ABC):
     def _from_coco(polygon_type: str,
                    tiles_folder_path: Path,
                    coco_json_path: Path,
-                   scores_names: list):
+                   scores_names: List[str]):
 
         # Read the JSON file
         with open(coco_json_path, 'r') as f:
@@ -131,6 +133,7 @@ class AggregatorBase(ABC):
                       tiles_paths: List[Path],
                       polygons: List[List[Polygon]],
                       scores: List[List[float]] or Dict[str, List[List[float]]],
+                      scores_weights: Dict[str, float] = None,
                       score_threshold: float = 0.1,
                       nms_threshold: float = 0.8,
                       nms_algorithm: str = 'iou'):
@@ -144,6 +147,14 @@ class AggregatorBase(ABC):
 
         if type(scores) is list:
             scores = {'score': scores}
+
+        if scores_weights:
+            assert set(scores_weights.keys()) == set(scores.keys()), ("The scores_weights keys must be "
+                                                                      "the same as the scores keys.")
+            assert all([w >= 1.0 for w in scores_weights.values()]), "All scores_weights values should be > 1."
+
+        else:
+            scores_weights = {score_name: 1 for score_name in scores.keys()} if type(scores) is dict else {'score': 1}
 
         tile_ids_to_scores = {}
         for tile_id in ids:
@@ -160,6 +171,7 @@ class AggregatorBase(ABC):
         return cls(output_path=output_path,
                    polygons_gdf=all_polygons_gdf,
                    scores_names=list(scores.keys()),
+                   scores_weights=[scores_weights[score_name] for score_name in scores.keys()],
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
@@ -232,9 +244,14 @@ class AggregatorBase(ABC):
         self.polygons_gdf['geometry'] = self.polygons_gdf['geometry'].astype(object).apply(fix_geometry)
 
     def prepare_scores(self):
-        self.polygons_gdf['score'] = [s if s else 0 for s in self.polygons_gdf[self.scores_names[0]]]
-        for score_name in self.scores_names[1:]:
-            self.polygons_gdf['score'] *= [s if s else 0 for s in self.polygons_gdf[score_name]]
+        self.polygons_gdf['score'] = [(s if s else 0) ** self.scores_weights[0] for s in
+                                      self.polygons_gdf[self.scores_names[0]]]
+        for score_name, score_weight in zip(self.scores_names[1:], self.scores_weights[1:]):
+            self.polygons_gdf['score'] *= [(s if s else 0) ** score_weight for s in self.polygons_gdf[score_name]]
+
+        # normalize the 'score' column between 0 and 1
+        self.polygons_gdf['score'] = (self.polygons_gdf['score'] - self.polygons_gdf['score'].min()) / \
+                                     (self.polygons_gdf['score'].max() - self.polygons_gdf['score'].min())
 
     def remove_low_score_polygons(self):
         if self.score_threshold:
@@ -345,7 +362,7 @@ class AggregatorBase(ABC):
                 polygons=[self._apply_inverse_transform(
                     polygons=self.polygons_gdf[self.polygons_gdf['tile_id'] == tile_id]['geometry'].tolist(),
                     tile_path=self.tile_ids_to_path[tile_id]) for tile_id in tiles_ids],
-                scores=None,    # Using other_attributes instead
+                scores=None,  # Using other_attributes instead
                 categories=None,  # TODO add support for categories
                 other_attributes=other_attributes,
                 output_path=self.output_path,
@@ -374,6 +391,7 @@ class DetectorAggregator(AggregatorBase):
                  output_path: Path,
                  polygons_gdf: gpd.GeoDataFrame,
                  scores_names: List[str],
+                 scores_weights: List[float],
                  tiles_extent_gdf: gpd.GeoDataFrame,
                  tile_ids_to_path: dict or None,
                  score_threshold: float = 0.1,
@@ -383,6 +401,7 @@ class DetectorAggregator(AggregatorBase):
         super().__init__(output_path=output_path,
                          polygons_gdf=polygons_gdf,
                          scores_names=scores_names,
+                         scores_weights=scores_weights,
                          tiles_extent_gdf=tiles_extent_gdf,
                          tile_ids_to_path=tile_ids_to_path,
                          score_threshold=score_threshold,
@@ -397,10 +416,17 @@ class DetectorAggregator(AggregatorBase):
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
                   nms_algorithm: str = 'iou',
-                  scores_names: List[str] = None):
+                  scores_names: List[str] = None,
+                  scores_weights: List[float] = None):
 
         if scores_names is None:
             scores_names = ['score']
+
+        if scores_weights:
+            assert len(scores_names) == len(scores_weights), ("The scores_weights must have "
+                                                              "the same length as the scores_names.")
+        else:
+            scores_weights = [1,] * len(scores_names)
 
         all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path = cls._from_coco(
             polygon_type=cls.polygon_type,
@@ -412,6 +438,7 @@ class DetectorAggregator(AggregatorBase):
         return cls(output_path=output_path,
                    polygons_gdf=all_polygons_gdf,
                    scores_names=scores_names,
+                   scores_weights=scores_weights,
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
@@ -505,6 +532,7 @@ class SegmentationAggregator(AggregatorBase):
                  output_path: Path,
                  polygons_gdf: gpd.GeoDataFrame,
                  scores_names: List[str],
+                 scores_weights: List[float],
                  tiles_extent_gdf: gpd.GeoDataFrame,
                  tile_ids_to_path: dict or None,
                  score_threshold: float = 0.1,
@@ -518,6 +546,7 @@ class SegmentationAggregator(AggregatorBase):
         super().__init__(output_path=output_path,
                          polygons_gdf=polygons_gdf,
                          scores_names=scores_names,
+                         scores_weights=scores_weights,
                          tiles_extent_gdf=tiles_extent_gdf,
                          tile_ids_to_path=tile_ids_to_path,
                          score_threshold=score_threshold,
@@ -532,10 +561,17 @@ class SegmentationAggregator(AggregatorBase):
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
                   nms_algorithm: str = 'iou',
-                  scores_names: List[str] = None):
+                  scores_names: List[str] = None,
+                  scores_weights: List[float] = None):
 
         if scores_names is None:
             scores_names = ['score']
+
+        if scores_weights:
+            assert len(scores_names) == len(scores_weights), ("The scores_weights must have "
+                                                              "the same length as the scores_names.")
+        else:
+            scores_weights = [1,] * len(scores_names)
 
         all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path = cls._from_coco(
             polygon_type=cls.polygon_type,
@@ -547,6 +583,7 @@ class SegmentationAggregator(AggregatorBase):
         return cls(output_path=output_path,
                    polygons_gdf=all_polygons_gdf,
                    scores_names=scores_names,
+                   scores_weights=scores_weights,
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
