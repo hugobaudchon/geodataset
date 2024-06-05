@@ -543,10 +543,10 @@ def decode_rle_to_polygon(segmentation):
         return MultiPolygon(polygons)  # Return a GeoSeries of Polygons if there are multiple
 
 
-def coco_to_geojson(coco_json_path: str,
-                    images_directory: str,
-                    convert_to_crs_coordinates: bool,
-                    geojson_output_path: str or None):
+def coco_to_geopackage(coco_json_path: str,
+                       images_directory: str,
+                       convert_to_crs_coordinates: bool,
+                       geopackage_output_path: str or None):
     # Load COCO JSON
     with open(coco_json_path, 'r') as file:
         coco_data = json.load(file)
@@ -618,8 +618,19 @@ def coco_to_geojson(coco_json_path: str,
     all_polygons_gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True))
     all_polygons_gdf.set_geometry('geometry')
     all_polygons_gdf.crs = common_crs
-    if geojson_output_path:
-        all_polygons_gdf.to_file(geojson_output_path, driver='GeoJSON')
-        print(f"Successfully converted the COCO json into a GeoJSON file saved at {geojson_output_path}.")
+
+    if geopackage_output_path:
+        ext = Path(geopackage_output_path).suffix
+        if ext == '.gpkg':
+            all_polygons_gdf.to_file(geopackage_output_path, driver='GPKG')
+            print(f"Successfully converted the COCO json into a GeoPackage file (.gpkg) saved at {geopackage_output_path}.")
+        elif ext == '.geojson':
+            all_polygons_gdf.to_file(geopackage_output_path, driver='GeoJSON')
+            print(f"Successfully converted the COCO json into a GeoJSON file saved at {geopackage_output_path}.")
+        elif ext == '.shp':
+            all_polygons_gdf.to_file(geopackage_output_path, driver='ESRI Shapefile')
+            print(f"Successfully converted the COCO json into a Shapefile saved at {geopackage_output_path}.")
+        else:
+            raise Exception(f"Output file format {ext} not supported. Please use .gpkg, .geojson or .shp.")
 
     return all_polygons_gdf
