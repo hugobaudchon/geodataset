@@ -163,6 +163,34 @@ class GeoJsonNameConvention(FileNameConvention):
         return product_name, scale_factor, ground_resolution, fold
 
 
+class GeoPackageNameConvention(FileNameConvention):
+    @staticmethod
+    def _validate_name(name):
+        pattern = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[a-zA-Z0-9]+\.gpkg$"
+        if not re.match(pattern, name):
+            raise ValueError(f"geopackage_name {name} does not match the expected format {pattern}.")
+
+    @staticmethod
+    def create_name(product_name: str, fold: str, scale_factor=None, ground_resolution=None):
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
+        geojson_name = f"{product_name}_{specifier}_{fold}.gpkg"
+        GeoPackageNameConvention._validate_name(geojson_name)
+        return geojson_name
+
+    @staticmethod
+    def parse_name(geopackage_name: str):
+        GeoPackageNameConvention._validate_name(geopackage_name)
+
+        parts = geopackage_name.split("_")
+        product_name = "_".join(parts[:-2])
+        specifier = parts[-2]
+        fold = parts[-1].replace(".gpkg", "")
+
+        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+
+        return product_name, scale_factor, ground_resolution, fold
+
+
 class AoiTilesImageConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
