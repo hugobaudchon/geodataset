@@ -172,7 +172,7 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
                         x_scale_factor = current_x_resolution / ground_resolution
                         y_scale_factor = current_y_resolution / ground_resolution
                         print(f'Rescaling the raster with x_scale_factor={x_scale_factor}'
-                              f' and x_scale_factor={y_scale_factor}'
+                              f' and y_scale_factor={y_scale_factor}'
                               f' to match ground_resolution={ground_resolution}...')
                     else:
                         raise Exception("The CRS of the raster is not projected (in meter units),"
