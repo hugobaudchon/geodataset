@@ -48,6 +48,8 @@ def polygon_to_mask(polygon: Polygon or MultiPolygon, array_height: int, array_w
     # Function to process each polygon
     def process_polygon(p):
         contours = np.array(p.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
+        if len(contours) == 0:
+            return
         cv2.fillPoly(binary_mask, [contours], 1)
 
     if isinstance(polygon, Polygon):
