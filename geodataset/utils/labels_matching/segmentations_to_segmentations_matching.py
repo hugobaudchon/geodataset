@@ -41,10 +41,10 @@ def main(preds_segmentations, truth_segmentations, output_path, iou_threshold):
 
 
 if __name__ == '__main__':
-    preds_segmentations_path = '/media/hugobaudchon/4 TB/XPrize/infer/20220929_bci50ha_p4pro_rgb/segmenter_aggregator_output/20220929_bci50ha_p4pro_rgb_gr0p07_infersegmenteraggregator.geojson'
-    truth_segmentations_path = '/media/hugobaudchon/4 TB/XPrize/Data/raw/panama/20220929_bci50ha_p4pro/20220929_bci50ha_p4pro_labels_masks.gpkg'
+    preds_segmentations_path = '/infer/20220929_bci50ha_p4pro_rgb/segmenter_aggregator_output/20220929_bci50ha_p4pro_rgb_gr0p07_infersegmenteraggregator.geojson'
+    truth_segmentations_path = '/Data/raw/panama/20220929_bci50ha_p4pro/20220929_bci50ha_p4pro_labels_masks.gpkg'
     iou_threshold = 0.50
-    output_path = f'/media/hugobaudchon/4 TB/XPrize/Data/segmentations_SAM_matched/20220929_bci50ha_p4pro_rgb_SAMthreshold{str(iou_threshold).replace(".", "p")}.gpkg'
+    output_path = f'/Data/segmentations_SAM_matched/20220929_bci50ha_p4pro_rgb_SAMthreshold{str(iou_threshold).replace(".", "p")}.gpkg'
 
     segmentations = gpd.read_file(preds_segmentations_path)
     truth_segmentations = gpd.read_file(truth_segmentations_path)

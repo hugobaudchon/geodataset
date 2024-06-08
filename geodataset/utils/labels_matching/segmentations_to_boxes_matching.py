@@ -36,9 +36,9 @@ def main(segmentations, truth_boxes, output_path, iou_threshold):
 
 
 if __name__ == '__main__':
-    segmentations_path = '/media/hugobaudchon/4 TB/XPrize/infer/20240130_zf2quad_m3m_rgb_BOTH_SCORES_MULTIPLIED/segmenter_aggregator_output/20240130_zf2quad_m3m_rgb_gr0p07_infersegmenteraggregator.geojson'
-    truth_boxes_path = '/media/hugobaudchon/4 TB/XPrize/Data/raw/brazil_zf2/20240130_zf2quad_m3m_rgb_labels_boxes_species.gpkg'
-    output_path = '/media/hugobaudchon/4 TB/XPrize/Data/raw/labeled_segmentations/20240130_zf2quad_m3m_rgb_labels_segmentationsSAM_species.gpkg'
+    segmentations_path = '/infer/20240130_zf2quad_m3m_rgb_BOTH_SCORES_MULTIPLIED/segmenter_aggregator_output/20240130_zf2quad_m3m_rgb_gr0p07_infersegmenteraggregator.geojson'
+    truth_boxes_path = '/Data/raw/brazil_zf2/20240130_zf2quad_m3m_rgb_labels_boxes_species.gpkg'
+    output_path = '/Data/raw/labeled_segmentations/20240130_zf2quad_m3m_rgb_labels_segmentationsSAM_species.gpkg'
     iou_threshold = 0.20
 
     segmentations = gpd.read_file(segmentations_path)

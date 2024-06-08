@@ -123,10 +123,10 @@ def main(segmentations, truth_points, output_path, relative_dist_to_inner_rectan
 
 
 if __name__ == '__main__':
-    segmentations_path = '/media/hugobaudchon/4 TB/XPrize/infer/20231213_zf2campirana_mini3pro_rgb_aligned/segmenter_aggregator_output/20231213_zf2campirana_mini3pro_rgb_aligned_gr0p08_infersegmenteraggregator.gpkg'
-    truth_points_path = '/media/hugobaudchon/4 TB/XPrize/Data/raw/brazil_zf2/20240131_zf2campinarana_labels_points_species.gpkg'
+    segmentations_path = '/infer/20231213_zf2campirana_mini3pro_rgb_aligned/segmenter_aggregator_output/20231213_zf2campirana_mini3pro_rgb_aligned_gr0p08_infersegmenteraggregator.gpkg'
+    truth_points_path = '/Data/raw/brazil_zf2/20240131_zf2campinarana_labels_points_species.gpkg'
     relative_dist_to_inner_rectangle_centroid_threshold = 0.8
-    output_path = f'/media/hugobaudchon/4 TB/XPrize/Data/segmentations_SAM_matched/20231213_zf2campirana_mini3pro_rgb_aligned_SAMthreshold{str(relative_dist_to_inner_rectangle_centroid_threshold).replace(".", "p")}.gpkg'
+    output_path = f'/Data/segmentations_SAM_matched/20231213_zf2campirana_mini3pro_rgb_aligned_SAMthreshold{str(relative_dist_to_inner_rectangle_centroid_threshold).replace(".", "p")}.gpkg'
 
     segmentations = gpd.read_file(segmentations_path)
     truth_points = gpd.read_file(truth_points_path)
