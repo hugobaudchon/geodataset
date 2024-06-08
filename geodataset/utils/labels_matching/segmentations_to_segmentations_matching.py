@@ -31,7 +31,8 @@ def main(preds_segmentations, truth_segmentations, output_path, iou_threshold):
 
     labeled_segmentations_gdf = gpd.GeoDataFrame(labeled_segmentations, crs=truth_segmentations.crs)
 
-    print(len(labeled_segmentations_gdf), len(truth_segmentations))
+    print("Number of segmentations in truth:", len(truth_segmentations))
+    print("Number of predicted segmentations matched to truth segmentations:", len(labeled_segmentations_gdf))
 
     labeled_segmentations_gdf.to_file(output_path)
 
@@ -40,10 +41,10 @@ def main(preds_segmentations, truth_segmentations, output_path, iou_threshold):
 
 
 if __name__ == '__main__':
-    preds_segmentations_path = 'infer/2021-07-21-sbl-z2-rgb-cog/classifier_output/2021_07_21_sbl_z2_rgb_cog_gr0p05_inferclassifier.geojson'
-    truth_segmentations_path = 'raw/quebec_trees_dataset/quebec_trees_dataset_2021-07-21/Z2_polygons.gpkg'
+    preds_segmentations_path = '/media/hugobaudchon/4 TB/XPrize/infer/20220929_bci50ha_p4pro_rgb/segmenter_aggregator_output/20220929_bci50ha_p4pro_rgb_gr0p07_infersegmenteraggregator.geojson'
+    truth_segmentations_path = '/media/hugobaudchon/4 TB/XPrize/Data/raw/panama/20220929_bci50ha_p4pro/20220929_bci50ha_p4pro_labels_masks.gpkg'
     iou_threshold = 0.50
-    output_path = f'infer/segmentations_match/quebec_trees_dataset_2021_07_21_sbl_z2_rgb_SAMthreshold{str(iou_threshold).replace(".", "p")}.gpkg'
+    output_path = f'/media/hugobaudchon/4 TB/XPrize/Data/segmentations_SAM_matched/20220929_bci50ha_p4pro_rgb_SAMthreshold{str(iou_threshold).replace(".", "p")}.gpkg'
 
     segmentations = gpd.read_file(preds_segmentations_path)
     truth_segmentations = gpd.read_file(truth_segmentations_path)
