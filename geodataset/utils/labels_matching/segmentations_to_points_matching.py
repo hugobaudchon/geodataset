@@ -71,7 +71,7 @@ def largest_inner_rectangle(geometry):
     return best_rectangle
 
 
-def main(segmentations, truth_points, output_path, relative_dist_to_inner_rectangle_centroid_threshold):
+def segmentations_to_points_matching(segmentations, truth_points, output_path, relative_dist_to_inner_rectangle_centroid_threshold):
     # Check if the segmentations and truth_boxes are in the same crs
     if segmentations.crs != truth_points.crs:
         segmentations = segmentations.to_crs(truth_points.crs)
@@ -131,4 +131,4 @@ if __name__ == '__main__':
     segmentations = gpd.read_file(segmentations_path)
     truth_points = gpd.read_file(truth_points_path)
 
-    main(segmentations, truth_points, output_path, relative_dist_to_inner_rectangle_centroid_threshold)
+    segmentations_to_points_matching(segmentations, truth_points, output_path, relative_dist_to_inner_rectangle_centroid_threshold)

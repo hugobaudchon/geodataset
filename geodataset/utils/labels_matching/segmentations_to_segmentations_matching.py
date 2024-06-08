@@ -3,7 +3,7 @@ from warnings import warn
 import geopandas as gpd
 
 
-def main(preds_segmentations, truth_segmentations, output_path, iou_threshold):
+def segmentations_to_segmentations_matching(preds_segmentations, truth_segmentations, output_path, iou_threshold):
     # Check if the segmentations and truth_boxes are in the same crs
     if preds_segmentations.crs != truth_segmentations.crs:
         preds_segmentations = preds_segmentations.to_crs(truth_segmentations.crs)
@@ -49,4 +49,4 @@ if __name__ == '__main__':
     segmentations = gpd.read_file(preds_segmentations_path)
     truth_segmentations = gpd.read_file(truth_segmentations_path)
 
-    main(segmentations, truth_segmentations, output_path, iou_threshold)
+    segmentations_to_segmentations_matching(segmentations, truth_segmentations, output_path, iou_threshold)
