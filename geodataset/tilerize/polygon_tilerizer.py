@@ -19,6 +19,7 @@ class PolygonTilerizer:
                  labels_path: Path,
                  output_path: Path,
                  tile_size: int,
+                 variable_tile_size_pixel_buffer: int,
                  aois_config: AOIFromPackageConfig or None,
                  ground_resolution: float or None,
                  scale_factor: float or None,
@@ -35,6 +36,7 @@ class PolygonTilerizer:
         self.labels_path = labels_path
         self.output_path = output_path
         self.tile_size = tile_size
+        self.variable_tile_size_pixel_buffer = variable_tile_size_pixel_buffer
         self.aois_config = aois_config
         self.use_rle_for_labels = use_rle_for_labels
         self.min_intersection_ratio = min_intersection_ratio
@@ -44,6 +46,12 @@ class PolygonTilerizer:
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
                                                           " Please only specify one.")
+
+        assert (tile_size or variable_tile_size_pixel_buffer), ("No tile_size or variable_tile_size_pixel_buffer provided."
+                                                                " Please specify one.")
+        assert not (tile_size and variable_tile_size_pixel_buffer), ("Both a tile_size and a variable_tile_size_pixel_buffer were provided."
+                                                                     " Please only specify one.")
+
         self.scale_factor = scale_factor
         self.ground_resolution = ground_resolution
 
@@ -117,10 +125,19 @@ class PolygonTilerizer:
 
                 polygon = polygon_row['geometry']
 
+                if self.tile_size:
+                    tile_size = self.tile_size
+                elif self.variable_tile_size_pixel_buffer:
+                    # get the max height, width and put buffer of pixels around it (*2 to have tile_pixel_buffer on each side)
+                    tile_size = max(polygon.bounds[2] - polygon.bounds[0],
+                                    polygon.bounds[3] - polygon.bounds[1]) + self.variable_tile_size_pixel_buffer * 2
+                else:
+                    raise Exception("No tile size provided.")
+
                 polygon_tile, translated_polygon = self.raster.get_polygon_tile(
                     polygon=polygon,
                     polygon_id=polygon_row['geometry_id'],
-                    tile_size=self.tile_size
+                    tile_size=tile_size
                 )
 
                 tiles_batch.append(polygon_tile)
