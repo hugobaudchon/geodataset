@@ -8,6 +8,7 @@ import rasterio.windows
 import geopandas as gpd
 from shapely import Polygon, box
 from shapely.affinity import translate
+from shapely.geometry import Polygon
 
 from geodataset.geodata.base_geodata import BaseGeoData
 from geodataset.geodata.tile import Tile, PolygonTile
@@ -114,12 +115,24 @@ class Raster(BaseGeoData):
         )
 
         # Making sure the polygon is a Polygon and not a GeometryCollection (GeometryCollection can happen on Raster edges due to intersection)
+        # Use an empty Polygon as the default value
         if translated_polygon_intersection.geom_type != 'Polygon':
             # Get the Polygon with the largest area
-            translated_polygon_intersection = max(translated_polygon_intersection.geoms, key=lambda x: x.area)
+            translated_polygon_intersection = max(translated_polygon_intersection.geoms, key=lambda x: x.area, default=Polygon())
 
-        contours = np.array(translated_polygon_intersection.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
-        cv2.fillPoly(binary_mask, [contours], 1)
+        # Ensure the result has an exterior before accessing its coordinates
+        if not translated_polygon_intersection.is_empty:
+            contours = np.array(translated_polygon_intersection.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
+        else:
+            # Handle the case when the intersection is empty (e.g., set contours to an empty array)
+            contours = np.array([])
+
+        # Check if contours is not empty before calling cv2.fillPoly
+        if contours.size > 0:
+            cv2.fillPoly(binary_mask, [contours], 1)
+        else:
+            # Handle the case where there are no contours (e.g., skip filling the polygon)
+            pass
 
         # Getting the pixels from the raster
         mask_bounds = mask_box.bounds

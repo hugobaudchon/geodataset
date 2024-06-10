@@ -620,8 +620,11 @@ class SegmentationAggregator(AggregatorBase):
                         with warnings.catch_warnings(record=True) as w:
                             gdf.at[current_id, 'geometry'] = self.check_geometry_collection(
                                 gdf.at[current_id, 'geometry'])
-                            intersection = gdf.at[current_id, 'geometry'].intersection(gdf.at[g_id, 'geometry'])
-                            # 'invalid value encountered in intersection'
+                            try:
+                                intersection = gdf.at[current_id, 'geometry'].intersection(gdf.at[g_id, 'geometry'])
+                            except shapely.errors.GEOSException:
+                                # 'invalid value encountered in intersection'
+                                print('* Skipped polygon matching ids {}/{} for shapely intersection error. *'.format(current_id, g_id))
 
                         intersection = self.check_geometry_collection(intersection)
 
@@ -633,8 +636,14 @@ class SegmentationAggregator(AggregatorBase):
                         if updated_intersection_over_geom_area > self.nms_threshold:
                             skip_ids.add(g_id)
                         else:
-                            gdf.at[current_id, 'geometry'] = gdf.at[current_id, 'geometry'].union(intersection)
-                            new_geometry = gdf.at[g_id, 'geometry'].difference(intersection)
+                            try:
+                                gdf.at[current_id, 'geometry'] = gdf.at[current_id, 'geometry'].union(intersection)
+                                new_geometry = gdf.at[g_id, 'geometry'].difference(intersection)
+                            except shapely.errors.GEOSException:
+                                # 'TopologyException: found non-noded intersection'
+                                print('* Skipped polygon union between {} and {} '
+                                      'for shapely union error. *'.format(current_id, g_id))
+
                             new_geometry = self.check_geometry_collection(new_geometry)
 
                             if not new_geometry.is_valid:
