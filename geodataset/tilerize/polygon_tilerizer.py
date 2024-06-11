@@ -127,8 +127,8 @@ class PolygonTilerizer:
 
                 if self.use_variable_tile_size:
                     # get the max height, width and put buffer of pixels around it (*2 to have tile_pixel_buffer on each side)
-                    tile_size = max(polygon.bounds[2] - polygon.bounds[0],
-                                    polygon.bounds[3] - polygon.bounds[1]) + self.variable_tile_size_pixel_buffer * 2
+                    tile_size = int(max(polygon.bounds[2] - polygon.bounds[0],
+                                    polygon.bounds[3] - polygon.bounds[1]) + self.variable_tile_size_pixel_buffer * 2)
                     # make sure the tile size is not bigger than the max tile_size
                     tile_size = min(tile_size, self.tile_size)
                 else:
