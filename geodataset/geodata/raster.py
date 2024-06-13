@@ -143,6 +143,11 @@ class Raster(BaseGeoData):
         pre_col_pad = max(0, -mask_bounds[0])
         post_col_pad = max(0, mask_bounds[2] - self.data.shape[2])
 
+        if tile_size - (data.shape[1] + pre_row_pad + post_row_pad) == 1:
+            post_row_pad += 1
+        if tile_size - (data.shape[2] + pre_col_pad + post_col_pad) == 1:
+            post_col_pad += 1
+
         data = np.pad(data, [(0, 0), (pre_row_pad, post_row_pad), (pre_col_pad, post_col_pad)], mode='constant',
                       constant_values=0)
 
