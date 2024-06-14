@@ -12,33 +12,36 @@ def get_gbif_id(taxon_name: str, rank: str, genus: str = None, family: str = Non
 
     search_results = pygbif.species.name_lookup(q=taxon_name, rank=[rank], limit=10)
 
+    if taxon_name == 'Populus':
+        print(search_results)
+
     if search_results['results']:
         key = None
         if rank == 'species':
             for result in search_results['results']:
                 if 'genus' not in result or 'family' not in result:
                     if result == search_results['results'][-1]:
-                        key = result['key']
+                        key = result['nubKey']
                         break
                     else:
                         continue
 
                 if result['genus'] == genus and result['family'] == family:
-                    key = result['key']
+                    key = result['nubKey']
                     break
         elif rank == 'genus':
             for result in search_results['results']:
                 if 'family' not in result:
                     if result == search_results['results'][-1]:
-                        key = result['key']
+                        key = result['nubKey']
                         break
                     else:
                         continue
                 if result['family'] == family:
-                    key = result['key']
+                    key = result['nubKey']
                     break
         elif rank == 'family':
-            key = search_results['results'][0]['key']
+            key = search_results['results'][0]['nubKey']
 
         return key
     else:
@@ -125,18 +128,26 @@ def gdf_to_coco_categories(gdf: gpd.GeoDataFrame):
 
 if __name__ == '__main__':
     gdfs_paths = [
-        '/media/hugobaudchon/4 TB/XPrize/Data/raw/panama/20200801_bci50ha_p4pro/20200801_bci50ha_p4pro_labels_masks.gpkg',
-        '/media/hugobaudchon/4 TB/XPrize/Data/raw/panama/20220929_bci50ha_p4pro/20220929_bci50ha_p4pro_labels_masks.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20170810_transectotoni_mavicpro_labels_points.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20230525_tbslake_m3e_labels_points.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20231018_inundated_m3e_labels_points.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20231018_pantano_m3e_labels_points.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20231018_terrafirme_m3e_labels_points.gpkg',
     ]
-
-    output_file = './panama_bci_trees_categories.json'
-
+    #
+    output_file = 'equator_tiputini_trees/equator_tiputini_trees_categories.json'
+    #
     gdfs = [gpd.read_file(gdf_path) for gdf_path in gdfs_paths]
 
     # to same crs
     gdfs = [gdf.to_crs(gdfs[0].crs) for gdf in gdfs]
 
     gdf = gpd.GeoDataFrame(pd.concat(gdfs))
+
+    # gdf = gpd.GeoDataFrame(pd.read_csv('/home/hugobaudchon/Downloads/sbl_cloutier_taxa_gbif.csv'))
+    # gdf['species'] = gdf['species'].apply(lambda x: x if pd.notna(x) else None)
+    # gdf['genus'] = gdf['genus'].apply(lambda x: x if pd.notna(x) else None)
+    # gdf['family'] = gdf['family'].apply(lambda x: x if pd.notna(x) else None)
 
     coco_categories = gdf_to_coco_categories(gdf)
 
