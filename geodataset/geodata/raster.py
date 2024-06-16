@@ -105,19 +105,20 @@ class Raster(BaseGeoData):
 
         if use_variable_tile_size:
             max_dist_to_polygon_border = max([x - polygon.bounds[0], polygon.bounds[2] - x, y - polygon.bounds[1], polygon.bounds[3] - y])
-            variable_tile_size = int(min(tile_size, max_dist_to_polygon_border * 2 + variable_tile_size_pixel_buffer * 2))
-            binary_mask = np.zeros((variable_tile_size, variable_tile_size), dtype=np.uint8)
-            mask_box = box(x - 0.5 * variable_tile_size,
-                           y - 0.5 * variable_tile_size,
-                           x + 0.5 * variable_tile_size,
-                           y + 0.5 * variable_tile_size)
+            final_tile_size = int(min(tile_size, max_dist_to_polygon_border * 2 + variable_tile_size_pixel_buffer * 2))
+            binary_mask = np.zeros((final_tile_size, final_tile_size), dtype=np.uint8)
+            mask_box = box(x - 0.5 * final_tile_size,
+                           y - 0.5 * final_tile_size,
+                           x + 0.5 * final_tile_size,
+                           y + 0.5 * final_tile_size)
         else:
             # Finding the box centered on the polygon's centroid
-            binary_mask = np.zeros((tile_size, tile_size), dtype=np.uint8)
-            mask_box = box(x - 0.5 * tile_size,
-                           y - 0.5 * tile_size,
-                           x + 0.5 * tile_size,
-                           y + 0.5 * tile_size)
+            final_tile_size = tile_size
+            binary_mask = np.zeros((final_tile_size, final_tile_size), dtype=np.uint8)
+            mask_box = box(x - 0.5 * final_tile_size,
+                           y - 0.5 * final_tile_size,
+                           x + 0.5 * final_tile_size,
+                           y + 0.5 * final_tile_size)
 
         # Making sure the polygon is valid
         polygon = polygon.buffer(0)
@@ -160,9 +161,9 @@ class Raster(BaseGeoData):
         pre_col_pad = max(0, -mask_bounds[0])
         post_col_pad = max(0, mask_bounds[2] - self.data.shape[2])
 
-        if tile_size - (data.shape[1] + pre_row_pad + post_row_pad) == 1:
+        if final_tile_size - (data.shape[1] + pre_row_pad + post_row_pad) == 1:
             post_row_pad += 1
-        if tile_size - (data.shape[2] + pre_col_pad + post_col_pad) == 1:
+        if final_tile_size - (data.shape[2] + pre_col_pad + post_col_pad) == 1:
             post_col_pad += 1
 
         data = np.pad(data, [(0, 0), (pre_row_pad, post_row_pad), (pre_col_pad, post_col_pad)], mode='constant',
@@ -175,8 +176,8 @@ class Raster(BaseGeoData):
         window = rasterio.windows.Window(
             mask_box.bounds[0],
             mask_box.bounds[1],
-            width=tile_size,
-            height=tile_size
+            width=final_tile_size,
+            height=final_tile_size
         )
         window_transform = rasterio.windows.transform(window, self.metadata['transform'])
 
