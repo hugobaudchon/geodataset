@@ -19,11 +19,16 @@ class Raster(BaseGeoData):
     """
     Typically a .tif or .png raster with or without CRS/transform data.
     """
-    def __init__(self, path: Path, ground_resolution: float = None, scale_factor: float = None):
+    def __init__(self,
+                 path: Path,
+                 output_name_suffix: str = None,
+                 ground_resolution: float = None,
+                 scale_factor: float = None):
         self.path = path
         self.name = path.name
         self.ext = path.suffix
         self.product_name = validate_and_convert_product_name(strip_all_extensions(self.path))
+        self.output_name = self.product_name + (f"_{output_name_suffix}" if output_name_suffix else "")
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
                                                           " Please only specify one.")
@@ -82,7 +87,7 @@ class Raster(BaseGeoData):
             'transform': window_transform
         }
 
-        tile = Tile(data=tile_data, metadata=tile_metadata, product_name=self.product_name,
+        tile = Tile(data=tile_data, metadata=tile_metadata, output_name=self.output_name,
                     ground_resolution=self.ground_resolution, scale_factor=self.scale_factor,
                     row=window.row_off, col=window.col_off, tile_id=tile_id)
 
@@ -176,7 +181,7 @@ class Raster(BaseGeoData):
         polygon_tile = PolygonTile(
             data=masked_data,
             metadata=tile_metadata,
-            product_name=self.product_name,
+            output_name=self.output_name,
             ground_resolution=self.ground_resolution,
             scale_factor=self.scale_factor,
             polygon_id=polygon_id

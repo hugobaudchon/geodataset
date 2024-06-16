@@ -14,7 +14,7 @@ class Tile:
     def __init__(self,
                  data: np.ndarray,
                  metadata: dict,
-                 product_name: str,
+                 output_name: str,
                  ground_resolution: float,
                  scale_factor: float,
                  row: int,
@@ -22,7 +22,7 @@ class Tile:
                  tile_id: int):
         self.data = data
         self.metadata = metadata
-        self.product_name = product_name
+        self.output_name = output_name
         self.row = row
         self.col = col
         self.tile_id = tile_id
@@ -38,7 +38,7 @@ class Tile:
 
         tile = cls(data=data,
                    metadata=metadata,
-                   product_name=product_name,
+                   output_name=product_name,
                    ground_resolution=ground_resolution,
                    scale_factor=scale_factor,
                    row=row,
@@ -73,7 +73,7 @@ class Tile:
             tile_raster.write(self.data)
 
     def generate_name(self):
-        return TileNameConvention.create_name(product_name=self.product_name,
+        return TileNameConvention.create_name(product_name=self.output_name,
                                               ground_resolution=self.ground_resolution,
                                               scale_factor=self.scale_factor,
                                               row=self.row,
@@ -91,14 +91,14 @@ class PolygonTile:
     def __init__(self,
                  data: np.ndarray,
                  metadata: dict,
-                 product_name: str,
+                 output_name: str,
                  ground_resolution: float,
                  scale_factor: float,
                  polygon_id: int):
 
         self.data = data
         self.metadata = metadata
-        self.product_name = product_name
+        self.output_name = output_name
         self.polygon_id = polygon_id
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
@@ -112,7 +112,7 @@ class PolygonTile:
 
         tile = cls(data=data,
                    metadata=metadata,
-                   product_name=product_name,
+                   output_name=product_name,
                    ground_resolution=ground_resolution,
                    scale_factor=scale_factor,
                    polygon_id=polygon_id)
@@ -146,7 +146,7 @@ class PolygonTile:
 
     def generate_name(self):
         return PolygonTileNameConvention.create_name(
-            product_name=self.product_name,
+            product_name=self.output_name,
             ground_resolution=self.ground_resolution,
             scale_factor=self.scale_factor,
             polygon_id=self.polygon_id

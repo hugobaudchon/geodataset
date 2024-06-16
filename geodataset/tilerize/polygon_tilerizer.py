@@ -24,6 +24,7 @@ class PolygonTilerizer:
                  aois_config: AOIFromPackageConfig or None,
                  ground_resolution: float or None,
                  scale_factor: float or None,
+                 output_name_suffix: str = None,
                  use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.5,
                  geopackage_layer_name: str = None,
@@ -40,6 +41,7 @@ class PolygonTilerizer:
         self.use_variable_tile_size = use_variable_tile_size
         self.variable_tile_size_pixel_buffer = variable_tile_size_pixel_buffer
         self.aois_config = aois_config
+        self.output_name_suffix = output_name_suffix
         self.use_rle_for_labels = use_rle_for_labels
         self.min_intersection_ratio = min_intersection_ratio
         self.coco_n_workers = coco_n_workers
@@ -68,6 +70,7 @@ class PolygonTilerizer:
 
     def _load_raster(self):
         raster = Raster(path=self.raster_path,
+                        output_name_suffix=self.output_name_suffix,
                         ground_resolution=self.ground_resolution,
                         scale_factor=self.scale_factor)
         return raster

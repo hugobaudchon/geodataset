@@ -22,6 +22,7 @@ class BaseRasterTilerizer(ABC):
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
+                 output_name_suffix: str = None,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8):
         """
         raster_path: Path,
@@ -46,6 +47,7 @@ class BaseRasterTilerizer(ABC):
         self.tile_overlap = tile_overlap
         self.tile_coordinate_step = int((1 - self.tile_overlap) * self.tile_size)
         self.aois_config = aois_config
+        self.output_name_suffix = output_name_suffix
         self.ignore_black_white_alpha_tiles_threshold = ignore_black_white_alpha_tiles_threshold
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
@@ -57,6 +59,7 @@ class BaseRasterTilerizer(ABC):
 
     def _load_raster(self):
         raster = Raster(path=self.raster_path,
+                        output_name_suffix=self.output_name_suffix,
                         ground_resolution=self.ground_resolution,
                         scale_factor=self.scale_factor)
         return raster
@@ -151,6 +154,7 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
+                 output_name_suffix: str = None,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8):
         """
         raster_path: Path,
@@ -179,6 +183,7 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
                          aois_config=aois_config,
                          ground_resolution=ground_resolution,
                          scale_factor=scale_factor,
+                         output_name_suffix=output_name_suffix,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
 
         self.output_path = output_path / self.raster.product_name
@@ -195,6 +200,7 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
+                 output_name_suffix: str = None,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8):
         """
         raster_path: Path,
@@ -224,6 +230,7 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                          aois_config=aois_config,
                          ground_resolution=ground_resolution,
                          scale_factor=scale_factor,
+                         output_name_suffix=output_name_suffix,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
 
     def generate_tiles(self):
@@ -260,6 +267,7 @@ class RasterTilerizerGDF(BaseRasterTilerizer):
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
+                 output_name_suffix: str = None,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8):
         """
         raster_path: Path,
@@ -286,6 +294,7 @@ class RasterTilerizerGDF(BaseRasterTilerizer):
                          aois_config=aois_config,
                          ground_resolution=ground_resolution,
                          scale_factor=scale_factor,
+                         output_name_suffix=output_name_suffix,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
 
     def generate_tiles_gdf(self):

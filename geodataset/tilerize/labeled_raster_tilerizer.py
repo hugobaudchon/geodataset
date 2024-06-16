@@ -26,6 +26,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
+                 output_name_suffix: str = None,
                  use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.9,
                  ignore_tiles_without_labels: bool = False,
@@ -83,6 +84,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                          aois_config=aois_config,
                          ground_resolution=ground_resolution,
                          scale_factor=scale_factor,
+                         output_name_suffix=output_name_suffix,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
 
         self.labels_path = labels_path
