@@ -96,16 +96,27 @@ class Raster(BaseGeoData):
     def get_polygon_tile(self,
                          polygon: Polygon,
                          polygon_id: int,
-                         tile_size: int) -> Tuple[PolygonTile, Polygon]:
+                         tile_size: int,
+                         use_variable_tile_size: bool,
+                         variable_tile_size_pixel_buffer: int) -> Tuple[PolygonTile, Polygon]:
 
-        # Finding the box centered on the polygon's centroid
-        binary_mask = np.zeros((tile_size, tile_size), dtype=np.uint8)
         x, y = polygon.centroid.coords[0]
         x, y = int(x), int(y)
-        mask_box = box(x - 0.5 * tile_size,
-                       y - 0.5 * tile_size,
-                       x + 0.5 * tile_size,
-                       y + 0.5 * tile_size)
+
+        if use_variable_tile_size:
+            max_dist_to_polygon_border = max([x - polygon.bounds[0], polygon.bounds[2] - x, y - polygon.bounds[1], polygon.bounds[3] - y])
+            variable_tile_size = min(tile_size, max_dist_to_polygon_border * 2 + variable_tile_size_pixel_buffer * 2)
+            mask_box = box(x - 0.5 * variable_tile_size,
+                           y - 0.5 * variable_tile_size,
+                           x + 0.5 * variable_tile_size,
+                           y + 0.5 * variable_tile_size)
+        else:
+            # Finding the box centered on the polygon's centroid
+            binary_mask = np.zeros((tile_size, tile_size), dtype=np.uint8)
+            mask_box = box(x - 0.5 * tile_size,
+                           y - 0.5 * tile_size,
+                           x + 0.5 * tile_size,
+                           y + 0.5 * tile_size)
 
         # Making sure the polygon is valid
         polygon = polygon.buffer(0)
