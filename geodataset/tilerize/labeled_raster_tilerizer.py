@@ -206,7 +206,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
         save_aois_tiles_picture(aois_tiles=aois_tiles,
                                 save_path=self.output_path / AoiTilesImageConvention.create_name(
-                                    product_name=self.raster.product_name,
+                                    product_name=self.raster.output_name,
                                     ground_resolution=self.ground_resolution,
                                     scale_factor=self.scale_factor
                                 ),
@@ -244,13 +244,15 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             for tile in aois_tiles[aoi]:
                 tile.save(output_folder=self.tiles_path)
 
-            coco_output_file_path = self.output_path / CocoNameConvention.create_name(product_name=self.raster.product_name,
-                                                                                      ground_resolution=self.ground_resolution,
-                                                                                      scale_factor=self.scale_factor,
-                                                                                      fold=aoi)
+            coco_output_file_path = self.output_path / CocoNameConvention.create_name(
+                product_name=self.raster.output_name,
+                ground_resolution=self.ground_resolution,
+                scale_factor=self.scale_factor,
+                fold=aoi
+            )
 
             coco_generator = COCOGenerator(
-                description=f"Dataset for the product {self.raster.product_name}"
+                description=f"Dataset for the product {self.raster.output_name}"
                             f" with fold {aoi}"
                             f" and scale_factor {self.scale_factor}"
                             f" and ground_resolution {self.ground_resolution}.",

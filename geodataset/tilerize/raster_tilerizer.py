@@ -186,7 +186,7 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
                          output_name_suffix=output_name_suffix,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
 
-        self.output_path = output_path / self.raster.product_name
+        self.output_path = output_path / self.raster.output_name
         self.tiles_path = self.output_path / 'tiles'
         self.tiles_path.mkdir(parents=True, exist_ok=True)
 
@@ -240,7 +240,7 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
 
         save_aois_tiles_picture(aois_tiles=aois_tiles,
                                 save_path=self.output_path / AoiTilesImageConvention.create_name(
-                                    product_name=self.raster.product_name,
+                                    product_name=self.raster.output_name,
                                     ground_resolution=self.ground_resolution,
                                     scale_factor=self.scale_factor
                                 ),

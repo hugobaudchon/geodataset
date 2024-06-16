@@ -64,7 +64,7 @@ class PolygonTilerizer:
             other_labels_attributes_column_names=other_labels_attributes_column_names
         )
 
-        self.output_path = output_path / self.raster.product_name
+        self.output_path = output_path / self.raster.output_name
         self.tiles_folder_path = self.output_path / 'tiles'
         self.tiles_folder_path.mkdir(parents=True, exist_ok=True)
 
@@ -200,7 +200,7 @@ class PolygonTilerizer:
                 if self.labels.other_labels_attributes_column_names else None
 
             coco_output_file_path = self.output_path / CocoNameConvention.create_name(
-                product_name=self.raster.product_name,
+                product_name=self.raster.output_name,
                 ground_resolution=self.ground_resolution,
                 scale_factor=self.scale_factor,
                 fold=aoi
@@ -209,7 +209,7 @@ class PolygonTilerizer:
             print(f"Generating COCO dataset for AOI {aoi}... "
                   f"(it might take a little while to save tiles and encode masks)")
             coco_generator = COCOGenerator(
-                description=f"Dataset for the product {self.raster.product_name}"
+                description=f"Dataset for the product {self.raster.output_name}"
                             f" with fold {aoi}"
                             f" and scale_factor {self.scale_factor}"
                             f" and ground_resolution {self.ground_resolution}.",
