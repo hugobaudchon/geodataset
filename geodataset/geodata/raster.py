@@ -105,7 +105,7 @@ class Raster(BaseGeoData):
 
         if use_variable_tile_size:
             max_dist_to_polygon_border = max([x - polygon.bounds[0], polygon.bounds[2] - x, y - polygon.bounds[1], polygon.bounds[3] - y])
-            variable_tile_size = min(tile_size, max_dist_to_polygon_border * 2 + variable_tile_size_pixel_buffer * 2)
+            variable_tile_size = int(min(tile_size, max_dist_to_polygon_border * 2 + variable_tile_size_pixel_buffer * 2))
             binary_mask = np.zeros((variable_tile_size, variable_tile_size), dtype=np.uint8)
             mask_box = box(x - 0.5 * variable_tile_size,
                            y - 0.5 * variable_tile_size,
