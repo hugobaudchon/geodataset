@@ -116,7 +116,7 @@ class BaseLabeledCocoDataset(BaseDataset, ABC):
             category_id = category['id']
             if category_id not in self.category_id_to_metadata_mapping:
                 self.category_id_to_metadata_mapping[category_id] = category
-            else:
+            elif category_id in self.category_id_to_metadata_mapping and self.category_id_to_metadata_mapping[category_id]['name'] != category['name']:
                 raise Exception(f"Category with id {category_id} is duplicated in the COCO dataset,"
                                 f" or the same category id exists in different COCO datasets present in the root folder.")
 
