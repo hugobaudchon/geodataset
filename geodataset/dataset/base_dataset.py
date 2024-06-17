@@ -39,6 +39,7 @@ class BaseLabeledCocoDataset(BaseDataset, ABC):
         self.transform = transform
         self.tiles = {}
         self.tiles_path_to_id_mapping = {}
+        self.category_id_to_metadata_mapping = {}
         self.cocos_detected = []
 
         if isinstance(self.root_path, Path):
@@ -110,6 +111,14 @@ class BaseLabeledCocoDataset(BaseDataset, ABC):
 
             # Keeping track of the original tile id from the COCO dataset to the tile name
             coco_tiles[image['id']] = tile_name
+
+        for category in coco_data['categories']:
+            category_id = category['id']
+            if category_id not in self.category_id_to_metadata_mapping:
+                self.category_id_to_metadata_mapping[category_id] = category
+            else:
+                raise Exception(f"Category with id {category_id} is duplicated in the COCO dataset,"
+                                f" or the same category id exists in different COCO datasets present in the root folder.")
 
         for annotation in coco_data['annotations']:
             # Finding the associated tile name given the tile id from the COCO dataset
