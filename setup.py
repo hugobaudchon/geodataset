@@ -15,7 +15,7 @@ setup(
         'lazrs>=0.5.2',
         'matplotlib==3.8.2',
         'numpy>=1.25.2',
-        'opencv-python=4.9.0',
+        'opencv-python==4.9.0',
         'pandas>=2.2.0',
         'Pillow==10.2.0',
         'pyarrow>=15.0.1',
