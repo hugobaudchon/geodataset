@@ -31,8 +31,8 @@ class BoxesDataset(BaseDataset):
                                                           " Please only specify one.")
 
         self.raster = self._load_raster()
-        self.boxes = self._load_boxes(main_label_category_column_name=None,
-                                      other_labels_attributes_column_names=None)
+        self.boxes = self._load_polygons(main_label_category_column_name=None,
+                                         other_labels_attributes_column_names=None)
 
     def _load_raster(self):
         raster = Raster(path=self.raster_path,
@@ -40,9 +40,9 @@ class BoxesDataset(BaseDataset):
                         scale_factor=self.scale_factor)
         return raster
 
-    def _load_boxes(self,
-                    main_label_category_column_name: str or None,
-                    other_labels_attributes_column_names: List[str] or None):
+    def _load_polygons(self,
+                       main_label_category_column_name: str or None,
+                       other_labels_attributes_column_names: List[str] or None):
 
         labels = RasterPolygonLabels(path=self.boxes_path,
                                      associated_raster=self.raster,
@@ -101,7 +101,7 @@ class BoxesDataset(BaseDataset):
         # This is done by translating the original geometry to the origin based on the minx and miny of the padded box
         adjusted_box = translate(box(*geom.bounds), xoff=-padded_minx, yoff=-padded_miny)
 
-        return subarray, adjusted_box
+        return subarray, adjusted_box, (padded_minx, padded_miny)
 
     def __len__(self):
         return len(self.boxes.geometries_gdf)

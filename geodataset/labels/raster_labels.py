@@ -15,12 +15,14 @@ class RasterPolygonLabels:
     def __init__(self,
                  path: Path,
                  associated_raster: Raster,
+                 geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None):
 
         self.path = path
         self.ext = self.path.suffix
         self.associated_raster = associated_raster
+        self.geopackage_layer_name = geopackage_layer_name
         self.ground_resolution = self.associated_raster.ground_resolution
         self.scale_factor = self.associated_raster.scale_factor
         self.main_label_category_column_name = main_label_category_column_name
@@ -50,8 +52,20 @@ class RasterPolygonLabels:
         # Making sure the labels and associated raster CRS are matching.
         labels_gdf = self.associated_raster.adjust_geometries_to_raster_crs_if_necessary(gdf=labels_gdf)
 
+        # Making sure the labels polygons are valid (they are not None)
+        n_labels = len(labels_gdf)
+        labels_gdf = labels_gdf.dropna(subset=['geometry'])
+        if n_labels != len(labels_gdf):
+            warnings.warn(f"Removed {n_labels - len(labels_gdf)} out of {n_labels} labels as they have 'None' geometries.")
+
         # Scaling the geometries to pixel coordinates aligned with the Raster
         labels_gdf = self.associated_raster.adjust_geometries_to_raster_pixel_coordinates(gdf=labels_gdf)
+
+        # Making sure the polygons have an area > 0
+        n_labels = len(labels_gdf)
+        labels_gdf = labels_gdf[labels_gdf.geometry.area > 0]
+        if n_labels != len(labels_gdf):
+            warnings.warn(f"Removed {n_labels - len(labels_gdf)} out of {n_labels} labels as they have an area of 0.")
 
         # Checking if most of the labels are intersecting the Raster.
         # If not, something probably went wrong with the CRS, transform or scaling factor.
@@ -59,19 +73,25 @@ class RasterPolygonLabels:
                                                              0,
                                                              self.associated_raster.metadata['height'],
                                                              self.associated_raster.metadata['width'])]})
-        labels_gdf['label_area'] = labels_gdf.geometry.area
-        intersecting_polygons = gpd.overlay(raster_gdf, labels_gdf, how='intersection')
-        labels_in_raster_ratio = 1 - (len(intersecting_polygons) - len(labels_gdf))/len(labels_gdf)
-        assert labels_in_raster_ratio > 0.95, (f"{(1-len(labels_gdf))*100}% of labels are not in the raster,"
-                                               f" the raster and labels are probably not aligned anymore"
-                                               f" due to CRS, transform or scale_factor.")
+
+        labels_in_raster_gdf = labels_gdf[labels_gdf.intersects(raster_gdf.unary_union)]
+
+        if len(labels_gdf) == 0:
+            raise ValueError("Found no geometries in the labels geopackage file.")
+        elif len(labels_in_raster_gdf) == 0:
+            raise ValueError("Found no geometries in the labels geopackage file that intersect the raster.")
+        elif len(labels_in_raster_gdf) / len(labels_gdf) < 0.10:
+            warnings.warn(f"Less than 10% of the labels are intersecting the Raster."
+                          f" Something probably went wrong with the CRS, transform or scaling factor.")
 
         return labels_gdf
 
     def _load_geopandas_labels(self):
         # Load polygons
-        if self.ext in ['.geojson', '.gpkg', '.shp', ".json"]:
-            labels_gdf = gpd.read_file(self.path)
+
+        if self.ext in ['.geojson', '.gpkg', '.shp', '.json']:
+            labels_gdf = gpd.read_file(self.path, layer=self.geopackage_layer_name)
+
         else:
             raise ValueError("Unsupported file format for polygons. Please use GeoJSON (.geojson), JSON (.json), GPKG (.gpkg) or Shapefile (.shp).")
 
@@ -84,7 +104,7 @@ class RasterPolygonLabels:
 
         if self.other_labels_attributes_column_names:
             for attribute in self.other_labels_attributes_column_names:
-                assert self.main_label_category_column_name in labels_gdf, \
+                assert attribute in labels_gdf, \
                     f'Could not find the attribute {attribute}' \
                     f' in the geopackage. Please manually double check the geopackage polygons attributes' \
                     f' or remove the attribute from the parameter \'other_labels_attributes_column_names\'.' \
