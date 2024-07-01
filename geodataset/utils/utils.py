@@ -568,12 +568,6 @@ def coco_to_geopackage(coco_json_path: str,
     for annotation in annotations_data:
         tiles_ids_to_annotations_map[annotation['image_id']].append(annotation)
 
-    # Getting the first tile CRS as the CRS that will be used for all tiles and their annotations
-    if convert_to_crs_coordinates:
-        common_crs = rasterio.open(f"{images_directory}/{coco_data['images'][0]['file_name']}").crs
-    else:
-        common_crs = None
-
     gdfs = []
     for tile_id in tiles_ids_to_tiles_map:
         tile_data = tiles_ids_to_tiles_map[tile_id]
@@ -591,7 +585,7 @@ def coco_to_geopackage(coco_json_path: str,
         gdf = gpd.GeoDataFrame({
             'geometry': polygons,
             'tile_id': tile_id,
-            'tile_path': tile_data['file_name'],
+            'tile_path': f"{images_directory}/{tile_data['file_name']}",
             'category_id': [annotation.get('category_id') for annotation in tile_annotations],
             'category_name': [categories_ids_to_names_map[annotation.get('category_id')] for annotation in tile_annotations],
         })
@@ -610,16 +604,13 @@ def coco_to_geopackage(coco_json_path: str,
         if 'score' in tile_annotations[0]:
             gdf['score'] = [annotation['score'] for annotation in tile_annotations]
 
-        if len(gdf) > 0 and convert_to_crs_coordinates:
-            tile_src = rasterio.open(f"{images_directory}/{tile_data['file_name']}")
-            gdf['geometry'] = gdf.apply(lambda row: apply_affine_transform(row['geometry'], tile_src.transform), axis=1)
-            gdf.crs = tile_src.crs
-            gdf = gdf.to_crs(common_crs)
         gdfs.append(gdf)
 
     all_polygons_gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True))
     all_polygons_gdf.set_geometry('geometry')
-    all_polygons_gdf.crs = common_crs
+
+    if convert_to_crs_coordinates:
+        all_polygons_gdf = tiles_polygons_gdf_to_crs_gdf(all_polygons_gdf)
 
     if geopackage_output_path:
         ext = Path(geopackage_output_path).suffix
@@ -636,3 +627,29 @@ def coco_to_geopackage(coco_json_path: str,
             raise Exception(f"Output file format {ext} not supported. Please use .gpkg, .geojson or .shp.")
 
     return all_polygons_gdf
+
+
+def tiles_polygons_gdf_to_crs_gdf(dataframe: gpd.GeoDataFrame):
+    assert 'tile_path' in dataframe.columns, "The GeoDataFrame must contain a 'tile_path' column."
+
+    # get the first tile_path
+    first_tile_path = dataframe['tile_path'].iloc[0]
+    common_crs = rasterio.open(first_tile_path).crs
+
+    gdfs = []
+    for tile_path in dataframe['tile_path'].unique():
+        tile_gdf = dataframe[dataframe['tile_path'] == tile_path].copy(deep=True)
+
+        tile_src = rasterio.open(tile_path)
+        tile_gdf['geometry'] = tile_gdf.apply(lambda row: apply_affine_transform(row['geometry'], tile_src.transform), axis=1)
+        tile_gdf.crs = tile_src.crs
+        tile_gdf = tile_gdf.to_crs(common_crs)
+        gdfs.append(tile_gdf)
+
+    all_tiles_gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True))
+    all_tiles_gdf.set_geometry('geometry')
+    all_tiles_gdf.crs = common_crs
+
+    return all_tiles_gdf
+
+
