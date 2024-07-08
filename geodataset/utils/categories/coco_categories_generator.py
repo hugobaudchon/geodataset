@@ -41,7 +41,10 @@ def get_gbif_id(taxon_name: str, rank: str, genus: str = None, family: str = Non
                     key = result['nubKey']
                     break
         elif rank == 'family':
-            key = search_results['results'][0]['nubKey']
+            for result in search_results['results']:
+                if 'nubKey' in result:
+                    key = result['nubKey']
+                    break
 
         return key
     else:
@@ -128,14 +131,13 @@ def gdf_to_coco_categories(gdf: gpd.GeoDataFrame):
 
 if __name__ == '__main__':
     gdfs_paths = [
-        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20170810_transectotoni_mavicpro_labels_points.gpkg',
-        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20230525_tbslake_m3e_labels_points.gpkg',
-        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20231018_inundated_m3e_labels_points.gpkg',
-        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20231018_pantano_m3e_labels_points.gpkg',
-        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20231018_terrafirme_m3e_labels_points.gpkg',
+        '/media/hugo/Hard Disk 1/XPrize/Data/raw/brazil_zf2_new/20240130_zf2tower_ms_m3m_labels_points.gpkg',
+        '/media/hugo/Hard Disk 1/XPrize/Data/raw/brazil_zf2_new/20240130_zf2transectew_m3m_labels_points.gpkg',
+        '/media/hugo/Hard Disk 1/XPrize/Data/raw/brazil_zf2_new/20240131_zf2block4_ms_m3m_labels_points.gpkg',
+        '/media/hugo/Hard Disk 1/XPrize/Data/raw/brazil_zf2_new/20240520_zf2quad_m3m_labels_points.gpkg'
     ]
     #
-    output_file = 'equator_tiputini_trees/equator_tiputini_trees_categories.json'
+    output_file = 'brazil_zf2_trees/brazil_zf2_trees_categories_fornewzf2dataonly.json'
     #
     gdfs = [gpd.read_file(gdf_path) for gdf_path in gdfs_paths]
 
