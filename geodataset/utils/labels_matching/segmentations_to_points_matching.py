@@ -88,7 +88,7 @@ def segmentations_to_points_matching(segmentations, truth_points, output_path, r
     print("Done.\n")
 
     # get the max distance between 2 points of the segmentation
-    segmentations_largest_inner_rectangle['max_point_distance'] = segmentations_largest_inner_rectangle['geometry'].apply(lambda x: x.exterior.distance(x.centroid))
+    segmentations_largest_inner_rectangle['max_point_distance'] = segmentations_largest_inner_rectangle['geometry'].astype(object).apply(lambda x: x.exterior.distance(x.centroid))
 
     labeled_segmentations = []
 
