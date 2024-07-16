@@ -1,3 +1,4 @@
+from pathlib import Path
 from warnings import warn
 
 import cv2
@@ -71,8 +72,7 @@ def largest_inner_rectangle(geometry):
     return best_rectangle
 
 
-def segmentations_to_points_matching(segmentations, truth_points, output_path, relative_dist_to_inner_rectangle_centroid_threshold):
-    # Check if the segmentations and truth_boxes are in the same crs
+def segmentations_to_points_matching(segmentations, truth_points, output_path, relative_dist_to_centroid_threshold, use_largest_inner_rectangle):
     if segmentations.crs != truth_points.crs:
         segmentations = segmentations.to_crs(truth_points.crs)
 
@@ -80,32 +80,38 @@ def segmentations_to_points_matching(segmentations, truth_points, output_path, r
     segmentations['geometry'] = segmentations.buffer(0)
     segmentations = segmentations[segmentations.intersects(truth_points.unary_union)]
 
-    # get the largest rectangle that fits inside the segmentation
-    print("Calculating largest inner rectangles...")
-    segmentations['largest_inner_rectangle'] = segmentations['geometry'].astype(object).apply(largest_inner_rectangle)
-    segmentations_largest_inner_rectangle = segmentations.copy(deep=True)
-    segmentations_largest_inner_rectangle['geometry'] = segmentations_largest_inner_rectangle['largest_inner_rectangle']
-    print("Done.\n")
+    if use_largest_inner_rectangle:
+        # get the largest rectangle that fits inside the segmentation
+        print("Calculating largest inner rectangles...")
+        segmentations['largest_inner_rectangle'] = segmentations['geometry'].astype(object).apply(largest_inner_rectangle)
+        trees_polygons = segmentations.copy(deep=True)
+        trees_polygons['geometry'] = trees_polygons['largest_inner_rectangle']
+        print("Done.\n")
+    else:
+        trees_polygons = segmentations.copy(deep=True)
+
+    # Only keep the largest geom if multipolygon
+    trees_polygons['geometry'] = trees_polygons['geometry'].apply(lambda x: x if x.geom_type == 'Polygon' else (x if x.area == max([geom.area for geom in x.geoms]) else max(x.geoms, key=lambda a: a.area)))
 
     # get the max distance between 2 points of the segmentation
-    segmentations_largest_inner_rectangle['max_point_distance'] = segmentations_largest_inner_rectangle['geometry'].apply(lambda x: x.exterior.distance(x.centroid))
+    trees_polygons['max_point_distance'] = trees_polygons['geometry'].apply(lambda x: x.exterior.distance(x.centroid))
 
     labeled_segmentations = []
 
-    for i, point in truth_points.iterrows():
-        # get largest_inner_rectangle intersecting the point
-        intersecting_segmentations = segmentations_largest_inner_rectangle[segmentations_largest_inner_rectangle.intersects(point.geometry)].copy(deep=True)
+    for i, segmentation in trees_polygons.iterrows():
+        intersecting_points = truth_points[truth_points.intersects(segmentation.geometry)].copy(deep=True)
 
-        # get the distance to the centroid normalized by the max distance between 2 points of the segmentation
-        intersecting_segmentations['dist_to_centroid'] = intersecting_segmentations.centroid.distance(point.geometry)
-        intersecting_segmentations['relative_dist_to_inner_rectangle_centroid'] = intersecting_segmentations['dist_to_centroid'] / intersecting_segmentations['max_point_distance']
+        if intersecting_points.empty:
+            continue
 
-        # only keep the segmentation with the smallest distance to the centroid
-        segmentations_keep = intersecting_segmentations[intersecting_segmentations['relative_dist_to_inner_rectangle_centroid'] < relative_dist_to_inner_rectangle_centroid_threshold].index
-        if len(segmentations_keep) > 0:
-            best_segmentation_id = intersecting_segmentations.loc[segmentations_keep].sort_values('relative_dist_to_inner_rectangle_centroid').index[0]
-            labeled_segmentation = point.copy(deep=True)
-            labeled_segmentation.geometry = segmentations.loc[best_segmentation_id].geometry
+        intersecting_points['dist_to_centroid'] = intersecting_points.centroid.distance(segmentation.geometry.centroid)
+        intersecting_points['relative_dist_to_centroid'] = intersecting_points['dist_to_centroid'] / segmentation['max_point_distance']
+
+        best_point_idx = intersecting_points['relative_dist_to_centroid'].idxmin()
+
+        if intersecting_points.loc[best_point_idx, 'relative_dist_to_centroid'] < relative_dist_to_centroid_threshold:
+            labeled_segmentation = truth_points.loc[best_point_idx].copy(deep=True)
+            labeled_segmentation['geometry'] = segmentations.loc[i].geometry
             labeled_segmentations.append(labeled_segmentation)
 
     if len(labeled_segmentations) == 0:
@@ -123,12 +129,31 @@ def segmentations_to_points_matching(segmentations, truth_points, output_path, r
 
 
 if __name__ == '__main__':
-    segmentations_path = '/infer/20231213_zf2campirana_mini3pro_rgb_aligned/segmenter_aggregator_output/20231213_zf2campirana_mini3pro_rgb_aligned_gr0p08_infersegmenteraggregator.gpkg'
-    truth_points_path = '/Data/raw/brazil_zf2/20240131_zf2campinarana_labels_points_species.gpkg'
-    relative_dist_to_inner_rectangle_centroid_threshold = 0.8
-    output_path = f'/Data/segmentations_SAM_matched/20231213_zf2campirana_mini3pro_rgb_aligned_SAMthreshold{str(relative_dist_to_inner_rectangle_centroid_threshold).replace(".", "p")}.gpkg'
+    segmentations_paths = [
+        '/media/hugobaudchon/4 TB/XPrize/Data/SAM_segmentations_from_boxes/brazil_zf2/20240131_zf2campirana_m3m_rgb_gr0p08_infersegmenteraggregator.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/SAM_segmentations_from_boxes/equator/20170810_transectotoni_mavicpro_rgb_gr0p08_infersegmenteraggregator.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/SAM_segmentations_from_boxes/equator/20230525_tbslake_m3e_rgb_gr0p08_infersegmenteraggregator.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/SAM_segmentations_from_boxes/equator/20231018_inundated_m3e_rgb_gr0p08_infersegmenteraggregator.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/SAM_segmentations_from_boxes/equator/20231018_pantano_m3e_rgb_gr0p08_infersegmenteraggregator.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/SAM_segmentations_from_boxes/equator/20231018_terrafirme_m3e_rgb_gr0p08_infersegmenteraggregator.gpkg',
+    ]
+    truth_points_paths = [
+        '/media/hugobaudchon/4 TB/XPrize/Data/raw/brazil_zf2/labels_species/20240131_zf2campinarana_labels_points_species.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20170810_transectotoni_mavicpro_labels_points.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20230525_tbslake_m3e_labels_points.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20231018_inundated_m3e_labels_points.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20231018_pantano_m3e_labels_points.gpkg',
+        '/media/hugobaudchon/4 TB/XPrize/Data/raw/equator/labels_points_species/20231018_terrafirme_m3e_labels_points.gpkg',
+    ]
+    relative_dist_to_centroid_threshold = 1.0
 
-    segmentations = gpd.read_file(segmentations_path)
-    truth_points = gpd.read_file(truth_points_path)
+    output_folder = '/media/hugobaudchon/4 TB/XPrize/Data/SAM_segmentations_matched'
 
-    segmentations_to_points_matching(segmentations, truth_points, output_path, relative_dist_to_inner_rectangle_centroid_threshold)
+    use_largest_inner_rectangle = True
+
+    for segmentations_path, truth_points_path in zip(segmentations_paths, truth_points_paths):
+        output_path = f'{output_folder}/{Path(segmentations_path).stem}_SAMthreshold{str(relative_dist_to_centroid_threshold).replace(".", "p")}.gpkg'
+        segmentations = gpd.read_file(segmentations_path)
+        truth_points = gpd.read_file(truth_points_path)
+
+        segmentations_to_points_matching(segmentations, truth_points, output_path, relative_dist_to_centroid_threshold, use_largest_inner_rectangle)
