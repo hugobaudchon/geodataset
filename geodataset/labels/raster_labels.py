@@ -36,7 +36,7 @@ class RasterPolygonLabels:
             labels_gdf = self._load_xml_labels()
         elif self.ext == '.csv':
             labels_gdf = self._load_csv_labels()
-        elif self.ext in ['.geojson', '.gpkg', '.shp']:
+        elif self.ext in ['.geojson', '.gpkg', '.shp', ".json"]:
             labels_gdf = self._load_geopandas_labels()
         else:
             raise Exception(f'Annotation format {self.ext} is not yet supported.')
@@ -88,10 +88,12 @@ class RasterPolygonLabels:
 
     def _load_geopandas_labels(self):
         # Load polygons
-        if self.ext in ['.geojson', '.gpkg', '.shp']:
+
+        if self.ext in ['.geojson', '.gpkg', '.shp', '.json']:
             labels_gdf = gpd.read_file(self.path, layer=self.geopackage_layer_name)
+
         else:
-            raise ValueError("Unsupported file format for polygons. Please use GeoJSON (.geojson), GPKG (.gpkg) or Shapefile (.shp).")
+            raise ValueError("Unsupported file format for polygons. Please use GeoJSON (.geojson), JSON (.json), GPKG (.gpkg) or Shapefile (.shp).")
 
         if self.main_label_category_column_name:
             assert self.main_label_category_column_name in labels_gdf, \
