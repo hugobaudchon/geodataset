@@ -70,7 +70,7 @@ class BaseRasterTilerizer(ABC):
             f"Raster file not found at {self.raster_path}."
         assert isinstance(self.tile_size, int) and self.tile_size > 0, \
             "The tile size must be and integer greater than 0."
-        assert isinstance(self.tile_size, float) and 0 <= self.tile_overlap < 1, \
+        assert isinstance(self.tile_overlap, float) and 0 <= self.tile_overlap < 1, \
             "The tile overlap must be between 0 and 1."
         assert not (self.ground_resolution and self.scale_factor), \
             "Both a ground_resolution and a scale_factor were provided. Please only specify one."
