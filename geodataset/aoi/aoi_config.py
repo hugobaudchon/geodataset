@@ -12,6 +12,15 @@ class AOIConfig(ABC):
 
 
 class AOIFromPackageConfig(AOIConfig):
+    """
+    Configuration class for AOIFromPackage.
+
+    Parameters
+    ----------
+    aois: dict
+        A dictionary containing the name of the AOI as key and the path to the AOI (.gpkg, .geojson...) as value.
+    """
+
     def __init__(self, aois: dict):
         super().__init__(aois=aois)
         self._check_config()
@@ -29,6 +38,18 @@ class AOIFromPackageConfig(AOIConfig):
 
 
 class AOIGeneratorConfig(AOIConfig):
+    """
+    Configuration class for AOIGenerator.
+
+    Parameters
+    ----------
+    aoi_type: str
+        The type of AOI to generate. Supported values are 'band' and 'corner'.
+    aois: dict
+        A dictionary containing the name(s) of the AOI(s) as key and the position and percentage of the AOI as value:
+        {key: {'position': int (unique integer going from 1 to n_aois), 'percentage': float}}
+    """
+
     SUPPORTED_AOI_TYPES = ['band', 'corner']
 
     def __init__(self, aoi_type: str, aois: dict):

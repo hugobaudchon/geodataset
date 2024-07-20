@@ -6,17 +6,12 @@ Raster Tilerizer Module
     :undoc-members:
     :show-inheritance:
 
-.. autoclass:: geodataset.tilerize.BaseRasterTilerizer
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-.. autoclass:: geodataset.tilerize.BaseDiskRasterTilerizer
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 .. autoclass:: geodataset.tilerize.RasterTilerizer
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+.. autoclass:: geodataset.tilerize.RasterTilerizerGDF
     :members:
     :undoc-members:
     :show-inheritance:
