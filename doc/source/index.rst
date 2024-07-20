@@ -11,7 +11,7 @@ GeoDataset documentation
    :maxdepth: 2
    :caption: Contents:
 
-   raster
+   geodata
    aoi_config
    raster_tilerizer
 

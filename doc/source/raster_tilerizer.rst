@@ -1,4 +1,4 @@
-Raster Tilerizer Module
+Tilerizers
 =======================
 
 .. automodule:: geodataset.tilerize
