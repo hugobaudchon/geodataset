@@ -16,67 +16,90 @@ from geodataset.tilerize.raster_tilerizer import BaseDiskRasterTilerizer
 
 
 class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
+    """
+    This class is used to create image tiles from a raster and their associated labels from a .geojson, .gpkg or .csv file.
+    COCO json files are generated for each AOI (or for the 'all' AOI).
+
+    Parameters
+    ----------
+    raster_path : str or pathlib.Path
+        Path to the raster (.tif, .png...).
+    labels_path : str or pathlib.Path
+        Path to the labels. Supported formats are: .gpkg, .geojson, .shp, .xml, .csv.
+    output_path : str or pathlib.Path
+        Path to parent folder where to save the image tiles and associated labels.
+    tile_size : int
+        The size of the tiles in pixels (tile_size, tile_size).
+    tile_overlap : float
+        The overlap between the tiles (0 <= overlap < 1).
+    aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
+        An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
+    ground_resolution : float, optional
+        The ground resolution in meter per pixel desired when loading the raster.
+        Only one of ground_resolution and scale_factor can be set at the same time.
+    scale_factor : float, optional
+        Scale factor for rescaling the data (change pixel resolution).
+        Only one of ground_resolution and scale_factor can be set at the same time.
+    output_name_suffix : str, optional
+        Suffix to add to the output file names.
+    ignore_black_white_alpha_tiles_threshold : float, optional
+        Threshold ratio of black, white or transparent pixels in a tile to skip it. Default is 0.8.
+    use_rle_for_labels : bool, optional
+        Whether to use RLE encoding for the labels. If False, the labels will be saved as polygons.
+    min_intersection_ratio : float, optional
+        When finding the associated polygon labels to a tile, this ratio will specify the minimal required intersection
+        ratio (intersecting_polygon_area / polygon_area) between a candidate polygon and the tile in order to keep this
+        polygon as a label for that tile.
+    ignore_tiles_without_labels : bool, optional
+        Whether to ignore (skip) tiles that don't have any associated labels.
+    geopackage_layer_name : str, optional
+        The name of the layer in the geopackage file to use as labels. Only used if the labels_path is a .gpkg, .geojson
+        or .shp file. Only useful when the labels geopackage file contains multiple layers.
+    main_label_category_column_name : str, optional
+        The name of the column in the labels file that contains the main category of the labels.
+    other_labels_attributes_column_names : list of str, optional
+        The names of the columns in the labels file that contains other attributes of the labels, which should be kept
+        as a dictionary in the COCO annotations data.
+    coco_n_workers : int, optional
+        Number of workers to use when generating the COCO dataset.
+        Useful when use_rle_for_labels=True as it is quite slow.
+    coco_categories_list : list of dict, optional
+        A list of category dictionaries in COCO format. Exemple of 2 categories, one being the parent of the other:
+        [{
+            "id": 1,
+            "name": "Pinaceae",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 2,
+            "name": "Picea",
+            "other_names": ["PIGL", "PIMA", "PIRU"],
+            "supercategory": 1
+        }]
+
+    """
 
     def __init__(self,
-                 raster_path: Path,
-                 labels_path: Path,
-                 output_path: Path,
+                 raster_path: str or Path,
+                 labels_path: str or Path,
+                 output_path: str or Path,
                  tile_size: int,
                  tile_overlap: float,
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
                  output_name_suffix: str = None,
+                 ignore_black_white_alpha_tiles_threshold: float = 0.8,
                  use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.9,
                  ignore_tiles_without_labels: bool = False,
-                 ignore_black_white_alpha_tiles_threshold: float = 0.8,
                  geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None,
                  coco_n_workers: int = 5,
                  coco_categories_list: list[dict] = None):
-        """
-        raster_path: Path,
-            Path to the raster (.tif, .png...).
-        labels_path: Path,
-            Path to the labels (.geojson, .gpkg, .csv...).
-        output_path: Path,
-            Path to parent folder where to save the image tiles and associated labels.
-        tile_size: int,
-            The wanted size of the tiles (tile_size, tile_size).
-        tile_overlap: float,
-            The overlap between the tiles (should be 0 <= overlap < 1).
-        aois_config: AOIConfig or None,
-            An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
-        ground_resolution: float,
-            The ground resolution in meter per pixel desired when loading the raster.
-            Only one of ground_resolution and scale_factor can be set at the same time.
-        scale_factor: float,
-            Scale factor for rescaling the data (change pixel resolution).
-            Only one of ground_resolution and scale_factor can be set at the same time.
-        use_rle_for_labels: bool,
-            Whether to use RLE encoding for the labels. If False, the labels will be saved as polygons.
-        intersection_ratio: float,
-            When finding the associated labels to a tile, this ratio will specify the minimal required intersection
-            ratio between a candidate polygon and the tile in order to keep this polygon as a label for that tile.
-        ignore_tiles_without_labels: bool,
-            Whether to ignore (skip) tiles that don't have any associated labels.
-        geopackage_layer_name: str,
-            The name of the layer in the geopackage file to use as labels. Only used if the labels_path is a .gpkg, .geojson or .shp file.
-        ignore_black_white_alpha_tiles_threshold: bool,
-            Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
-        coco_n_workers: int,
-            Number of workers to use when generating the COCO dataset. Useful when use_rle_for_labels=True as it is quite slow.
-        coco_categories_list: dict,
-            A list of category dictionaries in COCO format. Exemple of dict:
-            {
-                "id": "8",
-                "name": "ABBA",
-                "other_names": [],
-                "supercategory": "",
-            }
-        """
+
         super().__init__(raster_path=raster_path,
                          output_path=output_path,
                          tile_size=tile_size,
@@ -87,7 +110,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                          output_name_suffix=output_name_suffix,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
 
-        self.labels_path = labels_path
+        self.labels_path = Path(labels_path)
         self.use_rle_for_labels = use_rle_for_labels
         self.min_intersection_ratio = min_intersection_ratio
         self.ignore_tiles_without_labels = ignore_tiles_without_labels
@@ -202,6 +225,9 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         return intersecting_labels_raster_coords, intersecting_labels_tiles_coords
 
     def generate_coco_dataset(self):
+        """
+        Generate the tiles and the COCO dataset(s) for each AOI (or for the 'all' AOI) and save everything to the disk.
+        """
         aois_tiles, aois_labels = self._get_tiles_and_labels_per_aoi()
 
         save_aois_tiles_picture(aois_tiles=aois_tiles,

@@ -11,7 +11,11 @@ GeoDataset documentation
    :maxdepth: 2
    :caption: Contents:
 
+   tilerize
+   aoi
+   dataset
+   aggregator
    geodata
-   aoi_config
-   raster_tilerizer
+   labels
+   utils
 

@@ -385,6 +385,11 @@ class AggregatorBase(ABC):
 
 
 class DetectorAggregator(AggregatorBase):
+    """
+    Class to aggregate detection polygons from multiple tiles, with different pixel coordinate systems,
+    into a single GeoDataFrame with a common CRS, applying the Non-Maximum Suppression (NMS) algorithm.
+    """
+
     polygon_type = 'box'
 
     def __init__(self,

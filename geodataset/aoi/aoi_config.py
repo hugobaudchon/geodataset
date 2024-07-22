@@ -30,11 +30,13 @@ class AOIFromPackageConfig(AOIConfig):
 
         for aoi_name in self.aois:
             aoi_path = self.aois[aoi_name]
-            assert type(aoi_name) is str, (
+            assert isinstance(aoi_name, str), (
                 f"The keys in aois should be string, for the name of the aoi (train, valid, test...)."
                 f" Found {aoi_name} which is not a string.")
-            assert type(aoi_path) in [Path, PosixPath, WindowsPath], \
-                f"The value associated to aoi {aoi_name} is not a pathlib.Path. Got value {type(aoi_path)}."
+            assert isinstance(aoi_path, (str, Path)), \
+                f"The value associated to aoi {aoi_name} is not a string or pathlib.Path. Got value {type(aoi_path)}."
+
+            self.aois[aoi_name] = Path(aoi_path)
 
 
 class AOIGeneratorConfig(AOIConfig):

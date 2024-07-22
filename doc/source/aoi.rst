@@ -1,4 +1,4 @@
-AOI Config (Area Of Interest)
+AOI (Area Of Interest)
 =============================
 
 .. automodule:: geodataset.aoi

@@ -26,7 +26,7 @@ class BaseRasterTilerizer(ABC):
         The size of the tiles in pixels (tile_size, tile_size).
     tile_overlap : float
         The overlap between the tiles (0 <= overlap < 1).
-    aois_config : AOIConfig or None, optional
+    aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
         An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
     ground_resolution : float, optional
         The ground resolution in meter per pixel desired when loading the raster.
@@ -177,7 +177,7 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
         The wanted size of the tiles (tile_size, tile_size).
     tile_overlap : float
         The overlap between the tiles (should be 0 <= overlap < 1).
-    aois_config : AOIConfig or None
+    aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
         An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
     ground_resolution : float
         The ground resolution in meter per pixel desired when loading the raster.
@@ -230,7 +230,7 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
         The wanted size of the tiles (tile_size, tile_size).
     tile_overlap : float
         The overlap between the tiles (should be 0 <= overlap < 1).
-    aois_config : AOIConfig or None
+    aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
         An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
     ground_resolution : float
         The ground resolution in meter per pixel desired when loading the raster.
@@ -307,7 +307,7 @@ class RasterTilerizerGDF(BaseRasterTilerizer):
         The size of the tiles in pixels (tile_size, tile_size).
     tile_overlap : float
         The overlap between the tiles (0 <= overlap < 1).
-    aois_config : AOIConfig or None, optional
+    aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
         An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
     ground_resolution : float, optional
         The ground resolution in meter per pixel desired when loading the raster.

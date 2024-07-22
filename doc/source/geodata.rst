@@ -1,5 +1,5 @@
 Geodata
-======
+=======
 
 .. autoclass:: geodataset.geodata.Raster
     :members:

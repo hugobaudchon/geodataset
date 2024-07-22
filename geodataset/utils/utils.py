@@ -200,6 +200,20 @@ def get_tiles_array(tiles: list, tile_coordinate_step: int):
     return array
 
 
+def try_cast_multipolygon_to_polygon(geometry):
+    if isinstance(geometry, Polygon):
+        return geometry
+    elif isinstance(geometry, MultiPolygon):
+        polygons = list(geometry.geoms)
+        if len(polygons) == 1:
+            return Polygon(polygons[0])
+        else:
+            return None
+    else:
+        # Return None if the geometry is neither Polygon nor MultiPolygon
+        return None
+
+
 def read_raster(path: Path, ground_resolution: float = None, scale_factor: float = None):
     assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
                                                       " Please only specify one.")

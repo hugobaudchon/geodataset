@@ -1,10 +1,6 @@
 Tilerizers
 =======================
 
-.. automodule:: geodataset.tilerize
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
 .. autoclass:: geodataset.tilerize.RasterTilerizer
     :members:
@@ -15,3 +11,10 @@ Tilerizers
     :members:
     :undoc-members:
     :show-inheritance:
+
+.. autoclass:: geodataset.tilerize.LabeledRasterTilerizer
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
