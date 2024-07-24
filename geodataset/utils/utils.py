@@ -24,9 +24,19 @@ from shapely.ops import transform
 from skimage.measure import find_contours
 
 
-def polygon_to_coco_coordinates(polygon: Polygon or MultiPolygon):
+def polygon_to_coco_coordinates_segmentation(polygon: Polygon or MultiPolygon):
     """
         Encodes a polygon into a list of coordinates supported by COCO.
+
+        Parameters
+        ----------
+        polygon: shapely.Polygon or shapely.MultiPolygon
+            The polygon to encode.
+
+        Returns
+        -------
+        list
+            A list of coordinates in the format expected by COCO.
     """
     if type(polygon) is Polygon:
         coordinates = [[coord for xy in polygon.exterior.coords[:-1] for coord in xy]]
@@ -43,6 +53,19 @@ def polygon_to_coco_coordinates(polygon: Polygon or MultiPolygon):
 def polygon_to_mask(polygon: Polygon or MultiPolygon, array_height: int, array_width: int) -> np.ndarray:
     """
     Encodes a Polygon or MultiPolygon object into a binary mask.
+
+    Parameters
+    polygon: Polygon or MultiPolygon
+        The polygon to encode.
+    array_height: int
+        The height of the array to encode the polygon into.
+    array_width: int
+        The width of the array to encode the polygon into.
+
+    Returns
+    -------
+    np.ndarray
+        A binary mask of the polygon.
     """
     binary_mask = np.zeros((array_height, array_width), dtype=np.uint8)
 
@@ -64,9 +87,19 @@ def polygon_to_mask(polygon: Polygon or MultiPolygon, array_height: int, array_w
     return binary_mask
 
 
-def polygon_to_coco_rle_mask(polygon: Polygon or MultiPolygon, tile_height: int, tile_width: int) -> dict:
+def polygon_to_coco_rle_segmentation(polygon: Polygon or MultiPolygon, tile_height: int, tile_width: int) -> dict:
     """
-    Encodes a Polygon or MultiPolygon object into an RLE mask.
+    Encodes a Polygon or MultiPolygon object into a COCO annotation RLE mask.
+
+    Parameters
+    ----------
+    polygon: Polygon or MultiPolygon
+        The polygon to encode.
+
+    Returns
+    -------
+    dict
+        A COCO RLE mask segmentation.
     """
     binary_mask = polygon_to_mask(polygon, tile_height, tile_width)
 
@@ -78,9 +111,19 @@ def polygon_to_coco_rle_mask(polygon: Polygon or MultiPolygon, tile_height: int,
     return rle
 
 
-def rle_segmentation_to_mask(segmentation: dict) -> np.ndarray:
+def coco_rle_segmentation_to_mask(segmentation: dict) -> np.ndarray:
     """
-    Decodes an RLE segmentation into a binary mask.
+    Decodes a COCO annotation RLE segmentation into a binary mask.
+
+    Parameters
+    ----------
+    segmentation: dict
+        The RLE segmentation to decode.
+
+    Returns
+    -------
+    np.ndarray
+        A binary mask of the segmentation.
     """
     # Decode the counts from base64
     if 'counts' in segmentation and isinstance(segmentation['counts'], str):
@@ -91,12 +134,22 @@ def rle_segmentation_to_mask(segmentation: dict) -> np.ndarray:
     return mask
 
 
-def rle_segmentation_to_bbox(segmentation: dict) -> box:
+def coco_rle_segmentation_to_bbox(segmentation: dict) -> box:
     """
-    Calculates the bounding box from a binary mask.
+    Calculates the bounding box from a COCO annotation RLE segmentation.
+
+    Parameters
+    ----------
+    segmentation: dict
+        The RLE segmentation to decode.
+
+    Returns
+    -------
+    shapely.box
+        A shapely box representing the bounding box of the segmentation.
     """
 
-    mask = rle_segmentation_to_mask(segmentation)
+    mask = coco_rle_segmentation_to_mask(segmentation)
 
     rows = np.any(mask, axis=1)
     cols = np.any(mask, axis=0)
@@ -111,13 +164,17 @@ def mask_to_polygon(mask: np.ndarray, simplify_tolerance: float = 1.0) -> Polygo
     Converts a 1HW mask to a simplified shapely Polygon by finding the contours of the mask
     and simplifying it.
 
-    Parameters:
-    - mask (np.ndarray): The mask to convert, in 1HW format.
-    - simplify_tolerance (float): The tolerance for simplifying the polygon. Higher values
-      result in more simplified shapes.
+    Parameters
+    ----------
+    mask: np.ndarray
+        The mask to convert, in 1HW format.
+    simplify_tolerance: float
+        The tolerance for simplifying the polygon. Higher values result in more simplified shapes.
 
-    Returns:
-    - Polygon: A simplified shapely Polygon object representing the outer boundary of the mask.
+    Returns
+    -------
+    Polygon
+     A simplified shapely Polygon object representing the outer boundary of the mask.
     """
     # Ensure mask is 2D
     if mask.ndim != 2:
@@ -149,9 +206,19 @@ def mask_to_polygon(mask: np.ndarray, simplify_tolerance: float = 1.0) -> Polygo
     return simplified_polygon
 
 
-def polygon_segmentation_to_polygon(segmentation: list) -> Polygon:
+def coco_coordinates_segmentation_to_polygon(segmentation: list) -> Polygon:
     """
-    Calculates the bounding box from a polygon.
+    Converts a list of polygon coordinates in COCO format to a shapely Polygon or MultiPolygon.
+
+    Parameters
+    ----------
+    segmentation: list
+        A list of coordinates in the format expected by COCO.
+
+    Returns
+    -------
+    Polygon
+        A shapely Polygon object representing the outer boundary of the polygon.
     """
     geoms = []
     for polygon_coords in segmentation:
@@ -167,20 +234,64 @@ def polygon_segmentation_to_polygon(segmentation: list) -> Polygon:
         return MultiPolygon(geoms)
 
 
-def polygon_segmentation_to_bbox(segmentation: list) -> box:
+def coco_coordinates_segmentation_to_bbox(segmentation: list) -> box:
     """
-    Calculates the bounding box from a polygon.
+    Calculates the bounding box from a polygon list of coordinates in COCO format.
+
+    Parameters
+    ----------
+    segmentation: list
+        A list of coordinates in the format expected by COCO.
+
+    Returns
+    -------
+    shapely.box
+        A shapely box representing the bounding box of the polygon.
     """
-    polygon = polygon_segmentation_to_polygon(segmentation)
+    polygon = coco_coordinates_segmentation_to_polygon(segmentation)
     return box(*polygon.bounds)
 
 
+def coco_rle_segmentation_to_polygon(segmentation):
+    """
+    Decodes a COCO annotation RLE segmentation into a shapely Polygon or MultiPolygon.
+
+    Parameters
+    ----------
+    segmentation: dict
+        The RLE segmentation to decode.
+
+    Returns
+    -------
+    Polygon or MultiPolygon
+        A shapely Polygon or MultiPolygon representing the segmentation.
+    """
+    # Decode the RLE
+    mask = coco_rle_segmentation_to_mask(segmentation)
+
+    # Find contours in the binary mask
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Initialize an empty list to hold the exterior coordinates of the polygons
+    polygons = []
+
+    for contour in contours:
+        # Ensure the contour is of a significant size
+        if len(contour) > 2:
+            # Flatten the array and convert to a list of tuples
+            contour = contour.flatten().tolist()
+            # Reshape the contour to obtain a sequence of coordinates
+            points = list(zip(contour[::2], contour[1::2]))
+            polygons.append(Polygon(points))
+
+    # Return the polygons (Note: This might be a list of polygons if there are multiple disconnected regions)
+    if len(polygons) == 1:
+        return polygons[0]  # Return the single polygon directly if there's only one
+    else:
+        return MultiPolygon(polygons)  # Return a GeoSeries of Polygons if there are multiple
+
+
 def get_tiles_array(tiles: list, tile_coordinate_step: int):
-    """
-    :param tiles: a list of Tile
-    :param tile_coordinate_step: usually = (1 - tile_overlap) * tile_size
-    :return: a binary grid array with 0 if no tile and 1 if tile
-    """
     numpy_coordinates = [(int(tile.row / tile_coordinate_step),
                           int(tile.col / tile_coordinate_step)) for tile in tiles]
 
@@ -215,6 +326,23 @@ def try_cast_multipolygon_to_polygon(geometry):
 
 
 def read_raster(path: Path, ground_resolution: float = None, scale_factor: float = None):
+    """
+    Read a raster file and rescale it if necessary.
+
+    Parameters
+    ----------
+    path: Path
+        The path to the raster file.
+    ground_resolution: float
+        The desired ground resolution in meters.
+    scale_factor: float
+        The desired scale factor to apply to the raster.
+
+    Returns
+    -------
+    np.ndarray
+        The (possibly resampled) raster pixels data.
+    """
     assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
                                                       " Please only specify one.")
 
@@ -291,9 +419,12 @@ def display_image_with_polygons(image: np.ndarray, polygons: List[shapely.Polygo
     """
     Display an image with polygons overlaid.
 
-    Parameters:
-    - image: A NumPy array representing the image.
-    - polygons: A list of polygons.
+    Parameters
+    ----------
+    image: np.ndarray
+        The image to display.
+    polygons: List[shapely.Polygon]
+        The polygons to overlay on the image.
     """
 
     # Automatically adjust the image shape if necessary
@@ -321,11 +452,14 @@ def save_aois_tiles_picture(aois_tiles: dict[str, list], save_path: Path, tile_c
     """
     Display the original array of 1s and 0s with specific coordinates highlighted.
 
-    Parameters:
-    :param aois_tiles: a dict of format {aoi: list[Tile]}, with aoi being 'train', 'valid'... Must have 'all' key.
-    :param save_path: the output Path.
-    :param tile_coordinate_step: usually = (1 - tile_overlap) * tile_size
-
+    Parameters
+    ----------
+    aois_tiles: dict
+        A dictionary of format {aoi: list[Tile]}, with aoi being 'train', 'valid'... Must have 'all' key.
+    save_path: Path
+        The output Path.
+    tile_coordinate_step: int
+        Usually = (1 - tile_overlap) * tile_size
     """
 
     # Copy the original array to avoid altering it
@@ -363,9 +497,19 @@ def save_aois_tiles_picture(aois_tiles: dict[str, list], save_path: Path, tile_c
     plt.savefig(save_path)
 
 
-def strip_all_extensions(path: Path):
+def strip_all_extensions(path: str or Path):
     """
     Strips all extensions from a given Path object or path string and returns the base name.
+
+    Parameters
+    ----------
+    path: str or Path
+        The path to strip extensions from.
+
+    Returns
+    -------
+    str
+        The base name of the file, with all extensions removed.
     """
     p = Path(path)
     while p.suffix:
@@ -374,6 +518,81 @@ def strip_all_extensions(path: Path):
 
 
 class COCOGenerator:
+    """
+    A class to generate a COCO dataset from a list of tiles and their associated polygons.
+    After instantiating the class, the :meth:`generate_coco` method should be used to generate and save the COCO
+    dataset.
+
+    Parameters
+    ----------
+    description: str
+        A description of the COCO dataset.
+    tiles_paths: List[Path]
+        A list of paths to the tiles/images.
+    polygons: List[List[Polygon]]
+        A list of lists of polygons associated with each tile.
+    scores: List[List[float]] or None
+        A list of lists of scores associated with each polygon.
+    categories: List[List[Union[str, int]]] or None
+        A list of lists of categories (str or int) associated with each polygon.
+    other_attributes: List[List[Dict]] or None
+        A list of lists of dictionaries of other attributes associated with each polygon.
+        Such a dict could be::
+
+            {
+                'attribute1': value1,
+                'attribute2': value2
+            }
+
+        .. raw:: html
+
+            <br>
+
+        **IMPORTANT**: the 'score' attribute is reserved for the score associated with the polygon.
+    output_path: Path
+        The path to save the COCO dataset JSON file (should have .json extension).
+    use_rle_for_labels: bool
+        Whether to use RLE encoding for the labels or not. If False, the polygon's exterior coordinates will be used.
+        RLE Encoding takes less space on disk but takes more time to encode.
+    n_workers: int
+        The number of workers to use for parallel processing.
+    coco_categories_list: List[dict] or None
+        A list of category dictionaries in COCO format. If a polygon has a category that is not in this list, its
+        category_id will be set to None in its COCO annotation. If 'coco_categories_list' is None, the categories ids
+        will be automatically generated from the unique categories found in the 'categories' parameter.
+
+        .. raw:: html
+
+            <br>
+
+        To assign a category_id to a polygon, the code will check the 'name' and 'other_names' fields of the categories.
+
+        .. raw:: html
+
+            <br>
+
+        **IMPORTANT**: It is strongly advised to provide this list if you want to have consistent category ids across
+        multiple COCO datasets.
+
+        .. raw:: html
+
+            <br>
+
+        Exemple of 2 categories, one being the parent of the other::
+
+            [{
+                "id": 1,
+                "name": "Pinaceae",
+                "other_names": [],
+                "supercategory": null
+            },
+            {
+                "id": 2,
+                "name": "Picea",
+                "other_names": ["PIGL", "PIMA", "PIRU"],
+                "supercategory": 1
+            }]
+    """
     def __init__(self,
                  description: str,
                  tiles_paths: List[Path],
@@ -413,6 +632,9 @@ class COCOGenerator:
             self.other_attributes = [[{'score': s} for s in tile_scores] for tile_scores in self.scores]
 
     def generate_coco(self):
+        """
+        Generate the COCO dataset from the provided tiles, polygons, scores and other metadata.
+        """
         categories_coco, category_to_id_map = self._generate_coco_categories()
 
         with ThreadPoolExecutor(self.n_workers) as pool:
@@ -493,12 +715,12 @@ class COCOGenerator:
                              other_attributes_dict: dict or None) -> dict:
         if use_rle_for_labels:
             # Convert the polygon to a COCO RLE mask
-            segmentation = polygon_to_coco_rle_mask(polygon=polygon,
-                                                    tile_height=tile_height,
-                                                    tile_width=tile_width)
+            segmentation = polygon_to_coco_rle_segmentation(polygon=polygon,
+                                                            tile_height=tile_height,
+                                                            tile_width=tile_width)
         else:
             # Convert the polygon's exterior coordinates to the format expected by COCO
-            segmentation = polygon_to_coco_coordinates(polygon=polygon)
+            segmentation = polygon_to_coco_coordinates_segmentation(polygon=polygon)
 
         # Calculate the area of the polygon
         area = polygon.area
@@ -577,36 +799,39 @@ def apply_affine_transform(geom: shapely.geometry, affine: rasterio.Affine):
     return transform(lambda x, y: affine * (x, y), geom)
 
 
-def decode_rle_to_polygon(segmentation):
-    # Decode the RLE
-    mask = rle_segmentation_to_mask(segmentation)
-
-    # Find contours in the binary mask
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Initialize an empty list to hold the exterior coordinates of the polygons
-    polygons = []
-
-    for contour in contours:
-        # Ensure the contour is of a significant size
-        if len(contour) > 2:
-            # Flatten the array and convert to a list of tuples
-            contour = contour.flatten().tolist()
-            # Reshape the contour to obtain a sequence of coordinates
-            points = list(zip(contour[::2], contour[1::2]))
-            polygons.append(Polygon(points))
-
-    # Return the polygons (Note: This might be a list of polygons if there are multiple disconnected regions)
-    if len(polygons) == 1:
-        return polygons[0]  # Return the single polygon directly if there's only one
-    else:
-        return MultiPolygon(polygons)  # Return a GeoSeries of Polygons if there are multiple
-
-
 def coco_to_geopackage(coco_json_path: str,
                        images_directory: str,
                        convert_to_crs_coordinates: bool,
                        geopackage_output_path: str or None):
+    """
+    Converts a COCO JSON dataset into a GeoDataFrame, then saved if needed as a GeoPackage file.
+
+    The resulting GeoDataFrame (or GeoPackage if saved) will have the following columns:
+
+    - geometry: The polygon geometry
+    - tile_id: The ID of the tile the polygon belongs to
+    - tile_path: The path to the tile image
+    - category_id: The ID of the category of the polygon
+    - category_name: The name of the category of the polygon
+    - any other attributes found in the 'other_attributes' field of the COCO JSON annotations
+
+    Parameters
+    ----------
+    coco_json_path: str
+        The path to the COCO JSON dataset (.json).
+    images_directory: str
+        The directory containing the images associated with the COCO dataset.
+    convert_to_crs_coordinates: bool
+        Whether to convert the polygon pixel coordinates to a common CRS (uses the CRS of the first .tif tile).
+    geopackage_output_path: str or None
+        The path to save the GeoPackage file. If None, the GeoPackage file will not be saved to the disk.
+
+    Returns
+    -------
+    GeoDataFrame
+        A GeoDataFrame containing the polygons from the COCO dataset
+    """
+
     # Load COCO JSON
     with open(coco_json_path, 'r') as file:
         coco_data = json.load(file)
@@ -635,9 +860,9 @@ def coco_to_geopackage(coco_json_path: str,
         for annotation in tile_annotations:
             # Check if segmentation data is in RLE format; if so, decode it
             if annotation.get('is_rle_format', False) or isinstance(annotation['segmentation'], dict):
-                polygon = decode_rle_to_polygon(segmentation=annotation['segmentation'])
+                polygon = coco_rle_segmentation_to_polygon(segmentation=annotation['segmentation'])
             else:
-                polygon = polygon_segmentation_to_polygon(segmentation=annotation['segmentation'])
+                polygon = coco_coordinates_segmentation_to_polygon(segmentation=annotation['segmentation'])
             polygons.append(polygon)
 
         gdf = gpd.GeoDataFrame({
@@ -688,6 +913,22 @@ def coco_to_geopackage(coco_json_path: str,
 
 
 def tiles_polygons_gdf_to_crs_gdf(dataframe: gpd.GeoDataFrame):
+    """
+    Converts a GeoDataFrame of polygons from multiple tiles to a common CRS.
+    The dataframe passed must have a 'tile_path' column containing the path to the tile image, as the function
+    needs to read each tile metadata to get their respective CRS.
+
+    Parameters
+    ----------
+    dataframe: GeoDataFrame
+        The GeoDataFrame containing the polygons from multiple tiles.
+
+    Returns
+    -------
+    GeoDataFrame
+        A GeoDataFrame containing the polygons in a common CRS.
+    """
+
     assert 'tile_path' in dataframe.columns, "The GeoDataFrame must contain a 'tile_path' column."
 
     # get the first tile_path

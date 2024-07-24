@@ -7,7 +7,7 @@ import rasterio
 from shapely import box
 
 from geodataset.dataset.base_dataset import BaseDataset, BaseLabeledRasterCocoDataset
-from geodataset.utils import rle_segmentation_to_bbox, polygon_segmentation_to_bbox, rle_segmentation_to_mask
+from geodataset.utils import coco_rle_segmentation_to_bbox, coco_coordinates_segmentation_to_bbox, coco_rle_segmentation_to_mask
 
 
 class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
@@ -83,10 +83,10 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
                 segmentation = label['segmentation']
                 if ('is_rle_format' in label and label['is_rle_format']) or isinstance(segmentation, dict):
                     # RLE format
-                    bbox = rle_segmentation_to_bbox(segmentation)
+                    bbox = coco_rle_segmentation_to_bbox(segmentation)
                 elif ('is_rle_format' in label and not label['is_rle_format']) or isinstance(segmentation, list):
                     # Polygon (coordinates) format
-                    bbox = polygon_segmentation_to_bbox(segmentation)
+                    bbox = coco_coordinates_segmentation_to_bbox(segmentation)
                 else:
                     raise NotImplementedError("Could not find the segmentation type (RLE vs polygon coordinates).")
 

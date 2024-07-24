@@ -64,19 +64,42 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         Number of workers to use when generating the COCO dataset.
         Useful when use_rle_for_labels=True as it is quite slow.
     coco_categories_list : list of dict, optional
-        A list of category dictionaries in COCO format. Exemple of 2 categories, one being the parent of the other:
-        [{
-            "id": 1,
-            "name": "Pinaceae",
-            "other_names": [],
-            "supercategory": null
-        },
-        {
-            "id": 2,
-            "name": "Picea",
-            "other_names": ["PIGL", "PIMA", "PIRU"],
-            "supercategory": 1
-        }]
+        A list of category dictionaries in COCO format. If a polygon has a category (label in
+        'main_label_category_column_name') that is not in this list, its category_id will be set to None in its COCO
+        annotation. If 'coco_categories_list' is None, the categories ids will be automatically generated from the
+        unique categories found in the 'main_label_category_column_name' column.
+
+        .. raw:: html
+
+            <br>
+
+        To assign a category_id to a polygon, the code will check the 'name' and 'other_names' fields of the categories.
+
+        .. raw:: html
+
+            <br>
+
+        **IMPORTANT**: It is strongly advised to provide this list if you want to have consistent category ids across
+        multiple COCO datasets.
+
+        .. raw:: html
+
+            <br>
+
+        Exemple of 2 categories, one being the parent of the other::
+
+            [{
+                "id": 1,
+                "name": "Pinaceae",
+                "other_names": [],
+                "supercategory": null
+            },
+            {
+                "id": 2,
+                "name": "Picea",
+                "other_names": ["PIGL", "PIMA", "PIRU"],
+                "supercategory": 1
+            }]
 
     """
 
