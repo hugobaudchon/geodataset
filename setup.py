@@ -1,8 +1,10 @@
+import versioneer
 from setuptools import setup, find_packages
 
 setup(
     name='geodataset',
-    version='0.0.2',
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     packages=find_packages(),
     package_data={
         '': ['utils/categories/*/*.json', 'utils/aois/*/*.geojson', 'utils/aois/*/*.gpkg']
