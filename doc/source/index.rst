@@ -3,19 +3,20 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-GeoDataset documentation
-========================
+Welcome to GeoDataset's documentation!
+======================================
 
+This package provide essential tools for cutting rasters and their labels into smaller tiles, useful for machine learning tasks. Also provides datasets compatible with pytorch.
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :hidden:
 
-   tilerize
-   aoi
-   dataset
-   aggregator
-   geodata
-   labels
-   utils
+   Examples <examples>
+   API Documentation <api_documentation>
 
+.. raw:: html
+
+   <div class="button-container">
+       <a href="examples.html" class="button">Examples</a>
+       <a href="api_documentation.html" class="button">API Documentation</a>
+   </div>

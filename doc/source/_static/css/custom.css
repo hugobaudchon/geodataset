@@ -1,0 +1,56 @@
+/* Hide the 'Next' arrow */
+.rst-footer-buttons {
+    display: none;
+}
+
+.wy-side-nav-search {
+    background-color: #388E3C;
+}
+
+.wy-side-nav-search .icon-home {
+    color: white;
+}
+
+.button-container {
+    display: flex;
+    justify-content: space-around; /* Or use space-between for more spacing */
+    margin-top: 20px;
+}
+
+.button {
+    display: inline-block;
+    padding: 20px 40px; /* Increased padding for bigger buttons */
+    margin: 10px;
+    font-size: 18px; /* Larger font size */
+    font-weight: bold;
+    text-align: center;
+    text-decoration: none;
+    color: #4CAF50; /* Green color for text */
+    background-color: white; /* White background */
+    border: 2px solid #4CAF50; /* Green border */
+    border-radius: 10px; /* Slightly larger border radius for a more rounded look */
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.button:hover {
+    background-color: #4CAF50; /* Green background on hover */
+    color: white; /* White text on hover */
+}
+
+
+a {
+    color: #4CAF50;  /* Green color for links */
+}
+
+a:visited {
+    color: #4CAF50;  /* Green color for visited links */
+}
+
+a:hover {
+    color: #388E3C;  /* Darker green for hover */
+}
+
+a:active {
+    color: #388E3C;  /* Darker green for active state */
+}
+
