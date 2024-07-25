@@ -6,17 +6,17 @@
 Welcome to GeoDataset's documentation!
 ======================================
 
-This package provide essential tools for cutting rasters and their labels into smaller tiles, useful for machine learning tasks. Also provides datasets compatible with pytorch.
+This package provides essential tools for cutting rasters and their labels into smaller tiles, useful for machine learning tasks. Also provides datasets compatible with pytorch.
 
 .. toctree::
    :hidden:
 
    Examples <examples>
-   API Documentation <api_documentation>
+   Documentation <documentation>
 
 .. raw:: html
 
    <div class="button-container">
        <a href="examples.html" class="button">Examples</a>
-       <a href="api_documentation.html" class="button">API Documentation</a>
+       <a href="documentation.html" class="button">Documentation</a>
    </div>
