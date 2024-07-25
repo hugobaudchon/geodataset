@@ -12,7 +12,7 @@ pip install git+ssh://git@github.com/hugobaudchon/geodataset.git
 
 ### Documentation
 
-Documentation can be found here:
+Documentation can be found here: https://hugobaudchon.github.io/geodataset/
 
 ## License
 
