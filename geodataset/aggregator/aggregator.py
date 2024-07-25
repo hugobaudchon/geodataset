@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import rasterio
 import shapely
-from shapely import box, Polygon, MultiPolygon, GeometryCollection
+from shapely import box, Polygon, MultiPolygon
 import geopandas as gpd
 from tqdm import tqdm
 
