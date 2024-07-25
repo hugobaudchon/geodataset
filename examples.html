@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Examples &mdash; GeoDataset  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="_static/css/custom.css?v=a4895fdd" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="_static/doctools.js?v=9a2dae69"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Documentation" href="documentation.html" />
+    <link rel="prev" title="Welcome to GeoDataset’s documentation!" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            GeoDataset
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#area-of-interest">Area of Interest</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#unlabeled-raster">Unlabeled Raster</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#labeled-raster">Labeled Raster</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dataset">Dataset</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="documentation.html">Documentation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">GeoDataset</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Examples</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/examples.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="examples">
+<h1>Examples<a class="headerlink" href="#examples" title="Link to this heading"></a></h1>
+<section id="area-of-interest">
+<h2>Area of Interest<a class="headerlink" href="#area-of-interest" title="Link to this heading"></a></h2>
+<p>In order to provide more flexibility when tilerizing a raster, geodataset supports areas of interest (AOI).
+2 types of AOIs configs are supported: AOIGeneratorConfig and AOIFromPackageConfig.
+These configs can then be passed to the tilerizers to divide the raster into groups of tiles for each AOI.</p>
+<p>Specifying an AOI config for a Tilerizer is optional.
+If no AOI config is passed to the Tilerizer, all the tiles will be kept in a single ‘all’ dataset.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">geodataset.aoi</span> <span class="kn">import</span> <span class="n">AOIFromPackageConfig</span><span class="p">,</span> <span class="n">AOIGeneratorConfig</span>
+
+<span class="c1"># Automatically creates AOIs based on the percentage of tiles that should be in each AOI.</span>
+<span class="c1"># The &#39;position&#39; value can be None (random) or a unique value between 1 and n_aois, to force the AOIs to specific bands/corners.</span>
+<span class="n">aoi_gen_config</span> <span class="o">=</span> <span class="n">AOIGeneratorConfig</span><span class="p">(</span>
+    <span class="n">aoi_type</span><span class="o">=</span><span class="s1">&#39;band&#39;</span><span class="p">,</span>     <span class="c1"># currently supports &#39;band&#39; and &#39;corner&#39;</span>
+    <span class="n">aois</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;train&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;percentage&#39;</span><span class="p">:</span> <span class="mf">0.7</span><span class="p">,</span> <span class="s1">&#39;position&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span>
+          <span class="s1">&#39;valid&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;percentage&#39;</span><span class="p">:</span> <span class="mf">0.15</span><span class="p">,</span> <span class="s1">&#39;position&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span>
+          <span class="s1">&#39;test&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;percentage&#39;</span><span class="p">:</span> <span class="mf">0.15</span><span class="p">,</span> <span class="s1">&#39;position&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">}</span>
+          <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># AOIs are provided as polygons in geopackages (.gpkg, .geojson or .shp)</span>
+<span class="n">aoi_gpkg_config</span> <span class="o">=</span> <span class="n">AOIFromPackageConfig</span><span class="p">(</span>
+    <span class="n">aois</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;train&#39;</span><span class="p">:</span> <span class="n">Path</span><span class="p">(</span><span class="s1">&#39;QGIS_projects/train_aoi.shp&#39;</span><span class="p">),</span>
+          <span class="s1">&#39;valid&#39;</span><span class="p">:</span> <span class="n">Path</span><span class="p">(</span><span class="s1">&#39;QGIS_projects/valid_aoi.shp&#39;</span><span class="p">),</span>
+          <span class="s1">&#39;test&#39;</span><span class="p">:</span> <span class="n">Path</span><span class="p">(</span><span class="s1">&#39;Data/raw/quebec_trees_dataset_2021-09-02/inference_zone.gpkg&#39;</span><span class="p">)</span>
+          <span class="p">}</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="unlabeled-raster">
+<h2>Unlabeled Raster<a class="headerlink" href="#unlabeled-raster" title="Link to this heading"></a></h2>
+<p>The class RasterTilerizer can tilerize a raster, without labels. The tiles are then stored in the output_path/tiles.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">geodataset.tilerize</span> <span class="kn">import</span> <span class="n">RasterTilerizer</span>
+
+<span class="n">tilerizer</span> <span class="o">=</span> <span class="n">RasterTilerizer</span><span class="p">(</span>
+    <span class="n">raster_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;/Data/raw/wwf_ecuador/RGB Orthomosaics/Carlos Vera Arteaga RGB.tif&#39;</span><span class="p">),</span>
+    <span class="n">output_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;/Data/pre_processed/test&#39;</span><span class="p">),</span>
+    <span class="n">tile_size</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span>
+    <span class="n">tile_overlap</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+    <span class="n">aois_config</span><span class="o">=</span><span class="n">aoi_gen_config</span><span class="p">,</span>
+    <span class="n">ground_resolution</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>                          <span class="c1"># optional, scale_factor must be None if used.</span>
+    <span class="n">scale_factor</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>                                <span class="c1"># optional, ground_resolution must be None if used.</span>
+    <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="mf">0.8</span>     <span class="c1"># optional</span>
+<span class="p">)</span>
+
+<span class="n">tilerizer</span><span class="o">.</span><span class="n">generate_tiles</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The class RasterTilerizerGDF can tilerize a raster, without labels, and return the tiles as boxes in a GeoDataFrame. It does not output anything to the disk.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">geodataset.tilerize</span> <span class="kn">import</span> <span class="n">RasterTilerizerGDF</span>
+
+<span class="n">tilerizer</span> <span class="o">=</span> <span class="n">RasterTilerizerGDF</span><span class="p">(</span>
+    <span class="n">raster_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;/Data/raw/wwf_ecuador/RGB Orthomosaics/Carlos Vera Arteaga RGB.tif&#39;</span><span class="p">),</span>
+    <span class="n">tile_size</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span>
+    <span class="n">tile_overlap</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+    <span class="n">aois_config</span><span class="o">=</span><span class="n">aoi_gen_config</span><span class="p">,</span>
+    <span class="n">ground_resolution</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>                          <span class="c1"># optional, scale_factor must be None if used.</span>
+    <span class="n">scale_factor</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>                                <span class="c1"># optional, ground_resolution must be None if used.</span>
+    <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="mf">0.8</span>     <span class="c1"># optional</span>
+<span class="p">)</span>
+
+<span class="n">tiles_boxes_gdf</span> <span class="o">=</span> <span class="n">tilerizer</span><span class="o">.</span><span class="n">generate_tiles_gdf</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="labeled-raster">
+<h2>Labeled Raster<a class="headerlink" href="#labeled-raster" title="Link to this heading"></a></h2>
+<p>The class LabeledRasterTilerizer can tilerize a raster and its labels (.gpkg, .geojson, .shp, .csv and .xml).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">geodataset.tilerize</span> <span class="kn">import</span> <span class="n">LabeledRasterTilerizer</span>
+
+<span class="n">tilerizer</span> <span class="o">=</span> <span class="n">LabeledRasterTilerizer</span><span class="p">(</span>
+    <span class="n">raster_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;Data/raw/quebec_trees_dataset_2021-09-02/2021-09-02/zone1/2021-09-02-sbl-z1-rgb-cog.tif&#39;</span><span class="p">),</span>
+    <span class="n">labels_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;Data/raw/quebec_trees_dataset_2021-09-02/Z1_polygons.gpkg&#39;</span><span class="p">),</span>
+    <span class="n">output_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;Data/pre_processed/test&#39;</span><span class="p">),</span>
+    <span class="n">tile_size</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span>
+    <span class="n">tile_overlap</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+    <span class="n">aois_config</span><span class="o">=</span><span class="n">aoi_gpkg_config</span><span class="p">,</span>
+    <span class="n">ground_resolution</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>                          <span class="c1"># optional, scale_factor must be None if used.</span>
+    <span class="n">scale_factor</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>                                <span class="c1"># optional, ground_resolution must be None if used.</span>
+    <span class="n">use_rle_for_labels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                         <span class="c1"># optional</span>
+    <span class="n">min_intersection_ratio</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span>                      <span class="c1"># optional</span>
+    <span class="n">ignore_tiles_without_labels</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>               <span class="c1"># optional</span>
+    <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>    <span class="c1"># optional</span>
+    <span class="n">main_label_category_column_name</span><span class="o">=</span><span class="s1">&#39;Label&#39;</span><span class="p">,</span>         <span class="c1"># optional</span>
+    <span class="n">other_labels_attributes_column_names</span><span class="o">=</span><span class="kc">None</span>        <span class="c1"># optional</span>
+<span class="p">)</span>
+
+<span class="n">tilerizer</span><span class="o">.</span><span class="n">generate_coco_dataset</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="dataset">
+<h2>Dataset<a class="headerlink" href="#dataset" title="Link to this heading"></a></h2>
+<p>Geodataset provides the DetectionLabeledRasterCocoDataset and SegmentationLabeledRasterCocoDataset classes which given a single or a list of root folder(s), will recursively go into each subdirectory and parse the COCO json files matching a specific ‘fold’,
+and the associated images paths.</p>
+<p>There is also a DetectionUnlabeledRasterDataset class which only loads tiles (useful for inference, where we don’t have labels, or for pre-training a model in a self-supervised manner).</p>
+<p>These classes can then be directly used with a torch Dataloader.</p>
+<p>You can also provide an albumentation transform (optional) to the dataset classes to augment the data when training a model.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">geodataset.dataset</span> <span class="kn">import</span> <span class="n">DetectionLabeledRasterCocoDataset</span><span class="p">,</span> <span class="n">SegmentationLabeledRasterCocoDataset</span><span class="p">,</span> <span class="n">UnlabeledRasterDataset</span>
+<span class="kn">import</span> <span class="nn">albumentations</span> <span class="k">as</span> <span class="nn">A</span>
+
+<span class="n">augment_transform</span> <span class="o">=</span> <span class="n">A</span><span class="o">.</span><span class="n">Compose</span><span class="p">([</span>
+            <span class="n">A</span><span class="o">.</span><span class="n">HorizontalFlip</span><span class="p">(),</span>
+            <span class="n">A</span><span class="o">.</span><span class="n">VerticalFlip</span><span class="p">(),</span>
+        <span class="p">],</span>
+            <span class="n">bbox_params</span><span class="o">=</span><span class="n">A</span><span class="o">.</span><span class="n">BboxParams</span><span class="p">(</span>
+                <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;pascal_voc&#39;</span><span class="p">,</span>
+                <span class="n">label_fields</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">],</span>
+                <span class="n">min_area</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span>
+                <span class="n">min_visibility</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span>
+            <span class="p">))</span>
+
+<span class="c1"># Labeled Detection Dataset</span>
+<span class="n">detection_train_ds</span> <span class="o">=</span> <span class="n">DetectionLabeledRasterCocoDataset</span><span class="p">(</span>
+    <span class="n">root_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;Data/pre_processed/all_datasets&#39;</span><span class="p">),</span>
+    <span class="n">fold</span><span class="o">=</span><span class="s2">&quot;train&quot;</span><span class="p">,</span>
+    <span class="n">transform</span><span class="o">=</span><span class="n">augment_transform</span>
+<span class="p">)</span>
+
+<span class="c1"># Labeled Segmentation Dataset</span>
+<span class="n">segmentation_valid_ds</span> <span class="o">=</span> <span class="n">SegmentationLabeledRasterCocoDataset</span><span class="p">(</span>
+    <span class="n">root_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;Data/pre_processed/all_datasets&#39;</span><span class="p">),</span>
+    <span class="n">fold</span><span class="o">=</span><span class="s2">&quot;valid&quot;</span><span class="p">,</span>
+    <span class="n">transform</span><span class="o">=</span><span class="kc">None</span>
+<span class="p">)</span>
+
+<span class="c1"># Unlabeled Dataset (useful for inference or unsupervised pre-training)</span>
+<span class="n">unlabeled_infer_ds</span> <span class="o">=</span> <span class="n">UnlabeledRasterDataset</span><span class="p">(</span>
+    <span class="n">root_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;Data/pre_processed/inference_data&#39;</span><span class="p">),</span>
+    <span class="n">fold</span><span class="o">=</span><span class="s2">&quot;infer&quot;</span><span class="p">,</span>     <span class="c1"># assuming the tiles were tilerized using an aoi &#39;infer&#39; instead of &#39;train&#39;, &#39;valid&#39;...</span>
+    <span class="n">transform</span><span class="o">=</span><span class="kc">None</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Welcome to GeoDataset’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="documentation.html" class="btn btn-neutral float-right" title="Documentation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Hugo Baudchon.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
