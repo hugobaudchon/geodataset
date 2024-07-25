@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import rasterio.windows
 import geopandas as gpd
-from shapely import Polygon, box
+from shapely import box
 from shapely.affinity import translate
 from shapely.geometry import Polygon
 

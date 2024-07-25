@@ -1,7 +1,6 @@
 from typing import Dict, List
 
 import geopandas as gpd
-from matplotlib import pyplot as plt
 from shapely import Polygon
 
 from shapely.affinity import translate

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from pathlib import Path, WindowsPath, PosixPath
+from pathlib import Path
 
 
 class AOIConfig(ABC):
