@@ -12,6 +12,15 @@ class AOIConfig(ABC):
 
 
 class AOIFromPackageConfig(AOIConfig):
+    """
+    Configuration class for AOIFromPackage.
+
+    Parameters
+    ----------
+    aois: dict
+        A dictionary containing the name of the AOI as key and the path to the AOI (.gpkg, .geojson...) as value.
+    """
+
     def __init__(self, aois: dict):
         super().__init__(aois=aois)
         self._check_config()
@@ -21,14 +30,28 @@ class AOIFromPackageConfig(AOIConfig):
 
         for aoi_name in self.aois:
             aoi_path = self.aois[aoi_name]
-            assert type(aoi_name) is str, (
+            assert isinstance(aoi_name, str), (
                 f"The keys in aois should be string, for the name of the aoi (train, valid, test...)."
                 f" Found {aoi_name} which is not a string.")
-            assert type(aoi_path) in [Path, PosixPath, WindowsPath], \
-                f"The value associated to aoi {aoi_name} is not a pathlib.Path. Got value {type(aoi_path)}."
+            assert isinstance(aoi_path, (str, Path)), \
+                f"The value associated to aoi {aoi_name} is not a string or pathlib.Path. Got value {type(aoi_path)}."
+
+            self.aois[aoi_name] = Path(aoi_path)
 
 
 class AOIGeneratorConfig(AOIConfig):
+    """
+    Configuration class for AOIGenerator.
+
+    Parameters
+    ----------
+    aoi_type: str
+        The type of AOI to generate. Supported values are 'band' and 'corner'.
+    aois: dict
+        A dictionary containing the name(s) of the AOI(s) as key and the position and percentage of the AOI as value:
+        {key: {'position': int (unique integer going from 1 to n_aois), 'percentage': float}}
+    """
+
     SUPPORTED_AOI_TYPES = ['band', 'corner']
 
     def __init__(self, aoi_type: str, aois: dict):

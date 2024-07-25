@@ -19,9 +19,12 @@ class PolygonTilerizer:
                  labels_path: Path,
                  output_path: Path,
                  tile_size: int,
+                 use_variable_tile_size: bool,
+                 variable_tile_size_pixel_buffer: int or None,
                  aois_config: AOIFromPackageConfig or None,
                  ground_resolution: float or None,
                  scale_factor: float or None,
+                 output_name_suffix: str = None,
                  use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.5,
                  geopackage_layer_name: str = None,
@@ -35,7 +38,10 @@ class PolygonTilerizer:
         self.labels_path = labels_path
         self.output_path = output_path
         self.tile_size = tile_size
+        self.use_variable_tile_size = use_variable_tile_size
+        self.variable_tile_size_pixel_buffer = variable_tile_size_pixel_buffer
         self.aois_config = aois_config
+        self.output_name_suffix = output_name_suffix
         self.use_rle_for_labels = use_rle_for_labels
         self.min_intersection_ratio = min_intersection_ratio
         self.coco_n_workers = coco_n_workers
@@ -44,6 +50,10 @@ class PolygonTilerizer:
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
                                                           " Please only specify one.")
+
+        if use_variable_tile_size:
+            assert variable_tile_size_pixel_buffer, "A variable_tile_size_pixel_buffer must be provided if use_variable_tile_size is True."
+
         self.scale_factor = scale_factor
         self.ground_resolution = ground_resolution
 
@@ -54,12 +64,13 @@ class PolygonTilerizer:
             other_labels_attributes_column_names=other_labels_attributes_column_names
         )
 
-        self.output_path = output_path / self.raster.product_name
+        self.output_path = output_path / self.raster.output_name
         self.tiles_folder_path = self.output_path / 'tiles'
         self.tiles_folder_path.mkdir(parents=True, exist_ok=True)
 
     def _load_raster(self):
         raster = Raster(path=self.raster_path,
+                        output_name_suffix=self.output_name_suffix,
                         ground_resolution=self.ground_resolution,
                         scale_factor=self.scale_factor)
         return raster
@@ -120,7 +131,9 @@ class PolygonTilerizer:
                 polygon_tile, translated_polygon = self.raster.get_polygon_tile(
                     polygon=polygon,
                     polygon_id=polygon_row['geometry_id'],
-                    tile_size=self.tile_size
+                    tile_size=self.tile_size,
+                    use_variable_tile_size=self.use_variable_tile_size,
+                    variable_tile_size_pixel_buffer=self.variable_tile_size_pixel_buffer
                 )
 
                 tiles_batch.append(polygon_tile)
@@ -180,7 +193,7 @@ class PolygonTilerizer:
                 if self.labels.other_labels_attributes_column_names else None
 
             coco_output_file_path = self.output_path / CocoNameConvention.create_name(
-                product_name=self.raster.product_name,
+                product_name=self.raster.output_name,
                 ground_resolution=self.ground_resolution,
                 scale_factor=self.scale_factor,
                 fold=aoi
@@ -189,7 +202,7 @@ class PolygonTilerizer:
             print(f"Generating COCO dataset for AOI {aoi}... "
                   f"(it might take a little while to save tiles and encode masks)")
             coco_generator = COCOGenerator(
-                description=f"Dataset for the product {self.raster.product_name}"
+                description=f"Dataset for the product {self.raster.output_name}"
                             f" with fold {aoi}"
                             f" and scale_factor {self.scale_factor}"
                             f" and ground_resolution {self.ground_resolution}.",

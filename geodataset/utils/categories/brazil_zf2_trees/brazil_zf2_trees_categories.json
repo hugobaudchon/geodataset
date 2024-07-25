@@ -1,0 +1,1964 @@
+{
+    "categories": [
+        {
+            "id": 1,
+            "name": "Fabaceae",
+            "global_id": 5386,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 2,
+            "name": "Elaeocarpaceae",
+            "global_id": 2435,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 3,
+            "name": "Moraceae",
+            "global_id": 6640,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 4,
+            "name": "Goupiaceae",
+            "global_id": 3760957,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 5,
+            "name": "Sapotaceae",
+            "global_id": 8802,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 6,
+            "name": "Lauraceae",
+            "global_id": 6688,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 7,
+            "name": "Malvaceae",
+            "global_id": 6685,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 8,
+            "name": "Chrysobalanaceae",
+            "global_id": 9111,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 9,
+            "name": "Humiriaceae",
+            "global_id": 3231239,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 10,
+            "name": "Apocynaceae",
+            "global_id": 6701,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 11,
+            "name": "Urticaceae",
+            "global_id": 6639,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 12,
+            "name": "Burseraceae",
+            "global_id": 6659,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 13,
+            "name": "Myrtaceae",
+            "global_id": 5014,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 14,
+            "name": "Caryocaraceae",
+            "global_id": 6647,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 15,
+            "name": "Vochysiaceae",
+            "global_id": 3231623,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 16,
+            "name": "Lecythidaceae",
+            "global_id": 3990,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 17,
+            "name": "Anacardiaceae",
+            "global_id": 2398,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 18,
+            "name": "Arecaceae",
+            "global_id": 7681,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 19,
+            "name": "Annonaceae",
+            "global_id": 9291,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 20,
+            "name": "Cannabaceae",
+            "global_id": 2384,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 21,
+            "name": "Myristicaceae",
+            "global_id": 2439,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 22,
+            "name": "Clusiaceae",
+            "global_id": 6646,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 23,
+            "name": "Euphorbiaceae",
+            "global_id": 4691,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 24,
+            "name": "Simaroubaceae",
+            "global_id": 2395,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 25,
+            "name": "Bignoniaceae",
+            "global_id": 6655,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 26,
+            "name": "Melastomataceae",
+            "global_id": 6683,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 27,
+            "name": "Rubiaceae",
+            "global_id": 8798,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 28,
+            "name": "Nyctaginaceae",
+            "global_id": 6718,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 29,
+            "name": "Cordiaceae",
+            "global_id": 4930453,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 30,
+            "name": "Combretaceae",
+            "global_id": 2431,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 31,
+            "name": "Hymenaea",
+            "global_id": 2950720,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 32,
+            "name": "Tachigali",
+            "global_id": 2945125,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 33,
+            "name": "Vatairea",
+            "global_id": 2965112,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 34,
+            "name": "Inga",
+            "global_id": 2965936,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 35,
+            "name": "Stryphnodendron",
+            "global_id": 2951701,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 36,
+            "name": "Dinizia",
+            "global_id": 2946970,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 37,
+            "name": "Hymenolobium",
+            "global_id": 2951886,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 38,
+            "name": "Macrolobium",
+            "global_id": 2948748,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 39,
+            "name": "Parkia",
+            "global_id": 2943936,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 40,
+            "name": "Zygia",
+            "global_id": 2939650,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 41,
+            "name": "Swartzia",
+            "global_id": 9512750,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 42,
+            "name": "Dimorphandra",
+            "global_id": 2974262,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 43,
+            "name": "Schizolobium",
+            "global_id": 2945452,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 44,
+            "name": "Peltogyne",
+            "global_id": 2952686,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 45,
+            "name": "Pseudopiptadenia",
+            "global_id": 2952898,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 46,
+            "name": "Andira",
+            "global_id": 2952146,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 47,
+            "name": "Sloanea",
+            "global_id": 3152097,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 2
+        },
+        {
+            "id": 48,
+            "name": "Clarisia",
+            "global_id": 3231711,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 3
+        },
+        {
+            "id": 49,
+            "name": "Ficus",
+            "global_id": 2984588,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 3
+        },
+        {
+            "id": 50,
+            "name": "Brosimum",
+            "global_id": 2984656,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 3
+        },
+        {
+            "id": 51,
+            "name": "Goupia",
+            "global_id": 7340133,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 4
+        },
+        {
+            "id": 52,
+            "name": "Micropholis",
+            "global_id": 2887381,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 5
+        },
+        {
+            "id": 53,
+            "name": "Pouteria",
+            "global_id": 2884049,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 5
+        },
+        {
+            "id": 54,
+            "name": "Chromolucuma",
+            "global_id": 2883684,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 5
+        },
+        {
+            "id": 55,
+            "name": "Chrysophyllum",
+            "global_id": 2885576,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 5
+        },
+        {
+            "id": 56,
+            "name": "Manilkara",
+            "global_id": 2885024,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 5
+        },
+        {
+            "id": 57,
+            "name": "Ocotea",
+            "global_id": 3034076,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 6
+        },
+        {
+            "id": 58,
+            "name": "Aniba",
+            "global_id": 3034086,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 6
+        },
+        {
+            "id": 59,
+            "name": "Sextonia",
+            "global_id": 3234674,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 6
+        },
+        {
+            "id": 60,
+            "name": "Scleronema",
+            "global_id": 2860807,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 7
+        },
+        {
+            "id": 61,
+            "name": "Licania",
+            "global_id": 2985250,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 8
+        },
+        {
+            "id": 62,
+            "name": "Gaulettia",
+            "global_id": 9611517,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 8
+        },
+        {
+            "id": 63,
+            "name": "Hymenopus",
+            "global_id": 9714684,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 8
+        },
+        {
+            "id": 64,
+            "name": "Couepia",
+            "global_id": 2984768,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 8
+        },
+        {
+            "id": 65,
+            "name": "Vantanea",
+            "global_id": 7158977,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 9
+        },
+        {
+            "id": 66,
+            "name": "Sacoglottis",
+            "global_id": 7320134,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 9
+        },
+        {
+            "id": 67,
+            "name": "Aspidosperma",
+            "global_id": 7316607,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 10
+        },
+        {
+            "id": 68,
+            "name": "Geissospermum",
+            "global_id": 7316751,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 10
+        },
+        {
+            "id": 69,
+            "name": "Couma",
+            "global_id": 7316606,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 10
+        },
+        {
+            "id": 70,
+            "name": "Pourouma",
+            "global_id": 7316388,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 11
+        },
+        {
+            "id": 71,
+            "name": "Cecropia",
+            "global_id": 2984472,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 11
+        },
+        {
+            "id": 72,
+            "name": "Protium",
+            "global_id": 7286732,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 12
+        },
+        {
+            "id": 73,
+            "name": "Myrcia",
+            "global_id": 3173889,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 13
+        },
+        {
+            "id": 74,
+            "name": "Caryocar",
+            "global_id": 3189661,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 14
+        },
+        {
+            "id": 75,
+            "name": "Qualea",
+            "global_id": 7288308,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 15
+        },
+        {
+            "id": 76,
+            "name": "Ruizterania",
+            "global_id": 7288310,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 15
+        },
+        {
+            "id": 77,
+            "name": "Erisma",
+            "global_id": 3231629,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 15
+        },
+        {
+            "id": 78,
+            "name": "Cariniana",
+            "global_id": 3083017,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 16
+        },
+        {
+            "id": 79,
+            "name": "Lecythis",
+            "global_id": 3082348,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 16
+        },
+        {
+            "id": 80,
+            "name": "Couratari",
+            "global_id": 3083098,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 16
+        },
+        {
+            "id": 81,
+            "name": "Eschweilera",
+            "global_id": 3083183,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 16
+        },
+        {
+            "id": 82,
+            "name": "Corythophora",
+            "global_id": 1829280,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 16
+        },
+        {
+            "id": 83,
+            "name": "Tapirira",
+            "global_id": 7321529,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 17
+        },
+        {
+            "id": 84,
+            "name": "Anacardium",
+            "global_id": 5421367,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 17
+        },
+        {
+            "id": 85,
+            "name": "Campnosperma",
+            "global_id": 7160813,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 17
+        },
+        {
+            "id": 86,
+            "name": "Oenocarpus",
+            "global_id": 2735438,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 18
+        },
+        {
+            "id": 87,
+            "name": "Manicaria",
+            "global_id": 2735043,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 18
+        },
+        {
+            "id": 88,
+            "name": "Guatteria",
+            "global_id": 3155604,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 19
+        },
+        {
+            "id": 89,
+            "name": "Xylopia",
+            "global_id": 3157015,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 19
+        },
+        {
+            "id": 90,
+            "name": "Ampelocera",
+            "global_id": 7303603,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 20
+        },
+        {
+            "id": 91,
+            "name": "Iryanthera",
+            "global_id": 3743006,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 21
+        },
+        {
+            "id": 92,
+            "name": "Virola",
+            "global_id": 3152843,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 21
+        },
+        {
+            "id": 93,
+            "name": "Garcinia",
+            "global_id": 3189556,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 22
+        },
+        {
+            "id": 94,
+            "name": "Symphonia",
+            "global_id": 8233185,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 22
+        },
+        {
+            "id": 95,
+            "name": "Rhodothyrsus",
+            "global_id": 8420953,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 23
+        },
+        {
+            "id": 96,
+            "name": "Hevea",
+            "global_id": 3071157,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 23
+        },
+        {
+            "id": 97,
+            "name": "Micrandropsis",
+            "global_id": 3072432,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 23
+        },
+        {
+            "id": 98,
+            "name": "Micrandra",
+            "global_id": 5378802,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 23
+        },
+        {
+            "id": 99,
+            "name": "Alchorneopsis",
+            "global_id": 7410955,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 23
+        },
+        {
+            "id": 100,
+            "name": "Simarouba",
+            "global_id": 3190668,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 24
+        },
+        {
+            "id": 101,
+            "name": "Handroanthus",
+            "global_id": 6401269,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 25
+        },
+        {
+            "id": 102,
+            "name": "Mouriri",
+            "global_id": 3188623,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 26
+        },
+        {
+            "id": 103,
+            "name": "Neea",
+            "global_id": 3086079,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 28
+        },
+        {
+            "id": 104,
+            "name": "Cordia",
+            "global_id": 12370745,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 29
+        },
+        {
+            "id": 105,
+            "name": "Terminalia",
+            "global_id": 3189387,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 30
+        },
+        {
+            "id": 106,
+            "name": "Hymenaea intermedia",
+            "global_id": 2950734,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 31
+        },
+        {
+            "id": 107,
+            "name": "Tachigali glauca",
+            "global_id": 3969458,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 32
+        },
+        {
+            "id": 108,
+            "name": "Tachigali setifera",
+            "global_id": 3932197,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 32
+        },
+        {
+            "id": 109,
+            "name": "Tachigali venusta",
+            "global_id": 2945173,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 32
+        },
+        {
+            "id": 110,
+            "name": "Vatairea paraensis",
+            "global_id": 2965115,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 33
+        },
+        {
+            "id": 111,
+            "name": "Inga cordatoalata",
+            "global_id": 5357823,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 34
+        },
+        {
+            "id": 112,
+            "name": "Stryphnodendron guianense",
+            "global_id": 2951742,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 35
+        },
+        {
+            "id": 113,
+            "name": "Stryphnodendron racemiferum",
+            "global_id": 2951710,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 35
+        },
+        {
+            "id": 114,
+            "name": "Macrolobium limbatum",
+            "global_id": 2948901,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 38
+        },
+        {
+            "id": 115,
+            "name": "Parkia pendula",
+            "global_id": 7366936,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 39
+        },
+        {
+            "id": 116,
+            "name": "Parkia pectinata",
+            "global_id": 5348878,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 39
+        },
+        {
+            "id": 117,
+            "name": "Zygia racemosa",
+            "global_id": 5580471,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 40
+        },
+        {
+            "id": 118,
+            "name": "Dimorphandra parviflora",
+            "global_id": 2974283,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 42
+        },
+        {
+            "id": 119,
+            "name": "Schizolobium parahyba",
+            "global_id": 2945453,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 43
+        },
+        {
+            "id": 120,
+            "name": "Peltogyne excelsa",
+            "global_id": 2952723,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 44
+        },
+        {
+            "id": 121,
+            "name": "Pseudopiptadenia psilostachya",
+            "global_id": 2952915,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 45
+        },
+        {
+            "id": 122,
+            "name": "Andira parviflora",
+            "global_id": 2952165,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 46
+        },
+        {
+            "id": 123,
+            "name": "Sloanea schomburgkii",
+            "global_id": 5651186,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 47
+        },
+        {
+            "id": 124,
+            "name": "Sloanea guianensis",
+            "global_id": 7291059,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 47
+        },
+        {
+            "id": 125,
+            "name": "Clarisia racemosa",
+            "global_id": 5572170,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 48
+        },
+        {
+            "id": 126,
+            "name": "Brosimum lactescens",
+            "global_id": 3763127,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 50
+        },
+        {
+            "id": 127,
+            "name": "Goupia glabra",
+            "global_id": 3760960,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 51
+        },
+        {
+            "id": 128,
+            "name": "Pouteria guianensis",
+            "global_id": 7485884,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 53
+        },
+        {
+            "id": 129,
+            "name": "Chrysophyllum sanguinolentum",
+            "global_id": 2885779,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 55
+        },
+        {
+            "id": 130,
+            "name": "Ocotea argyrophylla",
+            "global_id": 4177527,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 57
+        },
+        {
+            "id": 131,
+            "name": "Aniba williamsii",
+            "global_id": 4180088,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 58
+        },
+        {
+            "id": 132,
+            "name": "Sextonia rubra",
+            "global_id": 5685352,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 59
+        },
+        {
+            "id": 133,
+            "name": "Scleronema micranthum",
+            "global_id": 8363369,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 60
+        },
+        {
+            "id": 134,
+            "name": "Licania gracilipes",
+            "global_id": 2985420,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 61
+        },
+        {
+            "id": 135,
+            "name": "Licania octandra",
+            "global_id": 2985495,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 61
+        },
+        {
+            "id": 136,
+            "name": "Gaulettia elata",
+            "global_id": 9246577,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 62
+        },
+        {
+            "id": 137,
+            "name": "Hymenopus oblongifolius",
+            "global_id": 10687606,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 63
+        },
+        {
+            "id": 138,
+            "name": "Couepia obovata",
+            "global_id": 2984827,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 64
+        },
+        {
+            "id": 139,
+            "name": "Couepia guianensis",
+            "global_id": 2984823,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 64
+        },
+        {
+            "id": 140,
+            "name": "Vantanea parviflora",
+            "global_id": 7320149,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 65
+        },
+        {
+            "id": 141,
+            "name": "Sacoglottis guianensis",
+            "global_id": 7320147,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 66
+        },
+        {
+            "id": 142,
+            "name": "Aspidosperma desmanthum",
+            "global_id": 3618792,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 67
+        },
+        {
+            "id": 143,
+            "name": "Aspidosperma spruceanum",
+            "global_id": 3616705,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 67
+        },
+        {
+            "id": 144,
+            "name": "Aspidosperma excelsum",
+            "global_id": 3618555,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 67
+        },
+        {
+            "id": 145,
+            "name": "Geissospermum argenteum",
+            "global_id": 3616489,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 68
+        },
+        {
+            "id": 146,
+            "name": "Pourouma ovata",
+            "global_id": 4013587,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 70
+        },
+        {
+            "id": 147,
+            "name": "Pourouma villosa",
+            "global_id": 4013258,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 70
+        },
+        {
+            "id": 148,
+            "name": "Pourouma guianensis",
+            "global_id": 7316407,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 70
+        },
+        {
+            "id": 149,
+            "name": "Cecropia purpurascens",
+            "global_id": 7718049,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 71
+        },
+        {
+            "id": 150,
+            "name": "Cecropia sciadophylla",
+            "global_id": 7316424,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 71
+        },
+        {
+            "id": 151,
+            "name": "Protium aracouchini",
+            "global_id": 7286738,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 72
+        },
+        {
+            "id": 152,
+            "name": "Protium apiculatum",
+            "global_id": 3992474,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 72
+        },
+        {
+            "id": 153,
+            "name": "Myrcia rufipila",
+            "global_id": 3174068,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 73
+        },
+        {
+            "id": 154,
+            "name": "Caryocar pallidum",
+            "global_id": 3826012,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 74
+        },
+        {
+            "id": 155,
+            "name": "Caryocar glabrum",
+            "global_id": 3826026,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 74
+        },
+        {
+            "id": 156,
+            "name": "Qualea paraensis",
+            "global_id": 4030655,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 75
+        },
+        {
+            "id": 157,
+            "name": "Ruizterania albiflora",
+            "global_id": 9177044,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 76
+        },
+        {
+            "id": 158,
+            "name": "Erisma bicolor",
+            "global_id": 7288311,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 77
+        },
+        {
+            "id": 159,
+            "name": "Cariniana micrantha",
+            "global_id": 3083044,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 78
+        },
+        {
+            "id": 160,
+            "name": "Lecythis zabucajo",
+            "global_id": 3082500,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 79
+        },
+        {
+            "id": 161,
+            "name": "Lecythis prancei",
+            "global_id": 3082439,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 79
+        },
+        {
+            "id": 162,
+            "name": "Eschweilera truncata",
+            "global_id": 3083360,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 81
+        },
+        {
+            "id": 163,
+            "name": "Tapirira guianensis",
+            "global_id": 7321555,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 83
+        },
+        {
+            "id": 164,
+            "name": "Anacardium spruceanum",
+            "global_id": 5544228,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 84
+        },
+        {
+            "id": 165,
+            "name": "Campnosperma gummifera",
+            "global_id": 3662081,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 85
+        },
+        {
+            "id": 166,
+            "name": "Oenocarpus bacaba",
+            "global_id": 2735454,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 86
+        },
+        {
+            "id": 167,
+            "name": "Oenocarpus bataua",
+            "global_id": 2735462,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 86
+        },
+        {
+            "id": 168,
+            "name": "Manicaria saccifera",
+            "global_id": 2735044,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 87
+        },
+        {
+            "id": 169,
+            "name": "Guatteria olivacea",
+            "global_id": 3155760,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 88
+        },
+        {
+            "id": 170,
+            "name": "Xylopia benthamii",
+            "global_id": 3157191,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 89
+        },
+        {
+            "id": 171,
+            "name": "Ampelocera edentula",
+            "global_id": 4160141,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 90
+        },
+        {
+            "id": 172,
+            "name": "Iryanthera hostmannii",
+            "global_id": 3743981,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 91
+        },
+        {
+            "id": 173,
+            "name": "Garcinia madruno",
+            "global_id": 3713863,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 93
+        },
+        {
+            "id": 174,
+            "name": "Symphonia globulifera",
+            "global_id": 8185162,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 94
+        },
+        {
+            "id": 175,
+            "name": "Rhodothyrsus macrophyllus",
+            "global_id": 3055303,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 95
+        },
+        {
+            "id": 176,
+            "name": "Hevea guianensis",
+            "global_id": 3071199,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 96
+        },
+        {
+            "id": 177,
+            "name": "Micrandropsis scleroxylon",
+            "global_id": 3072433,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 97
+        },
+        {
+            "id": 178,
+            "name": "Alchorneopsis floribunda",
+            "global_id": 3055091,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 99
+        },
+        {
+            "id": 179,
+            "name": "Handroanthus serratifolius",
+            "global_id": 4092017,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 101
+        },
+        {
+            "id": 180,
+            "name": "Cordia goeldiana",
+            "global_id": 5662127,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 104
+        },
+        {
+            "id": 181,
+            "name": "Peraceae",
+            "global_id": 4896765,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 182,
+            "name": "Solanaceae",
+            "global_id": 7717,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 183,
+            "name": "Salicaceae",
+            "global_id": 6664,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 184,
+            "name": "Malpighiaceae",
+            "global_id": 6676,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 185,
+            "name": "Dichapetalaceae",
+            "global_id": 3231311,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 186,
+            "name": "Dipteryx",
+            "global_id": 2947121,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 187,
+            "name": "Jupunba",
+            "global_id": 7266089,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 188,
+            "name": "Pterocarpus",
+            "global_id": 5349236,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 189,
+            "name": "Pradosia",
+            "global_id": 2883827,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 5
+        },
+        {
+            "id": 190,
+            "name": "Maquira",
+            "global_id": 7262473,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 3
+        },
+        {
+            "id": 191,
+            "name": "Astronium",
+            "global_id": 7321564,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 17
+        },
+        {
+            "id": 192,
+            "name": "Endopleura",
+            "global_id": 6549373,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 9
+        },
+        {
+            "id": 193,
+            "name": "Pera",
+            "global_id": 3231319,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 181
+        },
+        {
+            "id": 194,
+            "name": "Duckeodendron",
+            "global_id": 4077945,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 182
+        },
+        {
+            "id": 195,
+            "name": "Simaba",
+            "global_id": 7941937,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 24
+        },
+        {
+            "id": 196,
+            "name": "Picrolemma",
+            "global_id": 7329574,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 24
+        },
+        {
+            "id": 197,
+            "name": "Croton",
+            "global_id": 3057454,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 23
+        },
+        {
+            "id": 198,
+            "name": "Euterpe",
+            "global_id": 2733546,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 18
+        },
+        {
+            "id": 199,
+            "name": "Tetragastris",
+            "global_id": 3190462,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 12
+        },
+        {
+            "id": 200,
+            "name": "Piparea",
+            "global_id": 7274133,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 183
+        },
+        {
+            "id": 201,
+            "name": "Duguetia",
+            "global_id": 3157467,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 19
+        },
+        {
+            "id": 202,
+            "name": "Fusaea",
+            "global_id": 3158135,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 19
+        },
+        {
+            "id": 203,
+            "name": "Bocageopsis",
+            "global_id": 3156935,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 19
+        },
+        {
+            "id": 204,
+            "name": "Bellucia",
+            "global_id": 3866386,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 26
+        },
+        {
+            "id": 205,
+            "name": "Byrsonima",
+            "global_id": 3191347,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 184
+        },
+        {
+            "id": 206,
+            "name": "Duroia",
+            "global_id": 2892076,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 27
+        },
+        {
+            "id": 207,
+            "name": "Tapura",
+            "global_id": 7309868,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 185
+        },
+        {
+            "id": 208,
+            "name": "Eschweilera wachenheimii",
+            "global_id": 3083225,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 81
+        },
+        {
+            "id": 209,
+            "name": "Eschweilera collina",
+            "global_id": 3083260,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 81
+        },
+        {
+            "id": 210,
+            "name": "Corythophora rimosa",
+            "global_id": 5383884,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 82
+        },
+        {
+            "id": 211,
+            "name": "Couratari guianensis",
+            "global_id": 3083111,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 80
+        },
+        {
+            "id": 212,
+            "name": "Stryphnodendron pulcherrimum",
+            "global_id": 2951702,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 35
+        },
+        {
+            "id": 213,
+            "name": "Andira micrantha",
+            "global_id": 2952210,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 46
+        },
+        {
+            "id": 214,
+            "name": "Dipteryx punctata",
+            "global_id": 2947145,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 186
+        },
+        {
+            "id": 215,
+            "name": "Jupunba trapezifolia",
+            "global_id": 2977861,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 187
+        },
+        {
+            "id": 216,
+            "name": "Pterocarpus officinalis",
+            "global_id": 5349333,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 188
+        },
+        {
+            "id": 217,
+            "name": "Swartzia schomburgkii",
+            "global_id": 5352119,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 41
+        },
+        {
+            "id": 218,
+            "name": "Pouteria freitasii",
+            "global_id": 2884194,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 53
+        },
+        {
+            "id": 219,
+            "name": "Pouteria venosa",
+            "global_id": 2884608,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 53
+        },
+        {
+            "id": 220,
+            "name": "Pouteria cladantha",
+            "global_id": 2884943,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 53
+        },
+        {
+            "id": 221,
+            "name": "Pouteria oblanceolata",
+            "global_id": 2884862,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 53
+        },
+        {
+            "id": 222,
+            "name": "Pouteria anomala",
+            "global_id": 2884642,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 53
+        },
+        {
+            "id": 223,
+            "name": "Pradosia decipiens",
+            "global_id": 2883871,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 189
+        },
+        {
+            "id": 224,
+            "name": "Brosimum rubescens",
+            "global_id": 3762826,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 50
+        },
+        {
+            "id": 225,
+            "name": "Brosimum parinarioides",
+            "global_id": 3762924,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 50
+        },
+        {
+            "id": 226,
+            "name": "Brosimum potabile",
+            "global_id": 3762892,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 50
+        },
+        {
+            "id": 227,
+            "name": "Maquira sclerophylla",
+            "global_id": 3763651,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 190
+        },
+        {
+            "id": 228,
+            "name": "Astronium lecointei",
+            "global_id": 7321583,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 191
+        },
+        {
+            "id": 229,
+            "name": "Anacardium parvifolium",
+            "global_id": 5544253,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 84
+        },
+        {
+            "id": 230,
+            "name": "Couepia canomensis",
+            "global_id": 2984880,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 64
+        },
+        {
+            "id": 231,
+            "name": "Pera bicolor",
+            "global_id": 5614965,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 193
+        },
+        {
+            "id": 232,
+            "name": "Duckeodendron cestroides",
+            "global_id": 4077946,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 194
+        },
+        {
+            "id": 233,
+            "name": "Simaba guianensis",
+            "global_id": 7329562,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 195
+        },
+        {
+            "id": 234,
+            "name": "Picrolemma sprucei",
+            "global_id": 3708755,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 196
+        },
+        {
+            "id": 235,
+            "name": "Croton matourensis",
+            "global_id": 3058007,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 197
+        },
+        {
+            "id": 236,
+            "name": "Neea floribunda",
+            "global_id": 3701462,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 103
+        },
+        {
+            "id": 237,
+            "name": "Euterpe precatoria",
+            "global_id": 5293425,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 198
+        },
+        {
+            "id": 238,
+            "name": "Sloanea pubescens",
+            "global_id": 5651278,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 47
+        },
+        {
+            "id": 239,
+            "name": "Tetragastris panamensis",
+            "global_id": 7286863,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 199
+        },
+        {
+            "id": 240,
+            "name": "Piparea multiflora",
+            "global_id": 3878690,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 200
+        },
+        {
+            "id": 241,
+            "name": "Fusaea longifolia",
+            "global_id": 3158137,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 202
+        },
+        {
+            "id": 242,
+            "name": "Bocageopsis multiflora",
+            "global_id": 3156936,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 203
+        },
+        {
+            "id": 243,
+            "name": "Bellucia grossularioides",
+            "global_id": 3866649,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 204
+        },
+        {
+            "id": 244,
+            "name": "Byrsonima poeppigiana",
+            "global_id": 7285470,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 205
+        },
+        {
+            "id": 245,
+            "name": "Tapura amazonica",
+            "global_id": 7309881,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 207
+        }
+    ]
+}

@@ -13,15 +13,14 @@ from shapely import box, Polygon, MultiPolygon, GeometryCollection
 import geopandas as gpd
 from tqdm import tqdm
 
-from geodataset.utils import TileNameConvention, apply_affine_transform, COCOGenerator, decode_rle_to_polygon
+from geodataset.utils import TileNameConvention, apply_affine_transform, COCOGenerator, coco_rle_segmentation_to_polygon
 
 
 class AggregatorBase(ABC):
-    SUPPORTED_POLYGON_TYPES = ['box', 'segmentation']
-    SUPPORTED_NMS_ALGORITHMS = ['iou', 'diou']
+    SUPPORTED_NMS_ALGORITHMS = ['iou']  # 'diou'
 
     def __init__(self,
-                 output_path: Path,
+                 output_path: str or Path,
                  polygons_gdf: gpd.GeoDataFrame,
                  scores_names: List[str],
                  scores_weights: List[float],
@@ -31,7 +30,7 @@ class AggregatorBase(ABC):
                  nms_threshold: float = 0.8,
                  nms_algorithm: str = 'iou'):
 
-        self.output_path = output_path
+        self.output_path = Path(output_path)
         self.polygons_gdf = polygons_gdf
         self.scores_names = scores_names
         self.scores_weights = scores_weights
@@ -42,11 +41,11 @@ class AggregatorBase(ABC):
         self.nms_algorithm = nms_algorithm
 
         self._check_parameters()
-        self.validate_polygons()
-        self.prepare_scores()
-        self.remove_low_score_polygons()
-        self.apply_nms_algorithm()
-        self.save_polygons()
+        self._validate_polygons()
+        self._prepare_scores()
+        self._remove_low_score_polygons()
+        self._apply_nms_algorithm()
+        self._save_polygons()
 
     def _check_parameters(self):
         assert self.polygons_gdf.crs, "The provided polygons_gdf doesn't have a CRS."
@@ -85,8 +84,11 @@ class AggregatorBase(ABC):
                 ymin = annotation['bbox'][1]
                 ymax = annotation['bbox'][1] + annotation['bbox'][3]
                 annotation_polygon = box(xmin, ymin, xmax, ymax)
+            elif polygon_type == 'segmentation':
+                annotation_polygon = coco_rle_segmentation_to_polygon(annotation['segmentation'])
             else:
-                annotation_polygon = decode_rle_to_polygon(annotation['segmentation'])
+                raise Exception(f"The polygon_type '{polygon_type}' is not supported. "
+                                f"Supported values are ['box', 'segmentation'].")
 
             scores = {}
             warn_scores_not_found = []
@@ -120,7 +122,7 @@ class AggregatorBase(ABC):
                                          f" in tiles_folder_path='{tiles_folder_path}'")
             tile_ids_to_path[image['id']] = image_path
 
-        all_polygons_gdf, all_tiles_extents_gdf = AggregatorBase.prepare_polygons(
+        all_polygons_gdf, all_tiles_extents_gdf = AggregatorBase._prepare_polygons(
             tile_ids_to_path=tile_ids_to_path,
             tile_ids_to_polygons=tile_ids_to_polygons,
             tile_ids_to_scores=tile_ids_to_scores)
@@ -137,6 +139,51 @@ class AggregatorBase(ABC):
                       score_threshold: float = 0.1,
                       nms_threshold: float = 0.8,
                       nms_algorithm: str = 'iou'):
+
+        """
+        Instanciate and run an Aggregator from a list of polygons for each tile.
+
+        Parameters
+        ----------
+        output_path: str or Path
+            The filename where to save the aggregated polygons.
+            '.gpkg', '.geojson' are supported, as well as '.json' for COCO format.
+        tiles_paths: List[Path]
+            The list of paths to the tiles.
+        polygons: List[List[Polygon]]
+            A list of lists of polygons, where each list of polygons corresponds to a tile.
+        scores: List[List[float]] or Dict[str, List[List[float]]]
+            It can be a list of lists of floats if only 1 set of scores is passed, where each list of floats corresponds
+            to a tile.
+
+            It can also be a dictionary of lists of lists of floats if multiple types of scores are passed, example::
+
+                {
+                    'detection_score': [[0.1, 0.2, ...], [0.2, 0.5, ...], ...],
+                    'segmentation_score': [[0.4, 0.2, ...], [0.8, 0.9, ...], ...]
+                }
+
+            This is useful if you have multiple scores for each polygon, such as detection confidence score and
+            segmentation confidence score.
+        scores_weights: Dict[str, float]
+            The weights to apply to each score column in the polygons_gdf. Weights are exponents.
+            Only used if 'scores' is a dict and has more than 1 key (more than 1 set of scores).
+            There keys of the dict should be the same as the keys of the 'scores' dict.
+
+            The equation is::
+
+                score = (score1 ** weight1) * (score2 ** weight2) * ...
+        score_threshold: float
+            The threshold under which polygons will be removed.
+        nms_threshold: float
+            The threshold for the Non-Maximum Suppression algorithm.
+        nms_algorithm: str
+            The Non-Maximum Suppression algorithm to use. Supported values are ['iou'].
+
+        Returns
+        -------
+        AggregatorBase instance (DetectorAggregator or SegmentationAggregator...)
+        """
 
         assert len(tiles_paths) == len(polygons), ("The number of tiles_paths must be equal than the number of lists "
                                                    "in polygons (one list of polygons per tile).")
@@ -163,7 +210,7 @@ class AggregatorBase(ABC):
                 id_scores[score_name] = score_values[tile_id]
             tile_ids_to_scores[tile_id] = id_scores
 
-        all_polygons_gdf, all_tiles_extents_gdf = AggregatorBase.prepare_polygons(
+        all_polygons_gdf, all_tiles_extents_gdf = AggregatorBase._prepare_polygons(
             tile_ids_to_path=tile_ids_to_path,
             tile_ids_to_polygons=tile_ids_to_polygons,
             tile_ids_to_scores=tile_ids_to_scores)
@@ -179,7 +226,7 @@ class AggregatorBase(ABC):
                    tile_ids_to_path=tile_ids_to_path)
 
     @staticmethod
-    def prepare_polygons(tile_ids_to_path: dict, tile_ids_to_polygons: dict, tile_ids_to_scores: dict):
+    def _prepare_polygons(tile_ids_to_path: dict, tile_ids_to_polygons: dict, tile_ids_to_scores: dict):
         images_without_crs = 0
         all_gdfs_polygons = []
         all_gdfs_tiles_extents = []
@@ -234,7 +281,7 @@ class AggregatorBase(ABC):
 
         return all_polygons_gdf, all_tiles_extents_gdf
 
-    def validate_polygons(self):
+    def _validate_polygons(self):
         def fix_geometry(geom):
             if not geom.is_valid:
                 fixed_geom = geom.buffer(0)
@@ -243,7 +290,7 @@ class AggregatorBase(ABC):
 
         self.polygons_gdf['geometry'] = self.polygons_gdf['geometry'].astype(object).apply(fix_geometry)
 
-    def prepare_scores(self):
+    def _prepare_scores(self):
         self.polygons_gdf['score'] = [(s if s else 0) ** self.scores_weights[0] for s in
                                       self.polygons_gdf[self.scores_names[0]]]
         for score_name, score_weight in zip(self.scores_names[1:], self.scores_weights[1:]):
@@ -253,7 +300,7 @@ class AggregatorBase(ABC):
         self.polygons_gdf['score'] = (self.polygons_gdf['score'] - self.polygons_gdf['score'].min()) / \
                                      (self.polygons_gdf['score'].max() - self.polygons_gdf['score'].min())
 
-    def remove_low_score_polygons(self):
+    def _remove_low_score_polygons(self):
         if self.score_threshold:
             if "score" in self.polygons_gdf and self.polygons_gdf["score"].any():
                 n_before = len(self.polygons_gdf)
@@ -270,7 +317,7 @@ class AggregatorBase(ABC):
                      f" make sure you also pass the associated list of scores for each tile.")
 
     @staticmethod
-    def calculate_iou_for_geometry(gdf, geometry):
+    def _calculate_iou_for_geometry(gdf, geometry):
         """
         Calculate the IoU between a single geometry and all geometries in a GeoDataFrame.
 
@@ -293,7 +340,7 @@ class AggregatorBase(ABC):
         return iou_values
 
     @staticmethod
-    def calculate_centroid_distance(gdf, geometry):
+    def _calculate_centroid_distance(gdf, geometry):
         """
         Calculate the distance between the centroid of each geometry in a GeoDataFrame and another single geometry.
 
@@ -316,12 +363,12 @@ class AggregatorBase(ABC):
 
         return distances
 
-    def apply_nms_algorithm(self):
+    def _apply_nms_algorithm(self):
         n_before = len(self.polygons_gdf)
         if self.nms_algorithm == "iou":
-            self.apply_iou_nms_algorithm()
+            self._apply_iou_nms_algorithm()
         if self.nms_algorithm == "diou":
-            self.apply_diou_nms_algorithm()
+            self._apply_diou_nms_algorithm()
 
             # TODO add support for adapative-nms: https://arxiv.org/pdf/1904.03629.pdf
 
@@ -330,18 +377,20 @@ class AggregatorBase(ABC):
               f" by applying the Non-Maximum Suppression-{self.nms_algorithm} algorithm.")
 
     @abstractmethod
-    def apply_iou_nms_algorithm(self):
+    def _apply_iou_nms_algorithm(self):
         pass
 
     @abstractmethod
-    def apply_diou_nms_algorithm(self):
+    def _apply_diou_nms_algorithm(self):
         pass
 
-    def save_polygons(self):
+    def _save_polygons(self):
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self.output_path.suffix == '.geojson':
             self.polygons_gdf.to_file(str(self.output_path), driver="GeoJSON")
+        elif self.output_path.suffix == '.gpkg':
+            self.polygons_gdf.to_file(str(self.output_path), driver="GPKG")
         elif self.output_path.suffix == '.json':
             tiles_ids = self.polygons_gdf['tile_id'].unique()
 
@@ -385,10 +434,15 @@ class AggregatorBase(ABC):
 
 
 class DetectorAggregator(AggregatorBase):
-    polygon_type = 'box'
+    """
+    Class to aggregate detection polygons from multiple tiles, with different pixel coordinate systems,
+    into a single GeoDataFrame with a common CRS, applying the Non-Maximum Suppression (NMS) algorithm.
+
+    This class should be instantiated using the 'from_coco' or 'from_polygons' class methods.
+    """
 
     def __init__(self,
-                 output_path: Path,
+                 output_path: str or Path,
                  polygons_gdf: gpd.GeoDataFrame,
                  scores_names: List[str],
                  scores_weights: List[float],
@@ -413,11 +467,71 @@ class DetectorAggregator(AggregatorBase):
                   output_path: Path,
                   tiles_folder_path: Path,
                   coco_json_path: Path,
+                  scores_names: List[str] = None,
+                  scores_weights: List[float] = None,
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
-                  nms_algorithm: str = 'iou',
-                  scores_names: List[str] = None,
-                  scores_weights: List[float] = None):
+                  nms_algorithm: str = 'iou'):
+
+        """
+        Instanciate and run a DetectorAggregator from a COCO JSON file.
+        The polygons will be read from the coco_json_path, and the tiles will be read from the tiles_folder_path.
+
+        Parameters
+        ----------
+        output_path: str or Path
+            The filename where to save the aggregated polygons.
+            '.gpkg', '.geojson' are supported, as well as '.json' for COCO format.
+        tiles_folder_path: Path
+            The folder where the tiles are stored.
+        coco_json_path: Path
+            The path to the COCO JSON file.
+        scores_names: List[str]
+            The names of the attributes in the COCO file annotations which should be used as scores.
+            The code will look directly in the COCO annotations for these keys,
+            and will also look in the 'other_attributes' key if the key is not found directly in the annotation.
+
+            For example, if score_names = ['detection_score'], the 'detection_score' attribute can be in 2 different
+            places in each COCO annotation::
+
+                "annotations": [
+                    {
+                        "id": 1,
+                        "image_id": 1,
+                        "category_id": 1,
+                        "segmentation": {
+                            "counts": "eNpjYBBgUD8rgjQmInZMmB0A",
+                            "size": [224, 224]
+                        },
+                        "area": 10000.0,
+                        "bbox": [100.0, 100.0, 100.0, 100.0],
+                        "iscrowd": 0,
+                        "detection_score": 0.8      # <- directly in the annotation
+                        "other_attributes": {
+                            "detection_score": 0.8  # <- in the 'other_attributes' key
+                        }
+                    },
+                    ...
+                ]
+
+        scores_weights: List[float]
+            The weights to apply to each score column in the polygons_gdf. Weights are exponents.
+            There should be as many weights as there are scores_names.
+
+            The equation is::
+
+                score = (score1 ** weight1) * (score2 ** weight2) * ...
+        score_threshold: float
+            The threshold under which polygons will be removed.
+        nms_threshold: float
+            The threshold for the Non-Maximum Suppression algorithm.
+        nms_algorithm: str
+            The NMS algorithm to use. Only 'iou' is currently supported.
+
+        Returns
+        -------
+        DetectorAggregator
+        """
 
         if scores_names is None:
             scores_names = ['score']
@@ -429,7 +543,7 @@ class DetectorAggregator(AggregatorBase):
             scores_weights = [1,] * len(scores_names)
 
         all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path = cls._from_coco(
-            polygon_type=cls.polygon_type,
+            polygon_type='box',
             tiles_folder_path=tiles_folder_path,
             coco_json_path=coco_json_path,
             scores_names=scores_names
@@ -445,7 +559,7 @@ class DetectorAggregator(AggregatorBase):
                    nms_algorithm=nms_algorithm,
                    tile_ids_to_path=tile_ids_to_path)
 
-    def apply_iou_nms_algorithm(self):
+    def _apply_iou_nms_algorithm(self):
         gdf = self.polygons_gdf.copy()
         gdf.sort_values(by='score', ascending=False, inplace=True)
 
@@ -467,7 +581,7 @@ class DetectorAggregator(AggregatorBase):
             if current_id in intersect_gdf_ids.index:
                 intersecting_geometries_ids = intersect_gdf_ids.loc[current_id]
                 intersecting_geometries_ids = [g_id for g_id in intersecting_geometries_ids if g_id not in skip_ids]
-                ious = self.calculate_iou_for_geometry(gdf.loc[intersecting_geometries_ids], current.geometry)
+                ious = self._calculate_iou_for_geometry(gdf.loc[intersecting_geometries_ids], current.geometry)
                 skip_ids.update(list(ious[ious > self.nms_threshold].index))
 
             id_to_final_polygon[current_id] = current.geometry
@@ -483,11 +597,9 @@ class DetectorAggregator(AggregatorBase):
         drop_ids = list(skip_ids - set(keep_ids))
         self.polygons_gdf.drop(drop_ids, inplace=True, errors="ignore")
 
-    def apply_diou_nms_algorithm(self):
+    def _apply_diou_nms_algorithm(self):
         raise NotImplementedError("This algorithm has to be updated to follow the optimizations made for iou_nms.")
 
-        if self.polygon_type == 'segmentation':
-            raise NotImplementedError("The DIOU NMS algorithm has to be updated for polygon_type='segmentation'.")
         gdf = self.polygons_gdf.copy()
         gdf.sort_values(by='score', ascending=False, inplace=True)
 
@@ -511,8 +623,8 @@ class DetectorAggregator(AggregatorBase):
             if len(gdf) > 1:
                 intersecting_geometries_ids = intersect_gdf[intersect_gdf.index == current_id]['index_right'].unique()
                 intersecting_geometries_ids = [g_id for g_id in intersecting_geometries_ids if g_id not in skip_ids]
-                ious = self.calculate_iou_for_geometry(gdf.loc[intersecting_geometries_ids], current.geometry)
-                center_dists = self.calculate_centroid_distance(gdf.loc[intersecting_geometries_ids], current.geometry)
+                ious = self._calculate_iou_for_geometry(gdf.loc[intersecting_geometries_ids], current.geometry)
+                center_dists = self._calculate_centroid_distance(gdf.loc[intersecting_geometries_ids], current.geometry)
                 dious = ious - (center_dists / max_distance) ** 2
                 skip_ids.update(list(dious[dious > self.nms_threshold].index))
 
@@ -526,8 +638,12 @@ class DetectorAggregator(AggregatorBase):
 
 
 class SegmentationAggregator(AggregatorBase):
-    polygon_type = 'segmentation'
+    """
+    Class to aggregate segmentation polygons from multiple tiles, with different pixel coordinate systems,
+    into a single GeoDataFrame with a common CRS, applying the Non-Maximum Suppression (NMS) algorithm.
 
+    This class should be instantiated using the 'from_coco' or 'from_polygons' class methods.
+    """
     def __init__(self,
                  output_path: Path,
                  polygons_gdf: gpd.GeoDataFrame,
@@ -558,11 +674,72 @@ class SegmentationAggregator(AggregatorBase):
                   output_path: Path,
                   tiles_folder_path: Path,
                   coco_json_path: Path,
+                  scores_names: List[str] = None,
+                  scores_weights: List[float] = None,
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
-                  nms_algorithm: str = 'iou',
-                  scores_names: List[str] = None,
-                  scores_weights: List[float] = None):
+                  nms_algorithm: str = 'iou'):
+
+        """
+        Instanciate and run a SegmentationAggregator from a COCO JSON file.
+        The polygons will be read from the coco_json_path, and the tiles will be read from the tiles_folder_path.
+
+        Parameters
+        ----------
+        output_path: str or Path
+            The filename where to save the aggregated polygons.
+            '.gpkg', '.geojson' are supported, as well as '.json' for COCO format.
+        tiles_folder_path: Path
+            The folder where the tiles are stored.
+        coco_json_path: Path
+            The path to the COCO JSON file.
+        scores_names: List[str]
+            The names of the attributes in the COCO file annotations which should be used as scores.
+            The code will look directly in the COCO annotations for these keys,
+            and will also look in the 'other_attributes' key if the key is not found directly in the annotation.
+
+            For example, if score_names = ['segmentation_score'], the 'segmentation_score' attribute can be in 2
+            different places in each COCO annotation::
+
+                "annotations": [
+                    {
+                        "id": 1,
+                        "image_id": 1,
+                        "category_id": 1,
+                        "segmentation": {
+                            "counts": "eNpjYBBgUD8rgjQmInZMmB0A",
+                            "size": [224, 224]
+                        },
+                        "area": 10000.0,
+                        "bbox": [100.0, 100.0, 100.0, 100.0],
+                        "iscrowd": 0,
+                        "segmentation_score": 0.8      # <- directly in the annotation
+                        "other_attributes": {
+                            "segmentation_score": 0.8  # <- in the 'other_attributes' key
+                        }
+                    },
+                    ...
+                ]
+
+        scores_weights: List[float]
+            The weights to apply to each score column in the polygons_gdf. Weights are exponents.
+            There should be as many weights as there are scores_names.
+            This is only useful if there are more than 1 set of scores.
+
+            The equation is:
+
+            score = (score1 ** weight1) * (score2 ** weight2) * ...
+        score_threshold: float
+            The threshold under which polygons will be removed.
+        nms_threshold: float
+            The threshold for the Non-Maximum Suppression algorithm.
+        nms_algorithm: str
+            The NMS algorithm to use. Only 'iou' is currently supported.
+
+        Returns
+        -------
+        SegmentationAggregator
+        """
 
         if scores_names is None:
             scores_names = ['score']
@@ -574,7 +751,7 @@ class SegmentationAggregator(AggregatorBase):
             scores_weights = [1,] * len(scores_names)
 
         all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path = cls._from_coco(
-            polygon_type=cls.polygon_type,
+            polygon_type='segmentation',
             tiles_folder_path=tiles_folder_path,
             coco_json_path=coco_json_path,
             scores_names=scores_names
@@ -590,12 +767,12 @@ class SegmentationAggregator(AggregatorBase):
                    nms_algorithm=nms_algorithm,
                    tile_ids_to_path=tile_ids_to_path)
 
-    def apply_iou_nms_algorithm(self):
+    def _apply_iou_nms_algorithm(self):
         gdf = self.polygons_gdf.copy()
         gdf.sort_values(by='score', ascending=False, inplace=True)
 
-        gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: self.check_geometry_collection(x))
-        gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: self.check_remove_bad_geometries(x))
+        gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: self._check_geometry_collection(x))
+        gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: self._check_remove_bad_geometries(x))
         gdf = gdf[gdf['geometry'].notnull()]
 
         intersect_gdf = gpd.sjoin(gdf, gdf, how='inner', predicate='intersects')
@@ -618,7 +795,7 @@ class SegmentationAggregator(AggregatorBase):
                     for g_id in intersecting_geometries_ids:
                         # We have to re-compute the IOU as intersect_gdf might not be up-to-date anymore after some polygons were modified in previous iterations.
                         with warnings.catch_warnings(record=True) as w:
-                            gdf.at[current_id, 'geometry'] = self.check_geometry_collection(
+                            gdf.at[current_id, 'geometry'] = self._check_geometry_collection(
                                 gdf.at[current_id, 'geometry'])
                             try:
                                 intersection = gdf.at[current_id, 'geometry'].intersection(gdf.at[g_id, 'geometry'])
@@ -626,9 +803,9 @@ class SegmentationAggregator(AggregatorBase):
                                 # 'invalid value encountered in intersection'
                                 print('* Skipped polygon matching ids {}/{} for shapely intersection error. *'.format(current_id, g_id))
 
-                        intersection = self.check_geometry_collection(intersection)
+                        intersection = self._check_geometry_collection(intersection)
 
-                        if not self.check_remove_bad_geometries(intersection):
+                        if not self._check_remove_bad_geometries(intersection):
                             continue
 
                         # Instead of using IOU in the SegmenterAggregator, we only look at the intersection area over the lower-scored geometry area
@@ -674,18 +851,18 @@ class SegmentationAggregator(AggregatorBase):
         drop_ids = list(skip_ids - set(keep_ids))
         self.polygons_gdf.drop(drop_ids, inplace=True, errors="ignore")
 
-    def apply_diou_nms_algorithm(self):
+    def _apply_diou_nms_algorithm(self):
         raise NotImplementedError("The DIOU NMS algorithm has to be implemented for polygon_type='segmentation'.")
 
     @staticmethod
-    def check_remove_bad_geometries(geometry):
+    def _check_remove_bad_geometries(geometry):
         if not geometry.is_valid or geometry.area == 0:
             return None
         else:
             return geometry
 
     @staticmethod
-    def check_geometry_collection(geometry: shapely.Geometry):
+    def _check_geometry_collection(geometry: shapely.Geometry):
         if geometry.geom_type == 'GeometryCollection':
             final_geoms = []
             # Iterate through each geometry in the collection

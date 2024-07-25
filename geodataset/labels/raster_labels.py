@@ -6,20 +6,45 @@ import pandas as pd
 import geopandas as gpd
 from pathlib import Path
 
-from shapely import box, Polygon, MultiPolygon
+from shapely import box
 
 from geodataset.geodata import Raster
+from geodataset.utils import try_cast_multipolygon_to_polygon
 
 
 class RasterPolygonLabels:
+    """
+    Class to handle the loading and processing of polygon labels associated with a :class:`~geodataset.geodata.Raster`.
+    The labels will automatically be adjusted to the associated :class:`~geodataset.geodata.Raster`
+    pixel coordinate system.
+    For example, this class is instantiated by the :class:`~geodataset.tilerize.LabeledRasterTilerizer` to align the Raster and labels.
+
+    Parameters
+    ----------
+    path: str or Path
+        Path to the labels file. Supported formats are: .gpkg, .geojson, .shp, .xml, .csv.
+        For .xml and .csv files, only specific formats are supported.
+        Supported .xml and .csv files will also be converted to a GeoDataFrame for downstream uses.
+    associated_raster: :class:`~geodataset.geodata.Raster`
+        The instanced :class:`~geodataset.geodata.Raster` object associated with the labels.
+        The labels will automatically be adjusted to this :class:`~geodataset.geodata.Raster` pixel coordinate system.
+    geopackage_layer_name : str, optional
+        The name of the layer in the geopackage file to use as labels. Only used if the labels_path is a .gpkg, .geojson
+        or .shp file. Only useful when the labels geopackage file contains multiple layers.
+    main_label_category_column_name : str, optional
+        The name of the column in the labels file that contains the main category of the labels.
+    other_labels_attributes_column_names : list of str, optional
+        The names of the columns in the labels file that contains other attributes of the labels, which should be kept
+        as a dictionary in the COCO annotations data.
+    """
     def __init__(self,
-                 path: Path,
+                 path: str or Path,
                  associated_raster: Raster,
                  geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None):
 
-        self.path = path
+        self.path = Path(path)
         self.ext = self.path.suffix
         self.associated_raster = associated_raster
         self.geopackage_layer_name = geopackage_layer_name
@@ -43,7 +68,7 @@ class RasterPolygonLabels:
 
         # Making sure we are working with Polygons and not Multipolygons
         if (labels_gdf['geometry'].type == 'MultiPolygon').any():
-            labels_gdf['geometry'] = labels_gdf['geometry'].astype(object).apply(self.try_cast_multipolygon_to_polygon)
+            labels_gdf['geometry'] = labels_gdf['geometry'].astype(object).apply(try_cast_multipolygon_to_polygon)
             n_poly_before = len(labels_gdf)
             labels_gdf = labels_gdf.dropna(subset=['geometry'])
             warnings.warn(f"Removed {n_poly_before - len(labels_gdf)} out of {n_poly_before} labels as they are MultiPolygons"
@@ -211,19 +236,3 @@ class RasterPolygonLabels:
                                     f' The columns of the CSV are: {labels_df.columns}')
 
         return labels_gdf
-
-    @staticmethod
-    def try_cast_multipolygon_to_polygon(geometry):
-        if isinstance(geometry, Polygon):
-            return geometry
-        elif isinstance(geometry, MultiPolygon):
-            polygons = list(geometry.geoms)
-            if len(polygons) == 1:
-                return Polygon(polygons[0])
-            else:
-                return None
-        else:
-            # Return None if the geometry is neither Polygon nor MultiPolygon
-            return None
-
-

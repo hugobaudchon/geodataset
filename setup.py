@@ -1,8 +1,10 @@
+import versioneer
 from setuptools import setup, find_packages
 
 setup(
     name='geodataset',
-    version='0.0.2',
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     packages=find_packages(),
     package_data={
         '': ['utils/categories/*/*.json', 'utils/aois/*/*.geojson', 'utils/aois/*/*.gpkg']
@@ -14,8 +16,8 @@ setup(
         'laspy>=2.5.3',
         'lazrs>=0.5.2',
         'matplotlib==3.8.2',
-        'numpy>=1.25.0',
-        'opencv-python>=4.9.0.80',
+        'numpy>=1.25.2',
+        'opencv-python>=4.9.0',
         'pandas>=2.2.0',
         'Pillow==10.2.0',
         'pyarrow>=15.0.1',
