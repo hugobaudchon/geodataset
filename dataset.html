@@ -50,7 +50,29 @@
 <li class="toctree-l1 current"><a class="reference internal" href="documentation.html">Documentation</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="tilerize.html">Tilerizers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="aoi.html">AOI (Area Of Interest)</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Dataset</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Dataset</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.dataset.BaseDataset"><code class="docutils literal notranslate"><span class="pre">BaseDataset</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.dataset.UnlabeledRasterDataset"><code class="docutils literal notranslate"><span class="pre">UnlabeledRasterDataset</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.dataset.UnlabeledRasterDataset.__getitem__"><code class="docutils literal notranslate"><span class="pre">UnlabeledRasterDataset.__getitem__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.dataset.UnlabeledRasterDataset.__iter__"><code class="docutils literal notranslate"><span class="pre">UnlabeledRasterDataset.__iter__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.dataset.UnlabeledRasterDataset.__len__"><code class="docutils literal notranslate"><span class="pre">UnlabeledRasterDataset.__len__()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.dataset.BaseLabeledRasterCocoDataset"><code class="docutils literal notranslate"><span class="pre">BaseLabeledRasterCocoDataset</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.dataset.BaseLabeledRasterCocoDataset.__iter__"><code class="docutils literal notranslate"><span class="pre">BaseLabeledRasterCocoDataset.__iter__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.dataset.BaseLabeledRasterCocoDataset.__len__"><code class="docutils literal notranslate"><span class="pre">BaseLabeledRasterCocoDataset.__len__()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.dataset.DetectionLabeledRasterCocoDataset"><code class="docutils literal notranslate"><span class="pre">DetectionLabeledRasterCocoDataset</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.dataset.DetectionLabeledRasterCocoDataset.__getitem__"><code class="docutils literal notranslate"><span class="pre">DetectionLabeledRasterCocoDataset.__getitem__()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.dataset.SegmentationLabeledRasterCocoDataset"><code class="docutils literal notranslate"><span class="pre">SegmentationLabeledRasterCocoDataset</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.dataset.SegmentationLabeledRasterCocoDataset.__getitem__"><code class="docutils literal notranslate"><span class="pre">SegmentationLabeledRasterCocoDataset.__getitem__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="aggregator.html">Aggregator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="geodata.html">Geodata</a></li>
 <li class="toctree-l2"><a class="reference internal" href="labels.html">Labels</a></li>
@@ -86,6 +108,207 @@
              
   <section id="dataset">
 <h1>Dataset<a class="headerlink" href="#dataset" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="geodataset.dataset.BaseDataset">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.dataset.</span></span><span class="sig-name descname"><span class="pre">BaseDataset</span></span><a class="reference internal" href="_modules/geodataset/dataset/base_dataset.html#BaseDataset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.dataset.BaseDataset" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>Abstract class for a dataset. Requires the implementation of methods needed for use with PyTorch’s DataLoader:
+__getitem__, __len__ and __iter__.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="geodataset.dataset.UnlabeledRasterDataset">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.dataset.</span></span><span class="sig-name descname"><span class="pre">UnlabeledRasterDataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">root_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/dataset/raster_dataset.html#UnlabeledRasterDataset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.dataset.UnlabeledRasterDataset" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#geodataset.dataset.BaseDataset" title="geodataset.dataset.base_dataset.BaseDataset"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseDataset</span></code></a></p>
+<p>A dataset class for loading unlabeled raster tiles.
+It will recursively search for all ‘.tif’ files in the specified root and its sub-folders.</p>
+<p>It can directly be used with a torch.utils.data.DataLoader.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fold</strong> (<em>str</em>) – The dataset fold to load (e.g., ‘train’, ‘valid’, ‘test’…).
+<strong>This parameter is not used in this class, but is kept for consistency with the other dataset classes.</strong></p></li>
+<li><p><strong>root_path</strong> (<em>str</em><em> or </em><em>List</em><em>[</em><em>str</em><em>] or </em><em>pathlib.Path</em><em> or </em><em>List</em><em>[</em><em>pathlib.Path</em><em>]</em>) – The root directory of the dataset.</p></li>
+<li><p><strong>transform</strong> (<em>albumentations.core.composition.Compose</em>) – A composition of transformations to apply to the tiles and their associated annotations
+(applied in __getitem__).</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="geodataset.dataset.UnlabeledRasterDataset.__getitem__">
+<span class="sig-name descname"><span class="pre">__getitem__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">idx</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/dataset/raster_dataset.html#UnlabeledRasterDataset.__getitem__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.dataset.UnlabeledRasterDataset.__getitem__" title="Link to this definition"></a></dt>
+<dd><p>Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,
+if any. It also normalizes the tile data between 0 and 1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>idx</strong> (<em>int</em>) – The index of the tile to retrieve</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The transformed tile (image) data, normalized between 0 and 1.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="geodataset.dataset.UnlabeledRasterDataset.__iter__">
+<span class="sig-name descname"><span class="pre">__iter__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/dataset/raster_dataset.html#UnlabeledRasterDataset.__iter__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.dataset.UnlabeledRasterDataset.__iter__" title="Link to this definition"></a></dt>
+<dd><p>Iterates over the tiles in the dataset.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="geodataset.dataset.UnlabeledRasterDataset.__len__">
+<span class="sig-name descname"><span class="pre">__len__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/dataset/raster_dataset.html#UnlabeledRasterDataset.__len__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.dataset.UnlabeledRasterDataset.__len__" title="Link to this definition"></a></dt>
+<dd><p>Returns the total number of tiles in the dataset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The number of tiles in the dataset.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="geodataset.dataset.BaseLabeledRasterCocoDataset">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.dataset.</span></span><span class="sig-name descname"><span class="pre">BaseLabeledRasterCocoDataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">root_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/dataset/base_dataset.html#BaseLabeledRasterCocoDataset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.dataset.BaseLabeledRasterCocoDataset" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#geodataset.dataset.BaseDataset" title="geodataset.dataset.base_dataset.BaseDataset"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseDataset</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>Abstract class for a dataset that loads COCO datasets and their associated tiles (images).
+It will recursively search for COCO json files and .tif tiles in the specified root folder and its sub-folders.
+The COCO json files should follow the naming convention defined in the <code class="xref py py-class docutils literal notranslate"><span class="pre">utils.CocoNameConvention</span></code> class.
+COCO jsons generated by this library should automatically follow this convention.</p>
+<p>This class implements the __len__ and __iter__ methods, and requires the implementation of the __getitem__ method.
+It is a great starting point to create your own custom dataset, if the ones provided in this library (ex: <a class="reference internal" href="#geodataset.dataset.DetectionLabeledRasterCocoDataset" title="geodataset.dataset.DetectionLabeledRasterCocoDataset"><code class="xref py py-class docutils literal notranslate"><span class="pre">DetectionLabeledRasterCocoDataset</span></code></a>, <a class="reference internal" href="#geodataset.dataset.SegmentationLabeledRasterCocoDataset" title="geodataset.dataset.SegmentationLabeledRasterCocoDataset"><code class="xref py py-class docutils literal notranslate"><span class="pre">SegmentationLabeledRasterCocoDataset</span></code></a>, …) do not fit
+your needs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fold</strong> (<em>str</em>) – The dataset fold to load (e.g., ‘train’, ‘valid’, ‘test’…).</p></li>
+<li><p><strong>root_path</strong> (<em>str</em><em> or </em><em>List</em><em>[</em><em>str</em><em>] or </em><em>pathlib.Path</em><em> or </em><em>List</em><em>[</em><em>pathlib.Path</em><em>]</em>) – The root directory of the dataset.</p></li>
+<li><p><strong>transform</strong> (<em>albumentations.core.composition.Compose</em>) – A composition of transformations to apply to the tiles.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="geodataset.dataset.BaseLabeledRasterCocoDataset.__iter__">
+<span class="sig-name descname"><span class="pre">__iter__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/dataset/base_dataset.html#BaseLabeledRasterCocoDataset.__iter__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.dataset.BaseLabeledRasterCocoDataset.__iter__" title="Link to this definition"></a></dt>
+<dd><p>Iterates over the tiles in the dataset.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="geodataset.dataset.BaseLabeledRasterCocoDataset.__len__">
+<span class="sig-name descname"><span class="pre">__len__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/dataset/base_dataset.html#BaseLabeledRasterCocoDataset.__len__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.dataset.BaseLabeledRasterCocoDataset.__len__" title="Link to this definition"></a></dt>
+<dd><p>Returns the total number of tiles in the dataset.</p>
+<p>Returns:
+- An integer count of the tiles.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="geodataset.dataset.DetectionLabeledRasterCocoDataset">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.dataset.</span></span><span class="sig-name descname"><span class="pre">DetectionLabeledRasterCocoDataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">root_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">box_padding_percentage</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_binary_class</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/dataset/raster_dataset.html#DetectionLabeledRasterCocoDataset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.dataset.DetectionLabeledRasterCocoDataset" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#geodataset.dataset.BaseLabeledRasterCocoDataset" title="geodataset.dataset.base_dataset.BaseLabeledRasterCocoDataset"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseLabeledRasterCocoDataset</span></code></a></p>
+<p>A dataset class that loads COCO datasets and their associated tiles (images). It will recursively search for COCO
+json files and .tif tiles in the specified root folder and its sub-folders. The COCO json files should follow the
+naming convention defined in the <code class="xref py py-class docutils literal notranslate"><span class="pre">CocoNameConvention</span></code> class. COCO jsons generated by this
+library should automatically follow this convention.</p>
+<p>Can be used for object detection tasks, where the annotations are bounding boxes OR segmentations (in this case
+this class will only use the bounding box of the segmentation).</p>
+<p>It can directly be used with a torch.utils.data.DataLoader.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fold</strong> (<em>str</em>) – The dataset fold to load (e.g., ‘train’, ‘valid’, ‘test’…).</p></li>
+<li><p><strong>root_path</strong> (<em>str</em><em> or </em><em>List</em><em>[</em><em>str</em><em>] or </em><em>pathlib.Path</em><em> or </em><em>List</em><em>[</em><em>pathlib.Path</em><em>]</em>) – The root directory of the dataset.</p></li>
+<li><p><strong>transform</strong> (<em>albumentations.core.composition.Compose</em>) – A composition of transformations to apply to the tiles and their associated annotations
+(applied in __getitem__).</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="geodataset.dataset.DetectionLabeledRasterCocoDataset.__getitem__">
+<span class="sig-name descname"><span class="pre">__getitem__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">idx</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/dataset/raster_dataset.html#DetectionLabeledRasterCocoDataset.__getitem__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.dataset.DetectionLabeledRasterCocoDataset.__getitem__" title="Link to this definition"></a></dt>
+<dd><p>Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,
+if any. It also normalizes the tile data between 0 and 1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>idx</strong> (<em>int</em>) – The index of the tile to retrieve</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>The transformed tile (image) data, normalized between 0 and 1, and a dictionary containing the annotations
+and metadata of the tile. The dictionary has the following keys:</p>
+<ul class="simple">
+<li><p><strong>boxes</strong> (list of numpy.ndarray): A list of bounding boxes for the annotations.</p></li>
+<li><p><strong>labels</strong> (numpy.ndarray): An array of category ids for the annotations (same length as ‘boxes’).</p></li>
+<li><p><strong>area</strong> (list of float): A list of areas for the bounding boxes annotations (same length as ‘boxes’).</p></li>
+<li><p><strong>iscrowd</strong> (numpy.ndarray): An array of zeros (same length as ‘boxes’). Currently not implemented.</p></li>
+<li><p><strong>image_id</strong> (numpy.ndarray): A single-value array containing the index of the tile.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple of (numpy.ndarray, dict)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="geodataset.dataset.SegmentationLabeledRasterCocoDataset">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.dataset.</span></span><span class="sig-name descname"><span class="pre">SegmentationLabeledRasterCocoDataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">root_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/dataset/raster_dataset.html#SegmentationLabeledRasterCocoDataset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.dataset.SegmentationLabeledRasterCocoDataset" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#geodataset.dataset.BaseLabeledRasterCocoDataset" title="geodataset.dataset.base_dataset.BaseLabeledRasterCocoDataset"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseLabeledRasterCocoDataset</span></code></a></p>
+<p>A dataset class that loads COCO datasets and their associated tiles (images). It will recursively search for COCO
+json files and .tif tiles in the specified root folder and its sub-folders. The COCO json files should follow the
+naming convention defined in the <code class="xref py py-class docutils literal notranslate"><span class="pre">CocoNameConvention</span></code> class. COCO jsons generated by this
+library should automatically follow this convention.</p>
+<p>Can be used for semantic segmentation tasks, where the annotations are segmentations.</p>
+<p>It can directly be used with a torch.utils.data.DataLoader.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fold</strong> (<em>str</em>) – The dataset fold to load (e.g., ‘train’, ‘valid’, ‘test’…).</p></li>
+<li><p><strong>root_path</strong> (<em>str</em><em> or </em><em>List</em><em>[</em><em>str</em><em>] or </em><em>pathlib.Path</em><em> or </em><em>List</em><em>[</em><em>pathlib.Path</em><em>]</em>) – The root directory of the dataset.</p></li>
+<li><p><strong>transform</strong> (<em>albumentations.core.composition.Compose</em>) – A composition of transformations to apply to the tiles and their associated annotations
+(applied in __getitem__).</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="geodataset.dataset.SegmentationLabeledRasterCocoDataset.__getitem__">
+<span class="sig-name descname"><span class="pre">__getitem__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">idx</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/dataset/raster_dataset.html#SegmentationLabeledRasterCocoDataset.__getitem__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.dataset.SegmentationLabeledRasterCocoDataset.__getitem__" title="Link to this definition"></a></dt>
+<dd><p>Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,
+if any. It also normalizes the tile data between 0 and 1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>idx</strong> (<em>int</em>) – The index of the tile to retrieve</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>The transformed tile (image) data, normalized between 0 and 1, and a dictionary containing the annotations
+and metadata of the tile. The dictionary has the following keys:</p>
+<ul class="simple">
+<li><p><strong>masks</strong> (list of numpy.ndarray): A list of segmentation masks for the annotations.</p></li>
+<li><p><strong>labels</strong> (numpy.ndarray): An array of category ids for the annotations (same length as ‘masks’).</p></li>
+<li><p><strong>area</strong> (list of float): A list of areas for the segmentation masks annotations (same length as ‘masks’).</p></li>
+<li><p><strong>iscrowd</strong> (numpy.ndarray): An array of zeros (same length as ‘masks’). Currently not implemented.</p></li>
+<li><p><strong>image_id</strong> (numpy.ndarray): A single-value array containing the index of the tile.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple of (numpy.ndarray, dict)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
 </section>
 
 

@@ -49,7 +49,14 @@
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="documentation.html">Documentation</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="tilerize.html">Tilerizers</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">AOI (Area Of Interest)</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">AOI (Area Of Interest)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.aoi.AOIFromPackageConfig"><code class="docutils literal notranslate"><span class="pre">AOIFromPackageConfig</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.aoi.AOIGeneratorConfig"><code class="docutils literal notranslate"><span class="pre">AOIGeneratorConfig</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.aoi.AOIGeneratorConfig.SUPPORTED_AOI_TYPES"><code class="docutils literal notranslate"><span class="pre">AOIGeneratorConfig.SUPPORTED_AOI_TYPES</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="dataset.html">Dataset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="aggregator.html">Aggregator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="geodata.html">Geodata</a></li>
@@ -84,8 +91,41 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="aoi-area-of-interest">
-<h1>AOI (Area Of Interest)<a class="headerlink" href="#aoi-area-of-interest" title="Link to this heading"></a></h1>
+  <section id="module-geodataset.aoi">
+<span id="aoi-area-of-interest"></span><h1>AOI (Area Of Interest)<a class="headerlink" href="#module-geodataset.aoi" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="geodataset.aoi.AOIFromPackageConfig">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.aoi.</span></span><span class="sig-name descname"><span class="pre">AOIFromPackageConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">aois</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/aoi/aoi_config.html#AOIFromPackageConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.aoi.AOIFromPackageConfig" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AOIConfig</span></code></p>
+<p>Configuration class for AOIFromPackage.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>aois</strong> (<em>dict</em>) – A dictionary containing the name of the AOI as key and the path to the AOI (.gpkg, .geojson…) as value.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="geodataset.aoi.AOIGeneratorConfig">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.aoi.</span></span><span class="sig-name descname"><span class="pre">AOIGeneratorConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">aoi_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aois</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/aoi/aoi_config.html#AOIGeneratorConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.aoi.AOIGeneratorConfig" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AOIConfig</span></code></p>
+<p>Configuration class for AOIGenerator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>aoi_type</strong> (<em>str</em>) – The type of AOI to generate. Supported values are ‘band’ and ‘corner’.</p></li>
+<li><p><strong>aois</strong> (<em>dict</em>) – A dictionary containing the name(s) of the AOI(s) as key and the position and percentage of the AOI as value:
+{key: {‘position’: int (unique integer going from 1 to n_aois), ‘percentage’: float}}</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="geodataset.aoi.AOIGeneratorConfig.SUPPORTED_AOI_TYPES">
+<span class="sig-name descname"><span class="pre">SUPPORTED_AOI_TYPES</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['band',</span> <span class="pre">'corner']</span></em><a class="headerlink" href="#geodataset.aoi.AOIGeneratorConfig.SUPPORTED_AOI_TYPES" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </section>
 
 

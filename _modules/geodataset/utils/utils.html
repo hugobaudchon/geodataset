@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>geodataset.utils.utils &mdash; GeoDataset  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/custom.css?v=a4895fdd" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            GeoDataset
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../documentation.html">Documentation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">GeoDataset</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">geodataset.utils.utils</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for geodataset.utils.utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">base64</span>
+<span class="kn">import</span> <span class="nn">json</span>
+
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span> <span class="nn">concurrent.futures</span> <span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">date</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Dict</span>
+
+<span class="kn">import</span> <span class="nn">cv2</span>
+<span class="kn">import</span> <span class="nn">laspy</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">rasterio</span>
+<span class="kn">import</span> <span class="nn">shapely</span>
+<span class="kn">from</span> <span class="nn">matplotlib</span> <span class="kn">import</span> <span class="n">pyplot</span> <span class="k">as</span> <span class="n">plt</span><span class="p">,</span> <span class="n">patches</span> <span class="k">as</span> <span class="n">patches</span>
+<span class="kn">from</span> <span class="nn">matplotlib.colors</span> <span class="kn">import</span> <span class="n">ListedColormap</span>
+<span class="kn">from</span> <span class="nn">pycocotools</span> <span class="kn">import</span> <span class="n">mask</span> <span class="k">as</span> <span class="n">mask_utils</span>
+<span class="kn">import</span> <span class="nn">geopandas</span> <span class="k">as</span> <span class="nn">gpd</span>
+
+<span class="kn">from</span> <span class="nn">rasterio.enums</span> <span class="kn">import</span> <span class="n">Resampling</span>
+<span class="kn">from</span> <span class="nn">shapely</span> <span class="kn">import</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">box</span><span class="p">,</span> <span class="n">MultiPolygon</span>
+<span class="kn">from</span> <span class="nn">shapely.ops</span> <span class="kn">import</span> <span class="n">transform</span>
+<span class="kn">from</span> <span class="nn">skimage.measure</span> <span class="kn">import</span> <span class="n">find_contours</span>
+
+
+<div class="viewcode-block" id="polygon_to_coco_coordinates_segmentation">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.polygon_to_coco_coordinates_segmentation">[docs]</a>
+<span class="k">def</span> <span class="nf">polygon_to_coco_coordinates_segmentation</span><span class="p">(</span><span class="n">polygon</span><span class="p">:</span> <span class="n">Polygon</span> <span class="ow">or</span> <span class="n">MultiPolygon</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Encodes a polygon into a list of coordinates supported by COCO.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        polygon: shapely.Polygon or shapely.MultiPolygon</span>
+<span class="sd">            The polygon to encode.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list</span>
+<span class="sd">            A list of coordinates in the format expected by COCO.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span> <span class="ow">is</span> <span class="n">Polygon</span><span class="p">:</span>
+        <span class="n">coordinates</span> <span class="o">=</span> <span class="p">[[</span><span class="n">coord</span> <span class="k">for</span> <span class="n">xy</span> <span class="ow">in</span> <span class="n">polygon</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">coords</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">coord</span> <span class="ow">in</span> <span class="n">xy</span><span class="p">]]</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span> <span class="ow">is</span> <span class="n">MultiPolygon</span><span class="p">:</span>
+        <span class="n">coordinates</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">geom</span> <span class="ow">in</span> <span class="n">polygon</span><span class="o">.</span><span class="n">geoms</span><span class="p">:</span>
+            <span class="n">coordinates</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">coord</span> <span class="k">for</span> <span class="n">xy</span> <span class="ow">in</span> <span class="n">geom</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">coords</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">coord</span> <span class="ow">in</span> <span class="n">xy</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The polygon is not a shapely.Polygon or shapely.MultiPolygon. It is a </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">coordinates</span></div>
+
+
+
+<div class="viewcode-block" id="polygon_to_mask">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.polygon_to_mask">[docs]</a>
+<span class="k">def</span> <span class="nf">polygon_to_mask</span><span class="p">(</span><span class="n">polygon</span><span class="p">:</span> <span class="n">Polygon</span> <span class="ow">or</span> <span class="n">MultiPolygon</span><span class="p">,</span> <span class="n">array_height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">array_width</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Encodes a Polygon or MultiPolygon object into a binary mask.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    polygon: Polygon or MultiPolygon</span>
+<span class="sd">        The polygon to encode.</span>
+<span class="sd">    array_height: int</span>
+<span class="sd">        The height of the array to encode the polygon into.</span>
+<span class="sd">    array_width: int</span>
+<span class="sd">        The width of the array to encode the polygon into.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    np.ndarray</span>
+<span class="sd">        A binary mask of the polygon.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">binary_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">array_height</span><span class="p">,</span> <span class="n">array_width</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+
+    <span class="c1"># Function to process each polygon</span>
+    <span class="k">def</span> <span class="nf">process_polygon</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+        <span class="n">contours</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">contours</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">cv2</span><span class="o">.</span><span class="n">fillPoly</span><span class="p">(</span><span class="n">binary_mask</span><span class="p">,</span> <span class="p">[</span><span class="n">contours</span><span class="p">],</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">):</span>
+        <span class="n">process_polygon</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">polygon</span> <span class="ow">in</span> <span class="n">polygon</span><span class="o">.</span><span class="n">geoms</span><span class="p">:</span>
+            <span class="n">process_polygon</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Geometry must be a Polygon or MultiPolygon. Got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">binary_mask</span></div>
+
+
+
+<div class="viewcode-block" id="polygon_to_coco_rle_segmentation">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.polygon_to_coco_rle_segmentation">[docs]</a>
+<span class="k">def</span> <span class="nf">polygon_to_coco_rle_segmentation</span><span class="p">(</span><span class="n">polygon</span><span class="p">:</span> <span class="n">Polygon</span> <span class="ow">or</span> <span class="n">MultiPolygon</span><span class="p">,</span> <span class="n">tile_height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">tile_width</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Encodes a Polygon or MultiPolygon object into a COCO annotation RLE mask.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    polygon: Polygon or MultiPolygon</span>
+<span class="sd">        The polygon to encode.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        A COCO RLE mask segmentation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">binary_mask</span> <span class="o">=</span> <span class="n">polygon_to_mask</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="n">tile_height</span><span class="p">,</span> <span class="n">tile_width</span><span class="p">)</span>
+
+    <span class="n">binary_mask_fortran</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">binary_mask</span><span class="p">)</span>
+    <span class="n">rle</span> <span class="o">=</span> <span class="n">mask_utils</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">binary_mask_fortran</span><span class="p">)</span>
+
+    <span class="c1"># Encode the counts to base64 to be able to store it in a json file</span>
+    <span class="n">rle</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">base64</span><span class="o">.</span><span class="n">b64encode</span><span class="p">(</span><span class="n">rle</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>  <span class="c1"># JSON can&#39;t save bytes</span>
+    <span class="k">return</span> <span class="n">rle</span></div>
+
+
+
+<div class="viewcode-block" id="coco_rle_segmentation_to_mask">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.coco_rle_segmentation_to_mask">[docs]</a>
+<span class="k">def</span> <span class="nf">coco_rle_segmentation_to_mask</span><span class="p">(</span><span class="n">segmentation</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decodes a COCO annotation RLE segmentation into a binary mask.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    segmentation: dict</span>
+<span class="sd">        The RLE segmentation to decode.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    np.ndarray</span>
+<span class="sd">        A binary mask of the segmentation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Decode the counts from base64</span>
+    <span class="k">if</span> <span class="s1">&#39;counts&#39;</span> <span class="ow">in</span> <span class="n">segmentation</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">segmentation</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">],</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">counts</span> <span class="o">=</span> <span class="n">base64</span><span class="o">.</span><span class="n">b64decode</span><span class="p">(</span><span class="n">segmentation</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">])</span>
+        <span class="n">segmentation</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">counts</span>
+
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">mask_utils</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">mask</span></div>
+
+
+
+<div class="viewcode-block" id="coco_rle_segmentation_to_bbox">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.coco_rle_segmentation_to_bbox">[docs]</a>
+<span class="k">def</span> <span class="nf">coco_rle_segmentation_to_bbox</span><span class="p">(</span><span class="n">segmentation</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">box</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates the bounding box from a COCO annotation RLE segmentation.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    segmentation: dict</span>
+<span class="sd">        The RLE segmentation to decode.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    shapely.box</span>
+<span class="sd">        A shapely box representing the bounding box of the segmentation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">coco_rle_segmentation_to_mask</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+
+    <span class="n">rows</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">cols</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">ymin</span><span class="p">,</span> <span class="n">ymax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">rows</span><span class="p">)[</span><span class="mi">0</span><span class="p">][[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+    <span class="n">xmin</span><span class="p">,</span> <span class="n">xmax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">cols</span><span class="p">)[</span><span class="mi">0</span><span class="p">][[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+
+    <span class="k">return</span> <span class="n">box</span><span class="p">(</span><span class="n">xmin</span><span class="o">=</span><span class="n">xmin</span><span class="p">,</span> <span class="n">ymin</span><span class="o">=</span><span class="n">ymin</span><span class="p">,</span> <span class="n">xmax</span><span class="o">=</span><span class="n">xmax</span><span class="p">,</span> <span class="n">ymax</span><span class="o">=</span><span class="n">ymax</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="mask_to_polygon">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.mask_to_polygon">[docs]</a>
+<span class="k">def</span> <span class="nf">mask_to_polygon</span><span class="p">(</span><span class="n">mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">simplify_tolerance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Polygon</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts a 1HW mask to a simplified shapely Polygon by finding the contours of the mask</span>
+<span class="sd">    and simplifying it.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    mask: np.ndarray</span>
+<span class="sd">        The mask to convert, in 1HW format.</span>
+<span class="sd">    simplify_tolerance: float</span>
+<span class="sd">        The tolerance for simplifying the polygon. Higher values result in more simplified shapes.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Polygon</span>
+<span class="sd">     A simplified shapely Polygon object representing the outer boundary of the mask.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Ensure mask is 2D</span>
+    <span class="k">if</span> <span class="n">mask</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Mask must be in HW format (2D array).&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Pad the mask to avoid boundary issues</span>
+    <span class="n">padded_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">pad_width</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="c1"># Find contours on the mask, assuming mask is binary</span>
+    <span class="n">contours</span> <span class="o">=</span> <span class="n">find_contours</span><span class="p">(</span><span class="n">padded_mask</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">contours</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># returning empty, dummy polygon at 0,0</span>
+        <span class="k">return</span> <span class="n">Polygon</span><span class="p">([(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)])</span>
+
+    <span class="c1"># Take the longest contour as the main outline of the object</span>
+    <span class="n">longest_contour</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">contours</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="nb">len</span><span class="p">)</span>
+
+    <span class="c1"># Convert contour coordinates from (row, column) to (x, y)</span>
+    <span class="c1"># and revert the padding added to the mask</span>
+    <span class="n">longest_contour_adjusted_xy</span> <span class="o">=</span> <span class="p">[(</span><span class="n">y</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">x</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">longest_contour</span><span class="p">]</span>
+
+    <span class="c1"># Convert contour to Polygon</span>
+    <span class="n">polygon</span> <span class="o">=</span> <span class="n">Polygon</span><span class="p">(</span><span class="n">longest_contour_adjusted_xy</span><span class="p">)</span>
+
+    <span class="c1"># Simplify the polygon</span>
+    <span class="n">simplified_polygon</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">tolerance</span><span class="o">=</span><span class="n">simplify_tolerance</span><span class="p">,</span> <span class="n">preserve_topology</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">simplified_polygon</span></div>
+
+
+
+<div class="viewcode-block" id="coco_coordinates_segmentation_to_polygon">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.coco_coordinates_segmentation_to_polygon">[docs]</a>
+<span class="k">def</span> <span class="nf">coco_coordinates_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Polygon</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts a list of polygon coordinates in COCO format to a shapely Polygon or MultiPolygon.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    segmentation: list</span>
+<span class="sd">        A list of coordinates in the format expected by COCO.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Polygon</span>
+<span class="sd">        A shapely Polygon object representing the outer boundary of the polygon.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">geoms</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">polygon_coords</span> <span class="ow">in</span> <span class="n">segmentation</span><span class="p">:</span>
+        <span class="c1"># Reshape the flat list of coords into a list of (x, y) tuples</span>
+        <span class="n">it</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">(</span><span class="n">polygon_coords</span><span class="p">)</span>
+        <span class="n">geom</span> <span class="o">=</span> <span class="n">Polygon</span><span class="p">([(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">it</span><span class="p">,</span> <span class="n">it</span><span class="p">)])</span>
+        <span class="n">geoms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">geom</span><span class="p">)</span>
+
+    <span class="c1"># Create a MultiPolygon from the list of Polygon objects</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">geoms</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">geoms</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">MultiPolygon</span><span class="p">(</span><span class="n">geoms</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="coco_coordinates_segmentation_to_bbox">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.coco_coordinates_segmentation_to_bbox">[docs]</a>
+<span class="k">def</span> <span class="nf">coco_coordinates_segmentation_to_bbox</span><span class="p">(</span><span class="n">segmentation</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">box</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates the bounding box from a polygon list of coordinates in COCO format.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    segmentation: list</span>
+<span class="sd">        A list of coordinates in the format expected by COCO.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    shapely.box</span>
+<span class="sd">        A shapely box representing the bounding box of the polygon.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">polygon</span> <span class="o">=</span> <span class="n">coco_coordinates_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">box</span><span class="p">(</span><span class="o">*</span><span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="coco_rle_segmentation_to_polygon">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.coco_rle_segmentation_to_polygon">[docs]</a>
+<span class="k">def</span> <span class="nf">coco_rle_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decodes a COCO annotation RLE segmentation into a shapely Polygon or MultiPolygon.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    segmentation: dict</span>
+<span class="sd">        The RLE segmentation to decode.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Polygon or MultiPolygon</span>
+<span class="sd">        A shapely Polygon or MultiPolygon representing the segmentation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Decode the RLE</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">coco_rle_segmentation_to_mask</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+
+    <span class="c1"># Find contours in the binary mask</span>
+    <span class="n">contours</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">findContours</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">RETR_EXTERNAL</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">CHAIN_APPROX_SIMPLE</span><span class="p">)</span>
+
+    <span class="c1"># Initialize an empty list to hold the exterior coordinates of the polygons</span>
+    <span class="n">polygons</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">contour</span> <span class="ow">in</span> <span class="n">contours</span><span class="p">:</span>
+        <span class="c1"># Ensure the contour is of a significant size</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">contour</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="c1"># Flatten the array and convert to a list of tuples</span>
+            <span class="n">contour</span> <span class="o">=</span> <span class="n">contour</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+            <span class="c1"># Reshape the contour to obtain a sequence of coordinates</span>
+            <span class="n">points</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">contour</span><span class="p">[::</span><span class="mi">2</span><span class="p">],</span> <span class="n">contour</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">]))</span>
+            <span class="n">polygons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Polygon</span><span class="p">(</span><span class="n">points</span><span class="p">))</span>
+
+    <span class="c1"># Return the polygons (Note: This might be a list of polygons if there are multiple disconnected regions)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">polygons</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">polygons</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># Return the single polygon directly if there&#39;s only one</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">MultiPolygon</span><span class="p">(</span><span class="n">polygons</span><span class="p">)</span>  <span class="c1"># Return a GeoSeries of Polygons if there are multiple</span></div>
+
+
+
+<span class="k">def</span> <span class="nf">get_tiles_array</span><span class="p">(</span><span class="n">tiles</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">tile_coordinate_step</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="n">numpy_coordinates</span> <span class="o">=</span> <span class="p">[(</span><span class="nb">int</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">row</span> <span class="o">/</span> <span class="n">tile_coordinate_step</span><span class="p">),</span>
+                          <span class="nb">int</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">col</span> <span class="o">/</span> <span class="n">tile_coordinate_step</span><span class="p">))</span> <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles</span><span class="p">]</span>
+
+    <span class="c1"># Determine dimensions based on coordinates if not provided</span>
+    <span class="n">max_x</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">numpy_coordinates</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">coord</span><span class="p">:</span> <span class="n">coord</span><span class="p">[</span><span class="mi">0</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">numpy_coordinates</span> <span class="k">else</span> <span class="mi">0</span>
+    <span class="n">max_y</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">numpy_coordinates</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">coord</span><span class="p">:</span> <span class="n">coord</span><span class="p">[</span><span class="mi">1</span><span class="p">])[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">numpy_coordinates</span> <span class="k">else</span> <span class="mi">0</span>
+    <span class="n">dimensions</span> <span class="o">=</span> <span class="p">(</span><span class="n">max_x</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">max_y</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Create an array of zeros with the determined dimensions</span>
+    <span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+
+    <span class="c1"># Mark the coordinates in the array</span>
+    <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">numpy_coordinates</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="n">dimensions</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">and</span> <span class="n">y</span> <span class="o">&lt;</span> <span class="n">dimensions</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">array</span><span class="p">[</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">array</span>
+
+
+<span class="k">def</span> <span class="nf">try_cast_multipolygon_to_polygon</span><span class="p">(</span><span class="n">geometry</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">geometry</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">):</span>
+        <span class="n">polygons</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">geometry</span><span class="o">.</span><span class="n">geoms</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">polygons</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Polygon</span><span class="p">(</span><span class="n">polygons</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Return None if the geometry is neither Polygon nor MultiPolygon</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="read_raster">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.read_raster">[docs]</a>
+<span class="k">def</span> <span class="nf">read_raster</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">ground_resolution</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">scale_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Read a raster file and rescale it if necessary.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    path: Path</span>
+<span class="sd">        The path to the raster file.</span>
+<span class="sd">    ground_resolution: float</span>
+<span class="sd">        The desired ground resolution in meters.</span>
+<span class="sd">    scale_factor: float</span>
+<span class="sd">        The desired scale factor to apply to the raster.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    np.ndarray</span>
+<span class="sd">        The (possibly resampled) raster pixels data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="p">(</span><span class="n">ground_resolution</span> <span class="ow">and</span> <span class="n">scale_factor</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;Both a ground_resolution and a scale_factor were provided.&quot;</span>
+                                                      <span class="s2">&quot; Please only specify one.&quot;</span><span class="p">)</span>
+
+    <span class="n">ext</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">suffix</span>
+    <span class="k">if</span> <span class="n">ext</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;.tif&#39;</span><span class="p">,</span> <span class="s1">&#39;.png&#39;</span><span class="p">,</span> <span class="s1">&#39;.jpg&#39;</span><span class="p">]:</span>
+        <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
+            <span class="c1"># Check if the CRS uses meters as units</span>
+            <span class="n">crs</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">crs</span>
+            <span class="k">if</span> <span class="n">ground_resolution</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">crs</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">crs</span><span class="o">.</span><span class="n">is_projected</span><span class="p">:</span>
+                        <span class="n">current_x_resolution</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">transform</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="n">current_y_resolution</span> <span class="o">=</span> <span class="o">-</span><span class="n">src</span><span class="o">.</span><span class="n">transform</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
+                        <span class="c1"># Calculate scale factors to achieve the specified ground_resolution</span>
+                        <span class="n">x_scale_factor</span> <span class="o">=</span> <span class="n">current_x_resolution</span> <span class="o">/</span> <span class="n">ground_resolution</span>
+                        <span class="n">y_scale_factor</span> <span class="o">=</span> <span class="n">current_y_resolution</span> <span class="o">/</span> <span class="n">ground_resolution</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Rescaling the raster with x_scale_factor=</span><span class="si">{</span><span class="n">x_scale_factor</span><span class="si">}</span><span class="s1">&#39;</span>
+                              <span class="sa">f</span><span class="s1">&#39; and y_scale_factor=</span><span class="si">{</span><span class="n">y_scale_factor</span><span class="si">}</span><span class="s1">&#39;</span>
+                              <span class="sa">f</span><span class="s1">&#39; to match ground_resolution=</span><span class="si">{</span><span class="n">ground_resolution</span><span class="si">}</span><span class="s1">...&#39;</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;The CRS of the raster is not projected (in meter units),&quot;</span>
+                                        <span class="s2">&quot; so the ground_resolution cannot be applied.&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;The raster doesn&#39;t have a CRS, so the ground_resolution cannot be applied.&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">scale_factor</span><span class="p">:</span>
+                <span class="n">x_scale_factor</span> <span class="o">=</span> <span class="n">scale_factor</span>
+                <span class="n">y_scale_factor</span> <span class="o">=</span> <span class="n">scale_factor</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">x_scale_factor</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="n">y_scale_factor</span> <span class="o">=</span> <span class="mi">1</span>
+
+            <span class="n">data</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">read</span><span class="p">(</span>
+                <span class="n">out_shape</span><span class="o">=</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">count</span><span class="p">,</span>
+                           <span class="nb">int</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">height</span> <span class="o">*</span> <span class="n">y_scale_factor</span><span class="p">),</span>
+                           <span class="nb">int</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">width</span> <span class="o">*</span> <span class="n">x_scale_factor</span><span class="p">)),</span>
+                <span class="n">resampling</span><span class="o">=</span><span class="n">Resampling</span><span class="o">.</span><span class="n">bilinear</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">src</span><span class="o">.</span><span class="n">transform</span><span class="p">:</span>
+                <span class="c1"># scale image transform</span>
+                <span class="n">new_transform</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">transform</span> <span class="o">*</span> <span class="n">src</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">scale</span><span class="p">(</span>
+                    <span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">width</span> <span class="o">/</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span>
+                    <span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">height</span> <span class="o">/</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">new_transform</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="n">new_profile</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">profile</span>
+            <span class="n">new_profile</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">transform</span><span class="o">=</span><span class="n">new_transform</span><span class="p">,</span>
+                               <span class="n">driver</span><span class="o">=</span><span class="s1">&#39;GTiff&#39;</span><span class="p">,</span>
+                               <span class="n">height</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span>
+                               <span class="n">width</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Data format </span><span class="si">{</span><span class="n">ext</span><span class="si">}</span><span class="s1"> not supported yet.&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">data</span><span class="p">,</span> <span class="n">new_profile</span><span class="p">,</span> <span class="n">x_scale_factor</span><span class="p">,</span> <span class="n">y_scale_factor</span></div>
+
+
+
+<span class="k">def</span> <span class="nf">read_point_cloud</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">):</span>
+    <span class="n">ext</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">suffix</span>
+    <span class="k">if</span> <span class="n">ext</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;.las&#39;</span><span class="p">,</span> <span class="s1">&#39;.laz&#39;</span><span class="p">]:</span>
+        <span class="k">with</span> <span class="n">laspy</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">))</span> <span class="k">as</span> <span class="n">pc_file</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">pc_file</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+            <span class="n">crs</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">transform</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">for</span> <span class="n">vlr</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">vlrs</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">vlr</span><span class="p">,</span> <span class="n">laspy</span><span class="o">.</span><span class="n">vlrs</span><span class="o">.</span><span class="n">known</span><span class="o">.</span><span class="n">WktCoordinateSystemVlr</span><span class="p">):</span>
+                    <span class="n">crs</span> <span class="o">=</span> <span class="n">vlr</span><span class="o">.</span><span class="n">parse_crs</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Data format </span><span class="si">{</span><span class="n">ext</span><span class="si">}</span><span class="s1"> not supported yet.&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">data</span><span class="p">,</span> <span class="n">crs</span><span class="p">,</span> <span class="n">transform</span>
+
+
+<div class="viewcode-block" id="display_image_with_polygons">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.display_image_with_polygons">[docs]</a>
+<span class="k">def</span> <span class="nf">display_image_with_polygons</span><span class="p">(</span><span class="n">image</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">polygons</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">shapely</span><span class="o">.</span><span class="n">Polygon</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Display an image with polygons overlaid.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    image: np.ndarray</span>
+<span class="sd">        The image to display.</span>
+<span class="sd">    polygons: List[shapely.Polygon]</span>
+<span class="sd">        The polygons to overlay on the image.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Automatically adjust the image shape if necessary</span>
+    <span class="k">if</span> <span class="n">image</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">image</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">and</span> <span class="n">image</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">image</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">image</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="n">image</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="c1"># Display the image</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+
+    <span class="c1"># Overlay each polygon</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">polygons</span><span class="p">:</span>
+        <span class="c1"># Extract exterior coordinates from each shapely.Polygon</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">xy</span>
+        <span class="c1"># Create a list of (x, y) tuples for matplotlib patches.Polygon</span>
+        <span class="n">vertices</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span>
+        <span class="c1"># Add the patch to the Axes</span>
+        <span class="n">patch</span> <span class="o">=</span> <span class="n">patches</span><span class="o">.</span><span class="n">Polygon</span><span class="p">(</span><span class="n">vertices</span><span class="p">,</span> <span class="n">edgecolor</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="n">facecolor</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">patch</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+
+
+<span class="k">def</span> <span class="nf">save_aois_tiles_picture</span><span class="p">(</span><span class="n">aois_tiles</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">],</span> <span class="n">save_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">tile_coordinate_step</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Display the original array of 1s and 0s with specific coordinates highlighted.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    aois_tiles: dict</span>
+<span class="sd">        A dictionary of format {aoi: list[Tile]}, with aoi being &#39;train&#39;, &#39;valid&#39;... Must have &#39;all&#39; key.</span>
+<span class="sd">    save_path: Path</span>
+<span class="sd">        The output Path.</span>
+<span class="sd">    tile_coordinate_step: int</span>
+<span class="sd">        Usually = (1 - tile_overlap) * tile_size</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Copy the original array to avoid altering it</span>
+    <span class="n">display_array</span> <span class="o">=</span> <span class="n">get_tiles_array</span><span class="p">(</span><span class="n">tiles</span><span class="o">=</span><span class="n">aois_tiles</span><span class="p">[</span><span class="s1">&#39;all&#39;</span><span class="p">],</span> <span class="n">tile_coordinate_step</span><span class="o">=</span><span class="n">tile_coordinate_step</span><span class="p">)</span>
+
+    <span class="c1"># Colors - generate dynamically based on the number of AOIs</span>
+    <span class="n">colors</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">tab10</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">aois_tiles</span><span class="p">)))</span>
+
+    <span class="c1"># Create a custom color map - starting with a base color</span>
+    <span class="n">base_cmap</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;#BBBBBB&#39;</span><span class="p">,</span> <span class="s1">&#39;#555555&#39;</span><span class="p">]</span>  <span class="c1"># Light gray for 0, dark gray for unassigned tiles (1)</span>
+    <span class="n">color_labels</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Background&#39;</span><span class="p">,</span> <span class="s1">&#39;Unassigned Tiles&#39;</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">aois_tiles</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">aoi</span> <span class="o">==</span> <span class="s1">&#39;all&#39;</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">]:</span>
+            <span class="n">tile_x_numpy</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">row</span> <span class="o">/</span> <span class="n">tile_coordinate_step</span><span class="p">)</span>
+            <span class="n">tile_y_numpy</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">col</span> <span class="o">/</span> <span class="n">tile_coordinate_step</span><span class="p">)</span>
+            <span class="n">display_array</span><span class="p">[</span><span class="n">tile_x_numpy</span><span class="p">,</span> <span class="n">tile_y_numpy</span><span class="p">]</span> <span class="o">=</span> <span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span>
+
+        <span class="n">base_cmap</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">colors</span><span class="p">[</span><span class="n">idx</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="n">color_labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">aoi</span><span class="p">)</span>  <span class="c1"># Use the dict key as the label</span>
+
+    <span class="n">custom_cmap</span> <span class="o">=</span> <span class="n">ListedColormap</span><span class="p">(</span><span class="n">base_cmap</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">display_array</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="n">custom_cmap</span><span class="p">,</span> <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Create a color bar with a tick and label for each AOI</span>
+    <span class="n">ticks</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">base_cmap</span><span class="p">)))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">clim</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">base_cmap</span><span class="p">)</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">)</span>  <span class="c1"># Adjust color limit to include all AOI colors</span>
+    <span class="n">cbar</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">ticks</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">base_cmap</span><span class="p">)))</span>
+    <span class="n">cbar</span><span class="o">.</span><span class="n">set_ticklabels</span><span class="p">(</span><span class="n">color_labels</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">save_path</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">strip_all_extensions</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Strips all extensions from a given Path object or path string and returns the base name.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    path: str or Path</span>
+<span class="sd">        The path to strip extensions from.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    str</span>
+<span class="sd">        The base name of the file, with all extensions removed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">while</span> <span class="n">p</span><span class="o">.</span><span class="n">suffix</span><span class="p">:</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">name</span>
+
+
+<div class="viewcode-block" id="COCOGenerator">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.COCOGenerator">[docs]</a>
+<span class="k">class</span> <span class="nc">COCOGenerator</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A class to generate a COCO dataset from a list of tiles and their associated polygons.</span>
+<span class="sd">    After instantiating the class, the :meth:`generate_coco` method should be used to generate and save the COCO</span>
+<span class="sd">    dataset.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    description: str</span>
+<span class="sd">        A description of the COCO dataset.</span>
+<span class="sd">    tiles_paths: List[Path]</span>
+<span class="sd">        A list of paths to the tiles/images.</span>
+<span class="sd">    polygons: List[List[Polygon]]</span>
+<span class="sd">        A list of lists of polygons associated with each tile.</span>
+<span class="sd">    scores: List[List[float]] or None</span>
+<span class="sd">        A list of lists of scores associated with each polygon.</span>
+<span class="sd">    categories: List[List[Union[str, int]]] or None</span>
+<span class="sd">        A list of lists of categories (str or int) associated with each polygon.</span>
+<span class="sd">    other_attributes: List[List[Dict]] or None</span>
+<span class="sd">        A list of lists of dictionaries of other attributes associated with each polygon.</span>
+<span class="sd">        Such a dict could be::</span>
+
+<span class="sd">            {</span>
+<span class="sd">                &#39;attribute1&#39;: value1,</span>
+<span class="sd">                &#39;attribute2&#39;: value2</span>
+<span class="sd">            }</span>
+
+<span class="sd">        .. raw:: html</span>
+
+<span class="sd">            &lt;br&gt;</span>
+
+<span class="sd">        **IMPORTANT**: the &#39;score&#39; attribute is reserved for the score associated with the polygon.</span>
+<span class="sd">    output_path: Path</span>
+<span class="sd">        The path to save the COCO dataset JSON file (should have .json extension).</span>
+<span class="sd">    use_rle_for_labels: bool</span>
+<span class="sd">        Whether to use RLE encoding for the labels or not. If False, the polygon&#39;s exterior coordinates will be used.</span>
+<span class="sd">        RLE Encoding takes less space on disk but takes more time to encode.</span>
+<span class="sd">    n_workers: int</span>
+<span class="sd">        The number of workers to use for parallel processing.</span>
+<span class="sd">    coco_categories_list: List[dict] or None</span>
+<span class="sd">        A list of category dictionaries in COCO format. If a polygon has a category that is not in this list, its</span>
+<span class="sd">        category_id will be set to None in its COCO annotation. If &#39;coco_categories_list&#39; is None, the categories ids</span>
+<span class="sd">        will be automatically generated from the unique categories found in the &#39;categories&#39; parameter.</span>
+
+<span class="sd">        .. raw:: html</span>
+
+<span class="sd">            &lt;br&gt;</span>
+
+<span class="sd">        To assign a category_id to a polygon, the code will check the &#39;name&#39; and &#39;other_names&#39; fields of the categories.</span>
+
+<span class="sd">        .. raw:: html</span>
+
+<span class="sd">            &lt;br&gt;</span>
+
+<span class="sd">        **IMPORTANT**: It is strongly advised to provide this list if you want to have consistent category ids across</span>
+<span class="sd">        multiple COCO datasets.</span>
+
+<span class="sd">        .. raw:: html</span>
+
+<span class="sd">            &lt;br&gt;</span>
+
+<span class="sd">        Exemple of 2 categories, one being the parent of the other::</span>
+
+<span class="sd">            [{</span>
+<span class="sd">                &quot;id&quot;: 1,</span>
+<span class="sd">                &quot;name&quot;: &quot;Pinaceae&quot;,</span>
+<span class="sd">                &quot;other_names&quot;: [],</span>
+<span class="sd">                &quot;supercategory&quot;: null</span>
+<span class="sd">            },</span>
+<span class="sd">            {</span>
+<span class="sd">                &quot;id&quot;: 2,</span>
+<span class="sd">                &quot;name&quot;: &quot;Picea&quot;,</span>
+<span class="sd">                &quot;other_names&quot;: [&quot;PIGL&quot;, &quot;PIMA&quot;, &quot;PIRU&quot;],</span>
+<span class="sd">                &quot;supercategory&quot;: 1</span>
+<span class="sd">            }]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">description</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                 <span class="n">tiles_paths</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Path</span><span class="p">],</span>
+                 <span class="n">polygons</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Polygon</span><span class="p">]],</span>
+                 <span class="n">scores</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">categories</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]]</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">other_attributes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">output_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+                 <span class="n">use_rle_for_labels</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+                 <span class="n">n_workers</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                 <span class="n">coco_categories_list</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="n">description</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span> <span class="o">=</span> <span class="n">tiles_paths</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">polygons</span> <span class="o">=</span> <span class="n">polygons</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scores</span> <span class="o">=</span> <span class="n">scores</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">categories</span> <span class="o">=</span> <span class="n">categories</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="o">=</span> <span class="n">other_attributes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">=</span> <span class="n">output_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_rle_for_labels</span> <span class="o">=</span> <span class="n">use_rle_for_labels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_workers</span> <span class="o">=</span> <span class="n">n_workers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coco_categories_list</span> <span class="o">=</span> <span class="n">coco_categories_list</span>
+
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons</span><span class="p">),</span> <span class="s2">&quot;The number of tiles and polygons must be the same.&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores</span><span class="p">),</span> <span class="s2">&quot;The number of tiles and scores must be the same.&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">categories</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">categories</span><span class="p">),</span> <span class="s2">&quot;The number of tiles and categories must be the same.&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span><span class="p">),</span> <span class="s2">&quot;The number of tiles and other_attributes must be the same.&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="o">=</span> <span class="p">[[</span><span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span><span class="p">[</span><span class="n">t</span><span class="p">][</span><span class="n">i</span><span class="p">],</span> <span class="n">score</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scores</span><span class="p">[</span><span class="n">t</span><span class="p">][</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span>
+                                     <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span><span class="p">[</span><span class="n">t</span><span class="p">]))]</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">))]</span>
+
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="o">=</span> <span class="p">[[{</span><span class="s1">&#39;score&#39;</span><span class="p">:</span> <span class="n">s</span><span class="p">}</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">tile_scores</span><span class="p">]</span> <span class="k">for</span> <span class="n">tile_scores</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores</span><span class="p">]</span>
+
+<div class="viewcode-block" id="COCOGenerator.generate_coco">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.COCOGenerator.generate_coco">[docs]</a>
+    <span class="k">def</span> <span class="nf">generate_coco</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate the COCO dataset from the provided tiles, polygons, scores and other metadata.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">categories_coco</span><span class="p">,</span> <span class="n">category_to_id_map</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_coco_categories</span><span class="p">()</span>
+
+        <span class="k">with</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_workers</span><span class="p">)</span> <span class="k">as</span> <span class="n">pool</span><span class="p">:</span>
+            <span class="n">results</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">pool</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_generate_tile_coco</span><span class="p">,</span> <span class="nb">enumerate</span><span class="p">(</span>
+                <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">polygons</span><span class="p">,</span>
+                    <span class="p">[[</span><span class="n">category_to_id_map</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">category_to_id_map</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cs</span><span class="p">]</span> <span class="k">for</span> <span class="n">cs</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">categories</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">categories</span> <span class="k">else</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">),</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="k">else</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">),</span>
+                    <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">use_rle_for_labels</span><span class="p">,</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">)</span>
+                    <span class="p">)</span>
+            <span class="p">)))</span>
+
+        <span class="n">images_cocos</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">detections_cocos</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="p">:</span>
+            <span class="n">images_cocos</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;image_coco&quot;</span><span class="p">])</span>
+            <span class="n">detections_cocos</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;detections_coco&quot;</span><span class="p">])</span>
+
+        <span class="c1"># Save the COCO dataset to a JSON file</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">({</span>
+                <span class="s2">&quot;info&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">description</span><span class="p">,</span>
+                    <span class="s2">&quot;version&quot;</span><span class="p">:</span> <span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;year&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">()</span><span class="o">.</span><span class="n">year</span><span class="p">),</span>
+                    <span class="s2">&quot;date_created&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">())</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;licenses&quot;</span><span class="p">:</span> <span class="p">[</span>
+                    <span class="c1"># Placeholder for licenses</span>
+                <span class="p">],</span>
+                <span class="s2">&quot;images&quot;</span><span class="p">:</span> <span class="n">images_cocos</span><span class="p">,</span>
+                <span class="s2">&quot;annotations&quot;</span><span class="p">:</span> <span class="n">detections_cocos</span><span class="p">,</span>
+                <span class="s2">&quot;categories&quot;</span><span class="p">:</span> <span class="n">categories_coco</span>
+            <span class="p">},</span> <span class="n">f</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Saved COCO dataset to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">output_path</span><span class="si">}</span><span class="s1">.&#39;</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_generate_tile_coco</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tile_data</span><span class="p">):</span>
+        <span class="p">(</span><span class="n">tile_id</span><span class="p">,</span>
+         <span class="p">(</span><span class="n">tile_path</span><span class="p">,</span> <span class="n">tile_polygons</span><span class="p">,</span> <span class="n">tiles_polygons_category_ids</span><span class="p">,</span> <span class="n">tiles_polygons_other_attributes</span><span class="p">,</span> <span class="n">use_rle_for_labels</span><span class="p">))</span> <span class="o">=</span> <span class="n">tile_data</span>
+
+        <span class="n">local_detections_coco</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">assert</span> <span class="n">Path</span><span class="p">(</span><span class="n">tile_path</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">(),</span> <span class="s2">&quot;Please make sure to save the tiles/images before creating the COCO dataset.&quot;</span>
+
+        <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">tile_path</span><span class="p">)</span> <span class="k">as</span> <span class="n">tile</span><span class="p">:</span>
+            <span class="n">tile_width</span><span class="p">,</span> <span class="n">tile_height</span> <span class="o">=</span> <span class="n">tile</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="n">tile</span><span class="o">.</span><span class="n">height</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tile_polygons</span><span class="p">)):</span>
+            <span class="n">detection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_label_coco</span><span class="p">(</span>
+                <span class="n">polygon</span><span class="o">=</span><span class="n">tile_polygons</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">tile_height</span><span class="o">=</span><span class="n">tile_height</span><span class="p">,</span>
+                <span class="n">tile_width</span><span class="o">=</span><span class="n">tile_width</span><span class="p">,</span>
+                <span class="n">tile_id</span><span class="o">=</span><span class="n">tile_id</span><span class="p">,</span>
+                <span class="n">use_rle_for_labels</span><span class="o">=</span><span class="n">use_rle_for_labels</span><span class="p">,</span>
+                <span class="n">category_id</span><span class="o">=</span><span class="n">tiles_polygons_category_ids</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="n">tiles_polygons_category_ids</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">other_attributes_dict</span><span class="o">=</span><span class="n">tiles_polygons_other_attributes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="n">tiles_polygons_other_attributes</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">)</span>
+            <span class="n">local_detections_coco</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">detection</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;image_coco&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">tile_id</span><span class="p">,</span>
+                <span class="s2">&quot;width&quot;</span><span class="p">:</span> <span class="n">tile_width</span><span class="p">,</span>
+                <span class="s2">&quot;height&quot;</span><span class="p">:</span> <span class="n">tile_height</span><span class="p">,</span>
+                <span class="s2">&quot;file_name&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">tile_path</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
+            <span class="p">},</span>
+            <span class="s2">&quot;detections_coco&quot;</span><span class="p">:</span> <span class="n">local_detections_coco</span>
+        <span class="p">}</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_generate_label_coco</span><span class="p">(</span><span class="n">polygon</span><span class="p">:</span> <span class="n">shapely</span><span class="o">.</span><span class="n">Polygon</span><span class="p">,</span>
+                             <span class="n">tile_height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                             <span class="n">tile_width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                             <span class="n">tile_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                             <span class="n">use_rle_for_labels</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+                             <span class="n">category_id</span><span class="p">:</span> <span class="nb">int</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
+                             <span class="n">other_attributes_dict</span><span class="p">:</span> <span class="nb">dict</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">use_rle_for_labels</span><span class="p">:</span>
+            <span class="c1"># Convert the polygon to a COCO RLE mask</span>
+            <span class="n">segmentation</span> <span class="o">=</span> <span class="n">polygon_to_coco_rle_segmentation</span><span class="p">(</span><span class="n">polygon</span><span class="o">=</span><span class="n">polygon</span><span class="p">,</span>
+                                                            <span class="n">tile_height</span><span class="o">=</span><span class="n">tile_height</span><span class="p">,</span>
+                                                            <span class="n">tile_width</span><span class="o">=</span><span class="n">tile_width</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Convert the polygon&#39;s exterior coordinates to the format expected by COCO</span>
+            <span class="n">segmentation</span> <span class="o">=</span> <span class="n">polygon_to_coco_coordinates_segmentation</span><span class="p">(</span><span class="n">polygon</span><span class="o">=</span><span class="n">polygon</span><span class="p">)</span>
+
+        <span class="c1"># Calculate the area of the polygon</span>
+        <span class="n">area</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">area</span>
+
+        <span class="c1"># Get the bounding box in COCO format: [x, y, width, height]</span>
+        <span class="n">bbox</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">)</span>
+        <span class="n">bbox_coco_format</span> <span class="o">=</span> <span class="p">[</span><span class="n">bbox</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+
+        <span class="c1"># Generate COCO annotation data from each associated label</span>
+        <span class="n">coco_annotation</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;segmentation&quot;</span><span class="p">:</span> <span class="n">segmentation</span><span class="p">,</span>
+            <span class="s2">&quot;is_rle_format&quot;</span><span class="p">:</span> <span class="n">use_rle_for_labels</span><span class="p">,</span>
+            <span class="s2">&quot;area&quot;</span><span class="p">:</span> <span class="n">area</span><span class="p">,</span>
+            <span class="s2">&quot;iscrowd&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>  <span class="c1"># Assuming this polygon represents a single object (not a crowd)</span>
+            <span class="s2">&quot;image_id&quot;</span><span class="p">:</span> <span class="n">tile_id</span><span class="p">,</span>
+            <span class="s2">&quot;bbox&quot;</span><span class="p">:</span> <span class="n">bbox_coco_format</span><span class="p">,</span>
+            <span class="s2">&quot;category_id&quot;</span><span class="p">:</span> <span class="n">category_id</span><span class="p">,</span>
+            <span class="s2">&quot;other_attributes&quot;</span><span class="p">:</span> <span class="n">other_attributes_dict</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">coco_annotation</span>
+
+    <span class="k">def</span> <span class="nf">_generate_coco_categories</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate COCO categories from the unique label categories in the dataset.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">categories_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">category</span> <span class="k">for</span> <span class="n">categories</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">categories</span> <span class="k">for</span> <span class="n">category</span> <span class="ow">in</span> <span class="n">categories</span><span class="p">]</span>
+                             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">categories</span> <span class="k">else</span> <span class="p">{})</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coco_categories_list</span><span class="p">:</span>
+            <span class="n">category_name_to_id_map</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">id_to_category_dict_map</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">category_dict</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">coco_categories_list</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="s1">&#39;name&#39;</span> <span class="ow">in</span> <span class="n">category_dict</span><span class="p">,</span> <span class="s2">&quot;The id_to_category_map dictionary must contain a &#39;name&#39; key in each id dict.&quot;</span>
+                <span class="k">assert</span> <span class="s1">&#39;id&#39;</span> <span class="ow">in</span> <span class="n">category_dict</span><span class="p">,</span> <span class="s2">&quot;The id_to_category_map dictionary must contain an &#39;id&#39; key in each id dict.&quot;</span>
+                <span class="k">assert</span> <span class="s1">&#39;supercategory&#39;</span> <span class="ow">in</span> <span class="n">category_dict</span><span class="p">,</span> <span class="s2">&quot;The id_to_category_map dictionary must contain a &#39;supercategory&#39; key in each id dict.&quot;</span>
+                <span class="k">assert</span> <span class="n">category_dict</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">category_name_to_id_map</span><span class="p">,</span> \
+                    <span class="sa">f</span><span class="s2">&quot;The category names (&#39;name&#39; and &#39;other_names&#39;) must be unique. Found </span><span class="si">{</span><span class="n">category_dict</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> twice.&quot;</span>
+                <span class="k">assert</span> <span class="n">category_dict</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">id_to_category_dict_map</span><span class="p">,</span> \
+                    <span class="sa">f</span><span class="s2">&quot;The category ids must be unique. Found </span><span class="si">{</span><span class="n">category_dict</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> twice.&quot;</span>
+                <span class="n">category_name_to_id_map</span><span class="p">[</span><span class="n">category_dict</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">category_dict</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span>
+
+                <span class="k">if</span> <span class="s2">&quot;other_names&quot;</span> <span class="ow">in</span> <span class="n">category_dict</span> <span class="ow">and</span> <span class="n">category_dict</span><span class="p">[</span><span class="s2">&quot;other_names&quot;</span><span class="p">]:</span>
+                    <span class="k">for</span> <span class="n">other_name</span> <span class="ow">in</span> <span class="n">category_dict</span><span class="p">[</span><span class="s2">&quot;other_names&quot;</span><span class="p">]:</span>
+                        <span class="k">assert</span> <span class="n">other_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">category_name_to_id_map</span><span class="p">,</span> \
+                            <span class="sa">f</span><span class="s2">&quot;The category names (&#39;name&#39; and &#39;other_names&#39;) must be unique. Found </span><span class="si">{</span><span class="n">other_name</span><span class="si">}</span><span class="s2"> twice.&quot;</span>
+                        <span class="n">category_name_to_id_map</span><span class="p">[</span><span class="n">other_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">category_dict</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span>
+
+            <span class="n">categories_coco</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coco_categories_list</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">categories</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">category</span> <span class="ow">in</span> <span class="n">categories_set</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">category</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">category_name_to_id_map</span><span class="p">:</span>
+                        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The category &#39;</span><span class="si">{</span><span class="n">category</span><span class="si">}</span><span class="s2">&#39; is not in the provided COCO categories list.&quot;</span><span class="p">)</span>
+                        <span class="c1"># raise Exception(f&quot;The category &#39;{category}&#39; is not in the provided COCO categories list.&quot;)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;A &#39;coco_categories_list&#39; was provided,&quot;</span>
+                                <span class="s2">&quot; but categories haven&#39;t been provided for the polygons.&quot;</span>
+                                <span class="s2">&quot; Please set &#39;coco_categories_list&#39; to None.&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">categories</span><span class="p">:</span>
+                <span class="n">categories_coco</span> <span class="o">=</span> <span class="p">[{</span><span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">category</span><span class="p">,</span> <span class="s1">&#39;supercategory&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">}</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">category</span> <span class="ow">in</span>
+                                   <span class="nb">enumerate</span><span class="p">(</span><span class="n">categories_set</span><span class="p">)]</span>
+                <span class="n">category_name_to_id_map</span> <span class="o">=</span> <span class="p">{</span><span class="n">category</span><span class="p">:</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">category</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">categories_set</span><span class="p">)}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">categories_coco</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">category_name_to_id_map</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;The GeoDataFrame containing the labels doesn&#39;t contain a category column,&quot;</span>
+                              <span class="s2">&quot; so labels won&#39;t have categories.&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">categories_coco</span><span class="p">,</span> <span class="n">category_name_to_id_map</span></div>
+
+
+
+<span class="k">def</span> <span class="nf">apply_affine_transform</span><span class="p">(</span><span class="n">geom</span><span class="p">:</span> <span class="n">shapely</span><span class="o">.</span><span class="n">geometry</span><span class="p">,</span> <span class="n">affine</span><span class="p">:</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">Affine</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">transform</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">affine</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="n">geom</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="coco_to_geopackage">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.coco_to_geopackage">[docs]</a>
+<span class="k">def</span> <span class="nf">coco_to_geopackage</span><span class="p">(</span><span class="n">coco_json_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                       <span class="n">images_directory</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                       <span class="n">convert_to_crs_coordinates</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+                       <span class="n">geopackage_output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts a COCO JSON dataset into a GeoDataFrame, then saved if needed as a GeoPackage file.</span>
+
+<span class="sd">    The resulting GeoDataFrame (or GeoPackage if saved) will have the following columns:</span>
+
+<span class="sd">    - geometry: The polygon geometry</span>
+<span class="sd">    - tile_id: The ID of the tile the polygon belongs to</span>
+<span class="sd">    - tile_path: The path to the tile image</span>
+<span class="sd">    - category_id: The ID of the category of the polygon</span>
+<span class="sd">    - category_name: The name of the category of the polygon</span>
+<span class="sd">    - any other attributes found in the &#39;other_attributes&#39; field of the COCO JSON annotations</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    coco_json_path: str</span>
+<span class="sd">        The path to the COCO JSON dataset (.json).</span>
+<span class="sd">    images_directory: str</span>
+<span class="sd">        The directory containing the images associated with the COCO dataset.</span>
+<span class="sd">    convert_to_crs_coordinates: bool</span>
+<span class="sd">        Whether to convert the polygon pixel coordinates to a common CRS (uses the CRS of the first .tif tile).</span>
+<span class="sd">    geopackage_output_path: str or None</span>
+<span class="sd">        The path to save the GeoPackage file. If None, the GeoPackage file will not be saved to the disk.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    GeoDataFrame</span>
+<span class="sd">        A GeoDataFrame containing the polygons from the COCO dataset</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Load COCO JSON</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">coco_json_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+        <span class="n">coco_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+
+    <span class="n">tiles_data</span> <span class="o">=</span> <span class="n">coco_data</span><span class="p">[</span><span class="s1">&#39;images&#39;</span><span class="p">]</span>
+    <span class="n">annotations_data</span> <span class="o">=</span> <span class="n">coco_data</span><span class="p">[</span><span class="s1">&#39;annotations&#39;</span><span class="p">]</span>
+    <span class="n">categories_data</span> <span class="o">=</span> <span class="n">coco_data</span><span class="p">[</span><span class="s1">&#39;categories&#39;</span><span class="p">]</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Found </span><span class="si">{}</span><span class="s2"> tiles and </span><span class="si">{}</span><span class="s2"> annotations.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tiles_data</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">annotations_data</span><span class="p">)))</span>
+
+    <span class="c1"># Create a mapping of category IDs to category names</span>
+    <span class="n">categories_ids_to_names_map</span> <span class="o">=</span> <span class="p">{</span><span class="n">category</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]:</span> <span class="n">category</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">category</span> <span class="ow">in</span> <span class="n">categories_data</span><span class="p">}</span>
+    <span class="n">categories_ids_to_names_map</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="n">tiles_ids_to_tiles_map</span> <span class="o">=</span> <span class="p">{</span><span class="n">tile</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]:</span> <span class="n">tile</span> <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles_data</span><span class="p">}</span>
+    <span class="n">tiles_ids_to_annotations_map</span> <span class="o">=</span> <span class="p">{</span><span class="n">tile</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles_data</span><span class="p">}</span>
+    <span class="k">for</span> <span class="n">annotation</span> <span class="ow">in</span> <span class="n">annotations_data</span><span class="p">:</span>
+        <span class="n">tiles_ids_to_annotations_map</span><span class="p">[</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;image_id&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">annotation</span><span class="p">)</span>
+
+    <span class="n">gdfs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">tile_id</span> <span class="ow">in</span> <span class="n">tiles_ids_to_tiles_map</span><span class="p">:</span>
+        <span class="n">tile_data</span> <span class="o">=</span> <span class="n">tiles_ids_to_tiles_map</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span>
+        <span class="n">tile_annotations</span> <span class="o">=</span> <span class="n">tiles_ids_to_annotations_map</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span>
+
+        <span class="n">polygons</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">annotation</span> <span class="ow">in</span> <span class="n">tile_annotations</span><span class="p">:</span>
+            <span class="c1"># Check if segmentation data is in RLE format; if so, decode it</span>
+            <span class="k">if</span> <span class="n">annotation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;is_rle_format&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">],</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="n">polygon</span> <span class="o">=</span> <span class="n">coco_rle_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="o">=</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">polygon</span> <span class="o">=</span> <span class="n">coco_coordinates_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="o">=</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">])</span>
+            <span class="n">polygons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span>
+
+        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">({</span>
+            <span class="s1">&#39;geometry&#39;</span><span class="p">:</span> <span class="n">polygons</span><span class="p">,</span>
+            <span class="s1">&#39;tile_id&#39;</span><span class="p">:</span> <span class="n">tile_id</span><span class="p">,</span>
+            <span class="s1">&#39;tile_path&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">images_directory</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">tile_data</span><span class="p">[</span><span class="s1">&#39;file_name&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="s1">&#39;category_id&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">annotation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;category_id&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">annotation</span> <span class="ow">in</span> <span class="n">tile_annotations</span><span class="p">],</span>
+            <span class="s1">&#39;category_name&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">categories_ids_to_names_map</span><span class="p">[</span><span class="n">annotation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;category_id&#39;</span><span class="p">)]</span> <span class="k">for</span> <span class="n">annotation</span> <span class="ow">in</span> <span class="n">tile_annotations</span><span class="p">],</span>
+        <span class="p">})</span>
+
+        <span class="k">if</span> <span class="s1">&#39;other_attributes&#39;</span> <span class="ow">in</span> <span class="n">tile_annotations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">tile_annotations</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;other_attributes&#39;</span><span class="p">])</span> <span class="ow">is</span> <span class="nb">dict</span><span class="p">:</span>
+            <span class="n">other_attributes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">tile_annotation</span> <span class="ow">in</span> <span class="n">tile_annotations</span><span class="p">:</span>
+                <span class="n">other_attributes</span> <span class="o">=</span> <span class="n">other_attributes</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">tile_annotation</span><span class="p">[</span><span class="s1">&#39;other_attributes&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+
+            <span class="k">for</span> <span class="n">other_attribute</span> <span class="ow">in</span> <span class="n">other_attributes</span><span class="p">:</span>
+                <span class="n">gdf</span><span class="p">[</span><span class="n">other_attribute</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;other_attributes&#39;</span><span class="p">][</span><span class="n">other_attribute</span><span class="p">]</span>
+                                        <span class="k">if</span> <span class="p">(</span><span class="n">other_attribute</span> <span class="ow">in</span> <span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;other_attributes&#39;</span><span class="p">]</span>
+                                            <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;other_attributes&#39;</span><span class="p">][</span><span class="n">other_attribute</span><span class="p">])</span>
+                                            <span class="ow">in</span> <span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">])</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">annotation</span> <span class="ow">in</span> <span class="n">tile_annotations</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="s1">&#39;score&#39;</span> <span class="ow">in</span> <span class="n">tile_annotations</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">annotation</span> <span class="ow">in</span> <span class="n">tile_annotations</span><span class="p">]</span>
+
+        <span class="n">gdfs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gdf</span><span class="p">)</span>
+
+    <span class="n">all_polygons_gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">gdfs</span><span class="p">,</span> <span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+    <span class="n">all_polygons_gdf</span><span class="o">.</span><span class="n">set_geometry</span><span class="p">(</span><span class="s1">&#39;geometry&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">convert_to_crs_coordinates</span><span class="p">:</span>
+        <span class="n">all_polygons_gdf</span> <span class="o">=</span> <span class="n">tiles_polygons_gdf_to_crs_gdf</span><span class="p">(</span><span class="n">all_polygons_gdf</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">geopackage_output_path</span><span class="p">:</span>
+        <span class="n">ext</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">geopackage_output_path</span><span class="p">)</span><span class="o">.</span><span class="n">suffix</span>
+        <span class="k">if</span> <span class="n">ext</span> <span class="o">==</span> <span class="s1">&#39;.gpkg&#39;</span><span class="p">:</span>
+            <span class="n">all_polygons_gdf</span><span class="o">.</span><span class="n">to_file</span><span class="p">(</span><span class="n">geopackage_output_path</span><span class="p">,</span> <span class="n">driver</span><span class="o">=</span><span class="s1">&#39;GPKG&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Successfully converted the COCO json into a GeoPackage file (.gpkg) saved at </span><span class="si">{</span><span class="n">geopackage_output_path</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">ext</span> <span class="o">==</span> <span class="s1">&#39;.geojson&#39;</span><span class="p">:</span>
+            <span class="n">all_polygons_gdf</span><span class="o">.</span><span class="n">to_file</span><span class="p">(</span><span class="n">geopackage_output_path</span><span class="p">,</span> <span class="n">driver</span><span class="o">=</span><span class="s1">&#39;GeoJSON&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Successfully converted the COCO json into a GeoJSON file saved at </span><span class="si">{</span><span class="n">geopackage_output_path</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">ext</span> <span class="o">==</span> <span class="s1">&#39;.shp&#39;</span><span class="p">:</span>
+            <span class="n">all_polygons_gdf</span><span class="o">.</span><span class="n">to_file</span><span class="p">(</span><span class="n">geopackage_output_path</span><span class="p">,</span> <span class="n">driver</span><span class="o">=</span><span class="s1">&#39;ESRI Shapefile&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Successfully converted the COCO json into a Shapefile saved at </span><span class="si">{</span><span class="n">geopackage_output_path</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Output file format </span><span class="si">{</span><span class="n">ext</span><span class="si">}</span><span class="s2"> not supported. Please use .gpkg, .geojson or .shp.&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">all_polygons_gdf</span></div>
+
+
+
+<div class="viewcode-block" id="tiles_polygons_gdf_to_crs_gdf">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.tiles_polygons_gdf_to_crs_gdf">[docs]</a>
+<span class="k">def</span> <span class="nf">tiles_polygons_gdf_to_crs_gdf</span><span class="p">(</span><span class="n">dataframe</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts a GeoDataFrame of polygons from multiple tiles to a common CRS.</span>
+<span class="sd">    The dataframe passed must have a &#39;tile_path&#39; column containing the path to the tile image, as the function</span>
+<span class="sd">    needs to read each tile metadata to get their respective CRS.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dataframe: GeoDataFrame</span>
+<span class="sd">        The GeoDataFrame containing the polygons from multiple tiles.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    GeoDataFrame</span>
+<span class="sd">        A GeoDataFrame containing the polygons in a common CRS.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">assert</span> <span class="s1">&#39;tile_path&#39;</span> <span class="ow">in</span> <span class="n">dataframe</span><span class="o">.</span><span class="n">columns</span><span class="p">,</span> <span class="s2">&quot;The GeoDataFrame must contain a &#39;tile_path&#39; column.&quot;</span>
+
+    <span class="c1"># get the first tile_path</span>
+    <span class="n">first_tile_path</span> <span class="o">=</span> <span class="n">dataframe</span><span class="p">[</span><span class="s1">&#39;tile_path&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">common_crs</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">first_tile_path</span><span class="p">)</span><span class="o">.</span><span class="n">crs</span>
+
+    <span class="n">gdfs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">tile_path</span> <span class="ow">in</span> <span class="n">dataframe</span><span class="p">[</span><span class="s1">&#39;tile_path&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">():</span>
+        <span class="n">tile_gdf</span> <span class="o">=</span> <span class="n">dataframe</span><span class="p">[</span><span class="n">dataframe</span><span class="p">[</span><span class="s1">&#39;tile_path&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">tile_path</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">tile_src</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">tile_path</span><span class="p">)</span>
+        <span class="n">tile_gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tile_gdf</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">row</span><span class="p">:</span> <span class="n">apply_affine_transform</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">],</span> <span class="n">tile_src</span><span class="o">.</span><span class="n">transform</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">tile_gdf</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="n">tile_src</span><span class="o">.</span><span class="n">crs</span>
+        <span class="n">tile_gdf</span> <span class="o">=</span> <span class="n">tile_gdf</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="n">common_crs</span><span class="p">)</span>
+        <span class="n">gdfs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile_gdf</span><span class="p">)</span>
+
+    <span class="n">all_tiles_gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">gdfs</span><span class="p">,</span> <span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+    <span class="n">all_tiles_gdf</span><span class="o">.</span><span class="n">set_geometry</span><span class="p">(</span><span class="s1">&#39;geometry&#39;</span><span class="p">)</span>
+    <span class="n">all_tiles_gdf</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="n">common_crs</span>
+
+    <span class="k">return</span> <span class="n">all_tiles_gdf</span></div>
+
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Hugo Baudchon.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

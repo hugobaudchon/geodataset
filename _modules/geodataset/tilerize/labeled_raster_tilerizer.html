@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>geodataset.tilerize.labeled_raster_tilerizer &mdash; GeoDataset  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/custom.css?v=a4895fdd" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            GeoDataset
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../documentation.html">Documentation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">GeoDataset</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">geodataset.tilerize.labeled_raster_tilerizer</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for geodataset.tilerize.labeled_raster_tilerizer</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+<span class="kn">import</span> <span class="nn">geopandas</span> <span class="k">as</span> <span class="nn">gpd</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span> <span class="nn">shapely</span> <span class="kn">import</span> <span class="n">box</span><span class="p">,</span> <span class="n">Polygon</span>
+<span class="kn">from</span> <span class="nn">shapely.affinity</span> <span class="kn">import</span> <span class="n">translate</span>
+
+<span class="kn">from</span> <span class="nn">geodataset.aoi</span> <span class="kn">import</span> <span class="n">AOIConfig</span>
+<span class="kn">from</span> <span class="nn">geodataset.geodata.tile</span> <span class="kn">import</span> <span class="n">Tile</span>
+<span class="kn">from</span> <span class="nn">geodataset.labels.raster_labels</span> <span class="kn">import</span> <span class="n">RasterPolygonLabels</span>
+
+
+<span class="kn">from</span> <span class="nn">geodataset.utils</span> <span class="kn">import</span> <span class="n">save_aois_tiles_picture</span><span class="p">,</span> <span class="n">CocoNameConvention</span><span class="p">,</span> <span class="n">AoiTilesImageConvention</span><span class="p">,</span> <span class="n">COCOGenerator</span>
+<span class="kn">from</span> <span class="nn">geodataset.tilerize.raster_tilerizer</span> <span class="kn">import</span> <span class="n">BaseDiskRasterTilerizer</span>
+
+
+<div class="viewcode-block" id="LabeledRasterTilerizer">
+<a class="viewcode-back" href="../../../tilerize.html#geodataset.tilerize.LabeledRasterTilerizer">[docs]</a>
+<span class="k">class</span> <span class="nc">LabeledRasterTilerizer</span><span class="p">(</span><span class="n">BaseDiskRasterTilerizer</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This class is used to create image tiles from a raster and their associated labels from a .geojson, .gpkg or .csv file.</span>
+<span class="sd">    COCO json files are generated for each AOI (or for the &#39;all&#39; AOI).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    raster_path : str or pathlib.Path</span>
+<span class="sd">        Path to the raster (.tif, .png...).</span>
+<span class="sd">    labels_path : str or pathlib.Path</span>
+<span class="sd">        Path to the labels. Supported formats are: .gpkg, .geojson, .shp, .xml, .csv.</span>
+<span class="sd">    output_path : str or pathlib.Path</span>
+<span class="sd">        Path to parent folder where to save the image tiles and associated labels.</span>
+<span class="sd">    tile_size : int</span>
+<span class="sd">        The size of the tiles in pixels (tile_size, tile_size).</span>
+<span class="sd">    tile_overlap : float</span>
+<span class="sd">        The overlap between the tiles (0 &lt;= overlap &lt; 1).</span>
+<span class="sd">    aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None</span>
+<span class="sd">        An instance of AOIConfig to use, or None if all tiles should be kept in an &#39;all&#39; AOI.</span>
+<span class="sd">    ground_resolution : float, optional</span>
+<span class="sd">        The ground resolution in meter per pixel desired when loading the raster.</span>
+<span class="sd">        Only one of ground_resolution and scale_factor can be set at the same time.</span>
+<span class="sd">    scale_factor : float, optional</span>
+<span class="sd">        Scale factor for rescaling the data (change pixel resolution).</span>
+<span class="sd">        Only one of ground_resolution and scale_factor can be set at the same time.</span>
+<span class="sd">    output_name_suffix : str, optional</span>
+<span class="sd">        Suffix to add to the output file names.</span>
+<span class="sd">    ignore_black_white_alpha_tiles_threshold : float, optional</span>
+<span class="sd">        Threshold ratio of black, white or transparent pixels in a tile to skip it. Default is 0.8.</span>
+<span class="sd">    use_rle_for_labels : bool, optional</span>
+<span class="sd">        Whether to use RLE encoding for the labels. If False, the labels will be saved as polygons.</span>
+<span class="sd">    min_intersection_ratio : float, optional</span>
+<span class="sd">        When finding the associated polygon labels to a tile, this ratio will specify the minimal required intersection</span>
+<span class="sd">        ratio (intersecting_polygon_area / polygon_area) between a candidate polygon and the tile in order to keep this</span>
+<span class="sd">        polygon as a label for that tile.</span>
+<span class="sd">    ignore_tiles_without_labels : bool, optional</span>
+<span class="sd">        Whether to ignore (skip) tiles that don&#39;t have any associated labels.</span>
+<span class="sd">    geopackage_layer_name : str, optional</span>
+<span class="sd">        The name of the layer in the geopackage file to use as labels. Only used if the labels_path is a .gpkg, .geojson</span>
+<span class="sd">        or .shp file. Only useful when the labels geopackage file contains multiple layers.</span>
+<span class="sd">    main_label_category_column_name : str, optional</span>
+<span class="sd">        The name of the column in the labels file that contains the main category of the labels.</span>
+<span class="sd">    other_labels_attributes_column_names : list of str, optional</span>
+<span class="sd">        The names of the columns in the labels file that contains other attributes of the labels, which should be kept</span>
+<span class="sd">        as a dictionary in the COCO annotations data.</span>
+<span class="sd">    coco_n_workers : int, optional</span>
+<span class="sd">        Number of workers to use when generating the COCO dataset.</span>
+<span class="sd">        Useful when use_rle_for_labels=True as it is quite slow.</span>
+<span class="sd">    coco_categories_list : list of dict, optional</span>
+<span class="sd">        A list of category dictionaries in COCO format. If a polygon has a category (label in</span>
+<span class="sd">        &#39;main_label_category_column_name&#39;) that is not in this list, its category_id will be set to None in its COCO</span>
+<span class="sd">        annotation. If &#39;coco_categories_list&#39; is None, the categories ids will be automatically generated from the</span>
+<span class="sd">        unique categories found in the &#39;main_label_category_column_name&#39; column.</span>
+
+<span class="sd">        .. raw:: html</span>
+
+<span class="sd">            &lt;br&gt;</span>
+
+<span class="sd">        To assign a category_id to a polygon, the code will check the &#39;name&#39; and &#39;other_names&#39; fields of the categories.</span>
+
+<span class="sd">        .. raw:: html</span>
+
+<span class="sd">            &lt;br&gt;</span>
+
+<span class="sd">        **IMPORTANT**: It is strongly advised to provide this list if you want to have consistent category ids across</span>
+<span class="sd">        multiple COCO datasets.</span>
+
+<span class="sd">        .. raw:: html</span>
+
+<span class="sd">            &lt;br&gt;</span>
+
+<span class="sd">        Exemple of 2 categories, one being the parent of the other::</span>
+
+<span class="sd">            [{</span>
+<span class="sd">                &quot;id&quot;: 1,</span>
+<span class="sd">                &quot;name&quot;: &quot;Pinaceae&quot;,</span>
+<span class="sd">                &quot;other_names&quot;: [],</span>
+<span class="sd">                &quot;supercategory&quot;: null</span>
+<span class="sd">            },</span>
+<span class="sd">            {</span>
+<span class="sd">                &quot;id&quot;: 2,</span>
+<span class="sd">                &quot;name&quot;: &quot;Picea&quot;,</span>
+<span class="sd">                &quot;other_names&quot;: [&quot;PIGL&quot;, &quot;PIMA&quot;, &quot;PIRU&quot;],</span>
+<span class="sd">                &quot;supercategory&quot;: 1</span>
+<span class="sd">            }]</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">raster_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
+                 <span class="n">labels_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
+                 <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
+                 <span class="n">tile_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                 <span class="n">tile_overlap</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+                 <span class="n">aois_config</span><span class="p">:</span> <span class="n">AOIConfig</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">ground_resolution</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">scale_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">output_name_suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
+                 <span class="n">use_rle_for_labels</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                 <span class="n">min_intersection_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.9</span><span class="p">,</span>
+                 <span class="n">ignore_tiles_without_labels</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+                 <span class="n">geopackage_layer_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">main_label_category_column_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">other_labels_attributes_column_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">coco_n_workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+                 <span class="n">coco_categories_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">raster_path</span><span class="o">=</span><span class="n">raster_path</span><span class="p">,</span>
+                         <span class="n">output_path</span><span class="o">=</span><span class="n">output_path</span><span class="p">,</span>
+                         <span class="n">tile_size</span><span class="o">=</span><span class="n">tile_size</span><span class="p">,</span>
+                         <span class="n">tile_overlap</span><span class="o">=</span><span class="n">tile_overlap</span><span class="p">,</span>
+                         <span class="n">aois_config</span><span class="o">=</span><span class="n">aois_config</span><span class="p">,</span>
+                         <span class="n">ground_resolution</span><span class="o">=</span><span class="n">ground_resolution</span><span class="p">,</span>
+                         <span class="n">scale_factor</span><span class="o">=</span><span class="n">scale_factor</span><span class="p">,</span>
+                         <span class="n">output_name_suffix</span><span class="o">=</span><span class="n">output_name_suffix</span><span class="p">,</span>
+                         <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">labels_path</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_rle_for_labels</span> <span class="o">=</span> <span class="n">use_rle_for_labels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">min_intersection_ratio</span> <span class="o">=</span> <span class="n">min_intersection_ratio</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ignore_tiles_without_labels</span> <span class="o">=</span> <span class="n">ignore_tiles_without_labels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coco_n_workers</span> <span class="o">=</span> <span class="n">coco_n_workers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coco_categories_list</span> <span class="o">=</span> <span class="n">coco_categories_list</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_labels</span><span class="p">(</span>
+            <span class="n">geopackage_layer_name</span><span class="o">=</span><span class="n">geopackage_layer_name</span><span class="p">,</span>
+            <span class="n">main_label_category_column_name</span><span class="o">=</span><span class="n">main_label_category_column_name</span><span class="p">,</span>
+            <span class="n">other_labels_attributes_column_names</span><span class="o">=</span><span class="n">other_labels_attributes_column_names</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_load_labels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                     <span class="n">geopackage_layer_name</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
+                     <span class="n">main_label_category_column_name</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
+                     <span class="n">other_labels_attributes_column_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">):</span>
+
+        <span class="n">labels</span> <span class="o">=</span> <span class="n">RasterPolygonLabels</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">labels_path</span><span class="p">,</span>
+                                     <span class="n">associated_raster</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="p">,</span>
+                                     <span class="n">geopackage_layer_name</span><span class="o">=</span><span class="n">geopackage_layer_name</span><span class="p">,</span>
+                                     <span class="n">main_label_category_column_name</span><span class="o">=</span><span class="n">main_label_category_column_name</span><span class="p">,</span>
+                                     <span class="n">other_labels_attributes_column_names</span><span class="o">=</span><span class="n">other_labels_attributes_column_names</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">labels</span>
+
+    <span class="k">def</span> <span class="nf">_get_tiles_and_labels_per_aoi</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">tiles</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_tiles</span><span class="p">()</span>
+        <span class="p">(</span><span class="n">intersecting_labels_raster_coords</span><span class="p">,</span>
+         <span class="n">intersecting_labels_tiles_coords</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_find_associated_labels</span><span class="p">(</span><span class="n">tiles</span><span class="o">=</span><span class="n">tiles</span><span class="p">)</span>
+
+        <span class="c1"># Keeping only the interesting tiles and creating a mapping from tile_ids to their labels</span>
+        <span class="n">labeled_tiles</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles</span><span class="p">:</span>
+            <span class="n">associated_labels</span> <span class="o">=</span> <span class="n">intersecting_labels_tiles_coords</span><span class="p">[</span><span class="n">intersecting_labels_tiles_coords</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">tile</span><span class="o">.</span><span class="n">tile_id</span><span class="p">]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ignore_tiles_without_labels</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">associated_labels</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">labeled_tiles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile</span><span class="p">)</span>
+
+        <span class="c1"># Assigning the tiles to AOIs</span>
+        <span class="n">aois_tiles</span><span class="p">,</span> <span class="n">aois_gdf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_tiles_per_aoi</span><span class="p">(</span><span class="n">tiles</span><span class="o">=</span><span class="n">labeled_tiles</span><span class="p">)</span>
+
+        <span class="c1"># Intersect the labels with the aois, to make sure for a given tile, we only get labels inside its assigned AOI.</span>
+        <span class="n">intersecting_labels_raster_coords</span><span class="p">[</span><span class="s1">&#39;label_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">intersecting_labels_raster_coords</span><span class="o">.</span><span class="n">index</span>
+        <span class="n">intersecting_labels_raster_coords</span><span class="p">[</span><span class="s1">&#39;label_area&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">intersecting_labels_raster_coords</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">area</span>
+        <span class="n">intersecting_labels_aois_raster_coords</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">overlay</span><span class="p">(</span><span class="n">intersecting_labels_raster_coords</span><span class="p">,</span> <span class="n">aois_gdf</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;intersection&#39;</span><span class="p">,</span> <span class="n">keep_geom_type</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">intersecting_labels_aois_raster_coords</span><span class="p">[</span><span class="s1">&#39;intersection_area&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">intersecting_labels_aois_raster_coords</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">area</span>
+        <span class="n">intersecting_labels_aois_raster_coords</span><span class="p">[</span><span class="s1">&#39;intersection_ratio&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">intersecting_labels_aois_raster_coords</span><span class="p">[</span><span class="s1">&#39;intersection_area&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">intersecting_labels_aois_raster_coords</span><span class="p">[</span><span class="s1">&#39;label_area&#39;</span><span class="p">]</span>
+        <span class="n">intersecting_labels_aois_raster_coords</span> <span class="o">=</span> <span class="n">intersecting_labels_aois_raster_coords</span><span class="p">[</span><span class="n">intersecting_labels_aois_raster_coords</span><span class="p">[</span><span class="s1">&#39;intersection_ratio&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_intersection_ratio</span><span class="p">]</span>
+
+        <span class="n">final_aois_tiles</span> <span class="o">=</span> <span class="p">{</span><span class="n">aoi</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">aois_tiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;all&#39;</span><span class="p">]}</span>
+        <span class="n">final_aois_labels</span> <span class="o">=</span> <span class="p">{</span><span class="n">aoi</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">aois_tiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;all&#39;</span><span class="p">]}</span>
+        <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="n">aois_tiles</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">]:</span>
+                <span class="n">labels_crs_coords</span> <span class="o">=</span> <span class="n">intersecting_labels_aois_raster_coords</span><span class="p">[</span><span class="n">intersecting_labels_aois_raster_coords</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">tile</span><span class="o">.</span><span class="n">tile_id</span><span class="p">]</span>
+                <span class="n">labels_crs_coords</span> <span class="o">=</span> <span class="n">labels_crs_coords</span><span class="p">[</span><span class="n">labels_crs_coords</span><span class="p">[</span><span class="s1">&#39;aoi&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">aoi</span><span class="p">]</span>
+                <span class="n">labels_ids</span> <span class="o">=</span> <span class="n">labels_crs_coords</span><span class="p">[</span><span class="s1">&#39;label_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+                <span class="n">labels_tiles_coords</span> <span class="o">=</span> <span class="n">intersecting_labels_tiles_coords</span><span class="p">[</span><span class="n">intersecting_labels_tiles_coords</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">labels_ids</span><span class="p">)]</span>
+
+                <span class="c1"># removing boxes that have an area of 0.0</span>
+                <span class="n">labels_tiles_coords</span> <span class="o">=</span> <span class="n">labels_tiles_coords</span><span class="p">[</span><span class="n">labels_tiles_coords</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">area</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">]</span>
+
+                <span class="c1"># remove boxes where x2 - x1 &lt;= 0.5 or y2 - y1 &lt;= 0.5, as they are too small and will cause issues when rounding the coordinates (area=0)</span>
+                <span class="n">labels_tiles_coords</span> <span class="o">=</span> <span class="n">labels_tiles_coords</span><span class="p">[(</span><span class="n">labels_tiles_coords</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="s1">&#39;maxx&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">labels_tiles_coords</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="s1">&#39;minx&#39;</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mf">0.5</span><span class="p">]</span>
+                <span class="n">labels_tiles_coords</span> <span class="o">=</span> <span class="n">labels_tiles_coords</span><span class="p">[(</span><span class="n">labels_tiles_coords</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="s1">&#39;maxy&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">labels_tiles_coords</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="s1">&#39;miny&#39;</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mf">0.5</span><span class="p">]</span>
+
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ignore_tiles_without_labels</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">labels_tiles_coords</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+                <span class="n">final_aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile</span><span class="p">)</span>
+                <span class="n">final_aois_labels</span><span class="p">[</span><span class="n">aoi</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">labels_tiles_coords</span><span class="p">)</span>
+                <span class="n">final_aois_tiles</span><span class="p">[</span><span class="s1">&#39;all&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile</span><span class="p">)</span>
+                <span class="n">final_aois_labels</span><span class="p">[</span><span class="s1">&#39;all&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">labels_tiles_coords</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">final_aois_tiles</span><span class="p">,</span> <span class="n">final_aois_labels</span>
+
+    <span class="k">def</span> <span class="nf">_find_associated_labels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tiles</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="p">(</span><span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Finding the labels associated to each tile...&quot;</span><span class="p">)</span>
+
+        <span class="n">tile_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">tile</span><span class="o">.</span><span class="n">tile_id</span> <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles</span><span class="p">]</span>
+
+        <span class="n">tiles_gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;tile_id&#39;</span><span class="p">:</span> <span class="n">tile_ids</span><span class="p">,</span>
+                                           <span class="s1">&#39;geometry&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">box</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">col</span><span class="p">,</span>
+                                                            <span class="n">tile</span><span class="o">.</span><span class="n">row</span><span class="p">,</span>
+                                                            <span class="n">tile</span><span class="o">.</span><span class="n">col</span> <span class="o">+</span> <span class="n">tile</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">],</span>
+                                                            <span class="n">tile</span><span class="o">.</span><span class="n">row</span> <span class="o">+</span> <span class="n">tile</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">])</span> <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles</span><span class="p">]})</span>
+        <span class="n">labels_gdf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="o">.</span><span class="n">geometries_gdf</span>
+
+        <span class="c1"># Remove the tile_id column if it exists, as it is the result of some previous detection/segmentation runs</span>
+        <span class="k">if</span> <span class="s1">&#39;tile_id&#39;</span> <span class="ow">in</span> <span class="n">labels_gdf</span><span class="p">:</span>
+            <span class="n">labels_gdf</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="s1">&#39;tile_id&#39;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">labels_gdf</span><span class="p">[</span><span class="s1">&#39;label_area&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">labels_gdf</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">area</span>
+        <span class="n">inter_polygons</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">overlay</span><span class="p">(</span><span class="n">tiles_gdf</span><span class="p">,</span> <span class="n">labels_gdf</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;intersection&#39;</span><span class="p">,</span> <span class="n">keep_geom_type</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">inter_polygons</span><span class="p">[</span><span class="s1">&#39;area&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">inter_polygons</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">area</span>
+        <span class="n">inter_polygons</span><span class="p">[</span><span class="s1">&#39;intersection_ratio&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">inter_polygons</span><span class="p">[</span><span class="s1">&#39;area&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">inter_polygons</span><span class="p">[</span><span class="s1">&#39;label_area&#39;</span><span class="p">]</span>
+        <span class="n">significant_polygons_inter</span> <span class="o">=</span> <span class="n">inter_polygons</span><span class="p">[</span><span class="n">inter_polygons</span><span class="p">[</span><span class="s1">&#39;intersection_ratio&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_intersection_ratio</span><span class="p">]</span>
+        <span class="n">significant_polygons_inter</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+
+        <span class="k">def</span> <span class="nf">adjust_geometry</span><span class="p">(</span><span class="n">polygon</span><span class="p">:</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">tile</span><span class="p">:</span> <span class="n">Tile</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">translate</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="n">xoff</span><span class="o">=-</span><span class="n">tile</span><span class="o">.</span><span class="n">col</span><span class="p">,</span> <span class="n">yoff</span><span class="o">=-</span><span class="n">tile</span><span class="o">.</span><span class="n">row</span><span class="p">)</span>
+
+        <span class="n">intersecting_labels_tiles_coords</span> <span class="o">=</span> <span class="n">significant_polygons_inter</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">tile_id</span><span class="p">,</span> <span class="n">tile</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">tile_ids</span><span class="p">,</span> <span class="n">tiles</span><span class="p">):</span>
+            <span class="n">labels_indices</span> <span class="o">=</span> <span class="n">intersecting_labels_tiles_coords</span><span class="p">[</span><span class="n">intersecting_labels_tiles_coords</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">tile_id</span><span class="p">]</span><span class="o">.</span><span class="n">index</span>
+            <span class="n">adjusted_labels_tiles_coords</span> <span class="o">=</span> <span class="n">intersecting_labels_tiles_coords</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">labels_indices</span><span class="p">,</span> <span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+                <span class="n">partial</span><span class="p">(</span><span class="n">adjust_geometry</span><span class="p">,</span> <span class="n">tile</span><span class="o">=</span><span class="n">tile</span><span class="p">))</span>
+            <span class="n">intersecting_labels_tiles_coords</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">labels_indices</span><span class="p">,</span> <span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">adjusted_labels_tiles_coords</span>
+
+        <span class="n">intersecting_labels_raster_coords</span> <span class="o">=</span> <span class="n">significant_polygons_inter</span>
+
+        <span class="k">return</span> <span class="n">intersecting_labels_raster_coords</span><span class="p">,</span> <span class="n">intersecting_labels_tiles_coords</span>
+
+<div class="viewcode-block" id="LabeledRasterTilerizer.generate_coco_dataset">
+<a class="viewcode-back" href="../../../tilerize.html#geodataset.tilerize.LabeledRasterTilerizer.generate_coco_dataset">[docs]</a>
+    <span class="k">def</span> <span class="nf">generate_coco_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate the tiles and the COCO dataset(s) for each AOI (or for the &#39;all&#39; AOI) and save everything to the disk.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">aois_tiles</span><span class="p">,</span> <span class="n">aois_labels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_tiles_and_labels_per_aoi</span><span class="p">()</span>
+
+        <span class="n">save_aois_tiles_picture</span><span class="p">(</span><span class="n">aois_tiles</span><span class="o">=</span><span class="n">aois_tiles</span><span class="p">,</span>
+                                <span class="n">save_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">/</span> <span class="n">AoiTilesImageConvention</span><span class="o">.</span><span class="n">create_name</span><span class="p">(</span>
+                                    <span class="n">product_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>
+                                    <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span>
+                                    <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span>
+                                <span class="p">),</span>
+                                <span class="n">tile_coordinate_step</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Saving the tiles and COCO json files...&#39;</span><span class="p">)</span>
+        <span class="n">coco_paths</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="n">aois_tiles</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">aoi</span> <span class="o">==</span> <span class="s1">&#39;all&#39;</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">aois_tiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="c1"># don&#39;t save the &#39;all&#39; tiles if aois were provided.</span>
+                <span class="k">continue</span>
+
+            <span class="n">tiles</span> <span class="o">=</span> <span class="n">aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">]</span>
+            <span class="n">labels</span> <span class="o">=</span> <span class="n">aois_labels</span><span class="p">[</span><span class="n">aoi</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tiles</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No tiles found for AOI </span><span class="si">{</span><span class="n">aoi</span><span class="si">}</span><span class="s2">, skipping...&quot;</span><span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tiles</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No tiles found for AOI </span><span class="si">{</span><span class="n">aoi</span><span class="si">}</span><span class="s2">. Skipping...&quot;</span><span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="n">tiles_paths</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_path</span> <span class="o">/</span> <span class="n">tile</span><span class="o">.</span><span class="n">generate_name</span><span class="p">()</span> <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles</span><span class="p">]</span>
+            <span class="n">polygons</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">labels</span><span class="p">]</span>
+            <span class="n">categories_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="o">.</span><span class="n">main_label_category_column_name</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">labels</span><span class="p">]</span>\
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="o">.</span><span class="n">main_label_category_column_name</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">other_attributes_dict_list</span> <span class="o">=</span> <span class="p">[{</span><span class="n">attribute</span><span class="p">:</span> <span class="n">label</span><span class="p">[</span><span class="n">attribute</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span> <span class="k">for</span> <span class="n">attribute</span> <span class="ow">in</span>
+                                           <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="o">.</span><span class="n">other_labels_attributes_column_names</span><span class="p">}</span> <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">labels</span><span class="p">]</span>\
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="o">.</span><span class="n">other_labels_attributes_column_names</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">other_attributes_dict_list</span> <span class="o">=</span> <span class="p">[[{</span><span class="n">k</span><span class="p">:</span> <span class="n">d</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">d</span><span class="p">}</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">values</span><span class="p">()))))]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">other_attributes_dict_list</span><span class="p">]</span>\
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="o">.</span><span class="n">other_labels_attributes_column_names</span> <span class="k">else</span> <span class="kc">None</span>
+
+            <span class="c1"># Saving the tiles</span>
+            <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">]:</span>
+                <span class="n">tile</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">output_folder</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_path</span><span class="p">)</span>
+
+            <span class="n">coco_output_file_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">/</span> <span class="n">CocoNameConvention</span><span class="o">.</span><span class="n">create_name</span><span class="p">(</span>
+                <span class="n">product_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>
+                <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span>
+                <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span>
+                <span class="n">fold</span><span class="o">=</span><span class="n">aoi</span>
+            <span class="p">)</span>
+
+            <span class="n">coco_generator</span> <span class="o">=</span> <span class="n">COCOGenerator</span><span class="p">(</span>
+                <span class="n">description</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Dataset for the product </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">output_name</span><span class="si">}</span><span class="s2">&quot;</span>
+                            <span class="sa">f</span><span class="s2">&quot; with fold </span><span class="si">{</span><span class="n">aoi</span><span class="si">}</span><span class="s2">&quot;</span>
+                            <span class="sa">f</span><span class="s2">&quot; and scale_factor </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="si">}</span><span class="s2">&quot;</span>
+                            <span class="sa">f</span><span class="s2">&quot; and ground_resolution </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">,</span>
+                <span class="n">tiles_paths</span><span class="o">=</span><span class="n">tiles_paths</span><span class="p">,</span>
+                <span class="n">polygons</span><span class="o">=</span><span class="n">polygons</span><span class="p">,</span>
+                <span class="n">scores</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">categories</span><span class="o">=</span><span class="n">categories_list</span><span class="p">,</span>
+                <span class="n">other_attributes</span><span class="o">=</span><span class="n">other_attributes_dict_list</span><span class="p">,</span>
+                <span class="n">output_path</span><span class="o">=</span><span class="n">coco_output_file_path</span><span class="p">,</span>
+                <span class="n">use_rle_for_labels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">use_rle_for_labels</span><span class="p">,</span>
+                <span class="n">n_workers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coco_n_workers</span><span class="p">,</span>
+                <span class="n">coco_categories_list</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coco_categories_list</span>
+            <span class="p">)</span>
+
+            <span class="n">coco_generator</span><span class="o">.</span><span class="n">generate_coco</span><span class="p">()</span>
+            <span class="n">coco_paths</span><span class="p">[</span><span class="n">aoi</span><span class="p">]</span> <span class="o">=</span> <span class="n">coco_output_file_path</span>
+
+        <span class="k">return</span> <span class="n">coco_paths</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Hugo Baudchon.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

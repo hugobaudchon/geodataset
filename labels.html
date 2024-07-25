@@ -53,7 +53,10 @@
 <li class="toctree-l2"><a class="reference internal" href="dataset.html">Dataset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="aggregator.html">Aggregator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="geodata.html">Geodata</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Labels</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Labels</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.labels.RasterPolygonLabels"><code class="docutils literal notranslate"><span class="pre">RasterPolygonLabels</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="utils.html">Utils</a></li>
 </ul>
 </li>
@@ -86,6 +89,32 @@
              
   <section id="labels">
 <h1>Labels<a class="headerlink" href="#labels" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="geodataset.labels.RasterPolygonLabels">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.labels.</span></span><span class="sig-name descname"><span class="pre">RasterPolygonLabels</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">associated_raster</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geopackage_layer_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">main_label_category_column_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">other_labels_attributes_column_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/labels/raster_labels.html#RasterPolygonLabels"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.labels.RasterPolygonLabels" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Class to handle the loading and processing of polygon labels associated with a <a class="reference internal" href="geodata.html#geodataset.geodata.Raster" title="geodataset.geodata.Raster"><code class="xref py py-class docutils literal notranslate"><span class="pre">Raster</span></code></a>.
+The labels will automatically be adjusted to the associated <a class="reference internal" href="geodata.html#geodataset.geodata.Raster" title="geodataset.geodata.Raster"><code class="xref py py-class docutils literal notranslate"><span class="pre">Raster</span></code></a>
+pixel coordinate system.
+For example, this class is instantiated by the <a class="reference internal" href="tilerize.html#geodataset.tilerize.LabeledRasterTilerizer" title="geodataset.tilerize.LabeledRasterTilerizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">LabeledRasterTilerizer</span></code></a> to align the Raster and labels.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the labels file. Supported formats are: .gpkg, .geojson, .shp, .xml, .csv.
+For .xml and .csv files, only specific formats are supported.
+Supported .xml and .csv files will also be converted to a GeoDataFrame for downstream uses.</p></li>
+<li><p><strong>associated_raster</strong> (<a class="reference internal" href="geodata.html#geodataset.geodata.Raster" title="geodataset.geodata.Raster"><code class="xref py py-class docutils literal notranslate"><span class="pre">Raster</span></code></a>) – The instanced <a class="reference internal" href="geodata.html#geodataset.geodata.Raster" title="geodataset.geodata.Raster"><code class="xref py py-class docutils literal notranslate"><span class="pre">Raster</span></code></a> object associated with the labels.
+The labels will automatically be adjusted to this <a class="reference internal" href="geodata.html#geodataset.geodata.Raster" title="geodataset.geodata.Raster"><code class="xref py py-class docutils literal notranslate"><span class="pre">Raster</span></code></a> pixel coordinate system.</p></li>
+<li><p><strong>geopackage_layer_name</strong> (<em>str</em><em>, </em><em>optional</em>) – The name of the layer in the geopackage file to use as labels. Only used if the labels_path is a .gpkg, .geojson
+or .shp file. Only useful when the labels geopackage file contains multiple layers.</p></li>
+<li><p><strong>main_label_category_column_name</strong> (<em>str</em><em>, </em><em>optional</em>) – The name of the column in the labels file that contains the main category of the labels.</p></li>
+<li><p><strong>other_labels_attributes_column_names</strong> (<em>list</em><em> of </em><em>str</em><em>, </em><em>optional</em>) – The names of the columns in the labels file that contains other attributes of the labels, which should be kept
+as a dictionary in the COCO annotations data.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 </section>
 
 

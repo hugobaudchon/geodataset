@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>geodataset.dataset.raster_dataset &mdash; GeoDataset  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/custom.css?v=a4895fdd" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            GeoDataset
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../documentation.html">Documentation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">GeoDataset</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">geodataset.dataset.raster_dataset</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for geodataset.dataset.raster_dataset</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span> <span class="nn">albumentations</span>
+<span class="kn">import</span> <span class="nn">rasterio</span>
+<span class="kn">from</span> <span class="nn">shapely</span> <span class="kn">import</span> <span class="n">box</span>
+
+<span class="kn">from</span> <span class="nn">geodataset.dataset.base_dataset</span> <span class="kn">import</span> <span class="n">BaseDataset</span><span class="p">,</span> <span class="n">BaseLabeledRasterCocoDataset</span>
+<span class="kn">from</span> <span class="nn">geodataset.utils</span> <span class="kn">import</span> <span class="n">coco_rle_segmentation_to_bbox</span><span class="p">,</span> <span class="n">coco_coordinates_segmentation_to_bbox</span><span class="p">,</span> <span class="n">coco_rle_segmentation_to_mask</span>
+
+
+<div class="viewcode-block" id="DetectionLabeledRasterCocoDataset">
+<a class="viewcode-back" href="../../../dataset.html#geodataset.dataset.DetectionLabeledRasterCocoDataset">[docs]</a>
+<span class="k">class</span> <span class="nc">DetectionLabeledRasterCocoDataset</span><span class="p">(</span><span class="n">BaseLabeledRasterCocoDataset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A dataset class that loads COCO datasets and their associated tiles (images). It will recursively search for COCO</span>
+<span class="sd">    json files and .tif tiles in the specified root folder and its sub-folders. The COCO json files should follow the</span>
+<span class="sd">    naming convention defined in the :class:`~geodataset.utils.CocoNameConvention` class. COCO jsons generated by this</span>
+<span class="sd">    library should automatically follow this convention.</span>
+
+<span class="sd">    Can be used for object detection tasks, where the annotations are bounding boxes OR segmentations (in this case</span>
+<span class="sd">    this class will only use the bounding box of the segmentation).</span>
+
+<span class="sd">    It can directly be used with a torch.utils.data.DataLoader.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fold: str</span>
+<span class="sd">        The dataset fold to load (e.g., &#39;train&#39;, &#39;valid&#39;, &#39;test&#39;...).</span>
+<span class="sd">    root_path: str or List[str] or pathlib.Path or List[pathlib.Path]</span>
+<span class="sd">        The root directory of the dataset.</span>
+<span class="sd">    transform: albumentations.core.composition.Compose</span>
+<span class="sd">        A composition of transformations to apply to the tiles and their associated annotations</span>
+<span class="sd">        (applied in __getitem__).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">fold</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                 <span class="n">root_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="ow">or</span> <span class="n">Path</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="n">Path</span><span class="p">],</span>
+                 <span class="n">transform</span><span class="p">:</span> <span class="n">albumentations</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">Compose</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">box_padding_percentage</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+                 <span class="n">force_binary_class</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">fold</span><span class="o">=</span><span class="n">fold</span><span class="p">,</span> <span class="n">root_path</span><span class="o">=</span><span class="n">root_path</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">box_padding_percentage</span> <span class="o">=</span> <span class="n">box_padding_percentage</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">force_binary_class</span> <span class="o">=</span> <span class="n">force_binary_class</span>
+
+        <span class="k">assert</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">box_padding_percentage</span> <span class="o">&lt;=</span> <span class="mi">1</span>
+
+<div class="viewcode-block" id="DetectionLabeledRasterCocoDataset.__getitem__">
+<a class="viewcode-back" href="../../../dataset.html#geodataset.dataset.DetectionLabeledRasterCocoDataset.__getitem__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,</span>
+<span class="sd">        if any. It also normalizes the tile data between 0 and 1.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        idx: int</span>
+<span class="sd">            The index of the tile to retrieve</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple of (numpy.ndarray, dict)</span>
+<span class="sd">            The transformed tile (image) data, normalized between 0 and 1, and a dictionary containing the annotations</span>
+<span class="sd">            and metadata of the tile. The dictionary has the following keys:</span>
+
+<span class="sd">            - **boxes** (list of numpy.ndarray): A list of bounding boxes for the annotations.</span>
+<span class="sd">            - **labels** (numpy.ndarray): An array of category ids for the annotations (same length as &#39;boxes&#39;).</span>
+<span class="sd">            - **area** (list of float): A list of areas for the bounding boxes annotations (same length as &#39;boxes&#39;).</span>
+<span class="sd">            - **iscrowd** (numpy.ndarray): An array of zeros (same length as &#39;boxes&#39;). Currently not implemented.</span>
+<span class="sd">            - **image_id** (numpy.ndarray): A single-value array containing the index of the tile.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tile_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tiles</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+
+        <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">tile_info</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">])</span> <span class="k">as</span> <span class="n">tile_file</span><span class="p">:</span>
+            <span class="n">tile</span> <span class="o">=</span> <span class="n">tile_file</span><span class="o">.</span><span class="n">read</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>  <span class="c1"># Reading the first three bands</span>
+
+        <span class="n">labels</span> <span class="o">=</span> <span class="n">tile_info</span><span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">]</span>
+        <span class="n">bboxes</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">labels</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s1">&#39;bbox&#39;</span> <span class="ow">in</span> <span class="n">label</span><span class="p">:</span>
+                <span class="c1"># Directly use the provided bbox</span>
+                <span class="n">bbox_coco</span> <span class="o">=</span> <span class="n">label</span><span class="p">[</span><span class="s1">&#39;bbox&#39;</span><span class="p">]</span>
+                <span class="n">bbox</span> <span class="o">=</span> <span class="n">box</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">bbox_coco</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">3</span><span class="p">]])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">segmentation</span> <span class="o">=</span> <span class="n">label</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">]</span>
+                <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;is_rle_format&#39;</span> <span class="ow">in</span> <span class="n">label</span> <span class="ow">and</span> <span class="n">label</span><span class="p">[</span><span class="s1">&#39;is_rle_format&#39;</span><span class="p">])</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">segmentation</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="c1"># RLE format</span>
+                    <span class="n">bbox</span> <span class="o">=</span> <span class="n">coco_rle_segmentation_to_bbox</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="p">(</span><span class="s1">&#39;is_rle_format&#39;</span> <span class="ow">in</span> <span class="n">label</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">label</span><span class="p">[</span><span class="s1">&#39;is_rle_format&#39;</span><span class="p">])</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">segmentation</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                    <span class="c1"># Polygon (coordinates) format</span>
+                    <span class="n">bbox</span> <span class="o">=</span> <span class="n">coco_coordinates_segmentation_to_bbox</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Could not find the segmentation type (RLE vs polygon coordinates).&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">box_padding_percentage</span><span class="p">:</span>
+                <span class="n">minx</span><span class="p">,</span> <span class="n">miny</span><span class="p">,</span> <span class="n">maxx</span><span class="p">,</span> <span class="n">maxy</span> <span class="o">=</span> <span class="n">bbox</span><span class="o">.</span><span class="n">bounds</span>
+                <span class="n">width</span> <span class="o">=</span> <span class="n">maxx</span> <span class="o">-</span> <span class="n">minx</span>
+                <span class="n">height</span> <span class="o">=</span> <span class="n">maxy</span> <span class="o">-</span> <span class="n">miny</span>
+                <span class="n">padding_x</span> <span class="o">=</span> <span class="n">width</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">box_padding_percentage</span> <span class="o">/</span> <span class="mi">100</span><span class="p">)</span>
+                <span class="n">padding_y</span> <span class="o">=</span> <span class="n">height</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">box_padding_percentage</span> <span class="o">/</span> <span class="mi">100</span><span class="p">)</span>
+
+                <span class="n">new_minx</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">minx</span> <span class="o">-</span> <span class="n">padding_x</span><span class="p">)</span>
+                <span class="n">new_miny</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">miny</span> <span class="o">-</span> <span class="n">padding_y</span><span class="p">)</span>
+                <span class="n">new_maxx</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">maxx</span> <span class="o">+</span> <span class="n">padding_x</span><span class="p">)</span>
+                <span class="n">new_maxy</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">maxy</span> <span class="o">+</span> <span class="n">padding_y</span><span class="p">)</span>
+
+                <span class="n">bbox</span> <span class="o">=</span> <span class="n">box</span><span class="p">(</span><span class="n">new_minx</span><span class="p">,</span> <span class="n">new_miny</span><span class="p">,</span> <span class="n">new_maxx</span><span class="p">,</span> <span class="n">new_maxy</span><span class="p">)</span>
+
+            <span class="n">bboxes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">bbox</span><span class="o">.</span><span class="n">bounds</span><span class="p">]))</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">force_binary_class</span><span class="p">:</span>
+            <span class="n">category_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">labels</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">category_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span> <span class="k">if</span> <span class="n">label</span><span class="p">[</span><span class="s1">&#39;category_id&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">label</span><span class="p">[</span><span class="s1">&#39;category_id&#39;</span><span class="p">]</span>
+                                     <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">labels</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="p">:</span>
+            <span class="n">transformed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">image</span><span class="o">=</span><span class="n">tile</span><span class="o">.</span><span class="n">transpose</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">)),</span>
+                                         <span class="n">bboxes</span><span class="o">=</span><span class="n">bboxes</span><span class="p">,</span>
+                                         <span class="n">labels</span><span class="o">=</span><span class="n">category_ids</span><span class="p">)</span>
+            <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">transformed</span><span class="p">[</span><span class="s1">&#39;image&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="n">transformed_bboxes</span> <span class="o">=</span> <span class="n">transformed</span><span class="p">[</span><span class="s1">&#39;bboxes&#39;</span><span class="p">]</span>
+            <span class="n">transformed_category_ids</span> <span class="o">=</span> <span class="n">transformed</span><span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">tile</span>
+            <span class="n">transformed_bboxes</span> <span class="o">=</span> <span class="n">bboxes</span>
+            <span class="n">transformed_category_ids</span> <span class="o">=</span> <span class="n">category_ids</span>
+
+        <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">transformed_image</span> <span class="o">/</span> <span class="mi">255</span>  <span class="c1"># normalizing</span>
+        <span class="c1"># getting the areas of the boxes, assume pascal_voc box format</span>
+        <span class="n">area</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([(</span><span class="n">bboxe</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">bboxe</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">*</span> <span class="p">(</span><span class="n">bboxe</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">bboxe</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">bboxe</span> <span class="ow">in</span> <span class="n">transformed_bboxes</span><span class="p">])</span>
+        <span class="c1"># suppose all instances are not crowd</span>
+        <span class="n">iscrowd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">transformed_bboxes</span><span class="p">),))</span>
+        <span class="c1"># get tile id</span>
+        <span class="n">image_id</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">idx</span><span class="p">])</span>
+        <span class="c1"># group annotations info</span>
+        <span class="n">transformed_bboxes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;boxes&#39;</span><span class="p">:</span> <span class="n">transformed_bboxes</span><span class="p">,</span> <span class="s1">&#39;labels&#39;</span><span class="p">:</span> <span class="n">transformed_category_ids</span><span class="p">,</span>
+                              <span class="s1">&#39;area&#39;</span><span class="p">:</span> <span class="n">area</span><span class="p">,</span> <span class="s1">&#39;iscrowd&#39;</span><span class="p">:</span> <span class="n">iscrowd</span><span class="p">,</span> <span class="s1">&#39;image_id&#39;</span><span class="p">:</span> <span class="n">image_id</span><span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">transformed_image</span><span class="p">,</span> <span class="n">transformed_bboxes</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="SegmentationLabeledRasterCocoDataset">
+<a class="viewcode-back" href="../../../dataset.html#geodataset.dataset.SegmentationLabeledRasterCocoDataset">[docs]</a>
+<span class="k">class</span> <span class="nc">SegmentationLabeledRasterCocoDataset</span><span class="p">(</span><span class="n">BaseLabeledRasterCocoDataset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A dataset class that loads COCO datasets and their associated tiles (images). It will recursively search for COCO</span>
+<span class="sd">    json files and .tif tiles in the specified root folder and its sub-folders. The COCO json files should follow the</span>
+<span class="sd">    naming convention defined in the :class:`~geodataset.utils.CocoNameConvention` class. COCO jsons generated by this</span>
+<span class="sd">    library should automatically follow this convention.</span>
+
+<span class="sd">    Can be used for semantic segmentation tasks, where the annotations are segmentations.</span>
+
+<span class="sd">    It can directly be used with a torch.utils.data.DataLoader.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fold: str</span>
+<span class="sd">        The dataset fold to load (e.g., &#39;train&#39;, &#39;valid&#39;, &#39;test&#39;...).</span>
+<span class="sd">    root_path: str or List[str] or pathlib.Path or List[pathlib.Path]</span>
+<span class="sd">        The root directory of the dataset.</span>
+<span class="sd">    transform: albumentations.core.composition.Compose</span>
+<span class="sd">        A composition of transformations to apply to the tiles and their associated annotations</span>
+<span class="sd">        (applied in __getitem__).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">fold</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                 <span class="n">root_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="ow">or</span> <span class="n">Path</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="n">Path</span><span class="p">],</span>
+                 <span class="n">transform</span><span class="p">:</span> <span class="n">albumentations</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">Compose</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">fold</span><span class="o">=</span><span class="n">fold</span><span class="p">,</span> <span class="n">root_path</span><span class="o">=</span><span class="n">root_path</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">)</span>
+
+<div class="viewcode-block" id="SegmentationLabeledRasterCocoDataset.__getitem__">
+<a class="viewcode-back" href="../../../dataset.html#geodataset.dataset.SegmentationLabeledRasterCocoDataset.__getitem__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,</span>
+<span class="sd">        if any. It also normalizes the tile data between 0 and 1.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        idx: int</span>
+<span class="sd">            The index of the tile to retrieve</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple of (numpy.ndarray, dict)</span>
+<span class="sd">            The transformed tile (image) data, normalized between 0 and 1, and a dictionary containing the annotations</span>
+<span class="sd">            and metadata of the tile. The dictionary has the following keys:</span>
+
+<span class="sd">            - **masks** (list of numpy.ndarray): A list of segmentation masks for the annotations.</span>
+<span class="sd">            - **labels** (numpy.ndarray): An array of category ids for the annotations (same length as &#39;masks&#39;).</span>
+<span class="sd">            - **area** (list of float): A list of areas for the segmentation masks annotations (same length as &#39;masks&#39;).</span>
+<span class="sd">            - **iscrowd** (numpy.ndarray): An array of zeros (same length as &#39;masks&#39;). Currently not implemented.</span>
+<span class="sd">            - **image_id** (numpy.ndarray): A single-value array containing the index of the tile.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tile_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tiles</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+
+        <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">tile_info</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">])</span> <span class="k">as</span> <span class="n">tile_file</span><span class="p">:</span>
+            <span class="n">tile</span> <span class="o">=</span> <span class="n">tile_file</span><span class="o">.</span><span class="n">read</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>  <span class="c1"># Reading the first three bands</span>
+
+        <span class="n">labels</span> <span class="o">=</span> <span class="n">tile_info</span><span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">]</span>
+        <span class="n">masks</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">labels</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s1">&#39;segmentation&#39;</span> <span class="ow">in</span> <span class="n">label</span><span class="p">:</span>
+                <span class="n">segmentation</span> <span class="o">=</span> <span class="n">label</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">]</span>
+                <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;is_rle_format&#39;</span> <span class="ow">in</span> <span class="n">label</span> <span class="ow">and</span> <span class="n">label</span><span class="p">[</span><span class="s1">&#39;is_rle_format&#39;</span><span class="p">])</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">segmentation</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="c1"># RLE format</span>
+                    <span class="n">mask</span> <span class="o">=</span> <span class="n">rle_segmentation_to_mask</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Please make sure that the masks are encoded using RLE.&quot;</span><span class="p">)</span>
+
+                <span class="n">masks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
+
+        <span class="n">category_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span> <span class="k">if</span> <span class="n">label</span><span class="p">[</span><span class="s1">&#39;category_id&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">label</span><span class="p">[</span><span class="s1">&#39;category_id&#39;</span><span class="p">]</span>
+                                 <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">labels</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="p">:</span>
+            <span class="n">transformed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">image</span><span class="o">=</span><span class="n">tile</span><span class="o">.</span><span class="n">transpose</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">)),</span>
+                                         <span class="n">mask</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">masks</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+                                         <span class="n">labels</span><span class="o">=</span><span class="n">category_ids</span><span class="p">)</span>
+            <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">transformed</span><span class="p">[</span><span class="s1">&#39;image&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="n">transformed_masks</span> <span class="o">=</span> <span class="p">[</span><span class="n">mask</span> <span class="k">for</span> <span class="n">mask</span> <span class="ow">in</span> <span class="n">transformed</span><span class="p">[</span><span class="s1">&#39;mask&#39;</span><span class="p">]]</span>
+            <span class="n">transformed_category_ids</span> <span class="o">=</span> <span class="n">transformed</span><span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">tile</span>
+            <span class="n">transformed_masks</span> <span class="o">=</span> <span class="n">masks</span>
+            <span class="n">transformed_category_ids</span> <span class="o">=</span> <span class="n">category_ids</span>
+
+        <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">transformed_image</span> <span class="o">/</span> <span class="mi">255</span>  <span class="c1"># normalizing</span>
+        <span class="n">area</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span> <span class="k">for</span> <span class="n">mask</span> <span class="ow">in</span> <span class="n">masks</span><span class="p">])</span>
+        <span class="c1"># suppose all instances are not crowd</span>
+        <span class="n">iscrowd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">transformed_masks</span><span class="p">),))</span>
+        <span class="c1"># get tile id</span>
+        <span class="n">image_id</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">idx</span><span class="p">])</span>
+        <span class="n">transformed_masks</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;masks&#39;</span><span class="p">:</span> <span class="n">transformed_masks</span><span class="p">,</span> <span class="s1">&#39;labels&#39;</span><span class="p">:</span> <span class="n">transformed_category_ids</span><span class="p">,</span>
+                             <span class="s1">&#39;area&#39;</span><span class="p">:</span> <span class="n">area</span><span class="p">,</span> <span class="s1">&#39;iscrowd&#39;</span><span class="p">:</span> <span class="n">iscrowd</span><span class="p">,</span> <span class="s1">&#39;image_id&#39;</span><span class="p">:</span> <span class="n">image_id</span><span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">transformed_image</span><span class="p">,</span> <span class="n">transformed_masks</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="UnlabeledRasterDataset">
+<a class="viewcode-back" href="../../../dataset.html#geodataset.dataset.UnlabeledRasterDataset">[docs]</a>
+<span class="k">class</span> <span class="nc">UnlabeledRasterDataset</span><span class="p">(</span><span class="n">BaseDataset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A dataset class for loading unlabeled raster tiles.</span>
+<span class="sd">    It will recursively search for all &#39;.tif&#39; files in the specified root and its sub-folders.</span>
+
+<span class="sd">    It can directly be used with a torch.utils.data.DataLoader.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fold: str</span>
+<span class="sd">        The dataset fold to load (e.g., &#39;train&#39;, &#39;valid&#39;, &#39;test&#39;...).</span>
+<span class="sd">        **This parameter is not used in this class, but is kept for consistency with the other dataset classes.**</span>
+<span class="sd">    root_path: str or List[str] or pathlib.Path or List[pathlib.Path]</span>
+<span class="sd">        The root directory of the dataset.</span>
+<span class="sd">    transform: albumentations.core.composition.Compose</span>
+<span class="sd">        A composition of transformations to apply to the tiles and their associated annotations</span>
+<span class="sd">        (applied in __getitem__).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">root_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="ow">or</span> <span class="n">Path</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="n">Path</span><span class="p">],</span>
+                 <span class="n">transform</span><span class="p">:</span> <span class="n">albumentations</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">Compose</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">fold</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fold</span> <span class="o">=</span> <span class="n">fold</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">root_path</span> <span class="o">=</span> <span class="n">root_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">transform</span> <span class="o">=</span> <span class="n">transform</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tile_paths</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_path</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Path</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">root_path</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">root_path</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">root_path</span> <span class="o">=</span> <span class="p">[</span><span class="n">Path</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_path</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_find_tiles_paths</span><span class="p">(</span><span class="n">directories</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">root_path</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_find_tiles_paths</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">directories</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Path</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">for</span> <span class="n">directory</span> <span class="ow">in</span> <span class="n">directories</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">directory</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span> <span class="ow">and</span> <span class="n">directory</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;tiles&#39;</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">directory</span><span class="o">.</span><span class="n">iterdir</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s2">&quot;.tif&quot;</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">tile_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">directory</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">directory</span><span class="o">.</span><span class="n">iterdir</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_find_tiles_paths</span><span class="p">(</span><span class="n">directories</span><span class="o">=</span><span class="p">[</span><span class="n">path</span><span class="p">])</span>
+
+<div class="viewcode-block" id="UnlabeledRasterDataset.__getitem__">
+<a class="viewcode-back" href="../../../dataset.html#geodataset.dataset.UnlabeledRasterDataset.__getitem__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,</span>
+<span class="sd">        if any. It also normalizes the tile data between 0 and 1.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        idx: int</span>
+<span class="sd">            The index of the tile to retrieve</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        numpy.ndarray</span>
+<span class="sd">            The transformed tile (image) data, normalized between 0 and 1.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tile_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_paths</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+
+        <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">tile_path</span><span class="p">)</span> <span class="k">as</span> <span class="n">tile_file</span><span class="p">:</span>
+            <span class="n">tile</span> <span class="o">=</span> <span class="n">tile_file</span><span class="o">.</span><span class="n">read</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>  <span class="c1"># Reading the first three bands</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="p">:</span>
+            <span class="n">transformed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">image</span><span class="o">=</span><span class="n">tile</span><span class="o">.</span><span class="n">transpose</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">)))</span>
+            <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">transformed</span><span class="p">[</span><span class="s1">&#39;image&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">tile</span>
+
+        <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">transformed_image</span> <span class="o">/</span> <span class="mi">255</span>  <span class="c1"># normalizing</span>
+
+        <span class="k">return</span> <span class="n">transformed_image</span></div>
+
+
+<div class="viewcode-block" id="UnlabeledRasterDataset.__len__">
+<a class="viewcode-back" href="../../../dataset.html#geodataset.dataset.UnlabeledRasterDataset.__len__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the total number of tiles in the dataset.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        int</span>
+<span class="sd">            The number of tiles in the dataset.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_paths</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="UnlabeledRasterDataset.__iter__">
+<a class="viewcode-back" href="../../../dataset.html#geodataset.dataset.UnlabeledRasterDataset.__iter__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Iterates over the tiles in the dataset.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)):</span>
+            <span class="k">yield</span> <span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Hugo Baudchon.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

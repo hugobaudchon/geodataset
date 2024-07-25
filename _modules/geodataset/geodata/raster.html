@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>geodataset.geodata.raster &mdash; GeoDataset  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/custom.css?v=a4895fdd" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            GeoDataset
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../documentation.html">Documentation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">GeoDataset</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">geodataset.geodata.raster</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for geodataset.geodata.raster</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Tuple</span>
+
+<span class="kn">import</span> <span class="nn">cv2</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">rasterio.windows</span>
+<span class="kn">import</span> <span class="nn">geopandas</span> <span class="k">as</span> <span class="nn">gpd</span>
+<span class="kn">from</span> <span class="nn">shapely</span> <span class="kn">import</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">box</span>
+<span class="kn">from</span> <span class="nn">shapely.affinity</span> <span class="kn">import</span> <span class="n">translate</span>
+<span class="kn">from</span> <span class="nn">shapely.geometry</span> <span class="kn">import</span> <span class="n">Polygon</span>
+
+<span class="kn">from</span> <span class="nn">geodataset.geodata.base_geodata</span> <span class="kn">import</span> <span class="n">BaseGeoData</span>
+<span class="kn">from</span> <span class="nn">geodataset.geodata.tile</span> <span class="kn">import</span> <span class="n">Tile</span><span class="p">,</span> <span class="n">PolygonTile</span>
+<span class="kn">from</span> <span class="nn">geodataset.utils</span> <span class="kn">import</span> <span class="n">read_raster</span><span class="p">,</span> <span class="n">apply_affine_transform</span><span class="p">,</span> <span class="n">validate_and_convert_product_name</span><span class="p">,</span> \
+    <span class="n">strip_all_extensions</span>
+
+
+<div class="viewcode-block" id="Raster">
+<a class="viewcode-back" href="../../../geodata.html#geodataset.geodata.Raster">[docs]</a>
+<span class="k">class</span> <span class="nc">Raster</span><span class="p">(</span><span class="n">BaseGeoData</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class responsible for loading a .tif or .png raster with or without CRS/transform data,</span>
+<span class="sd">    while resampling it to match a given ground_resolution or scale_factor.</span>
+<span class="sd">    It contains methods to align geometries in GeoDataFrame objects in a given CRS to the resampled raster&#39;s</span>
+<span class="sd">    CRS or pixel coordinate system.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    path: str or pathlib.Path</span>
+<span class="sd">        The path to the raster file.</span>
+<span class="sd">    output_name_suffix: str, optional</span>
+<span class="sd">        A suffix to add to the output name of the tiles generated from this raster.</span>
+<span class="sd">    ground_resolution : float</span>
+<span class="sd">        The ground resolution in meter per pixel desired when loading the raster.</span>
+<span class="sd">        Only one of ground_resolution and scale_factor can be set at the same time.</span>
+<span class="sd">    scale_factor : float</span>
+<span class="sd">        Scale factor for rescaling the data (change pixel resolution).</span>
+<span class="sd">        Only one of ground_resolution and scale_factor can be set at the same time.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
+                 <span class="n">output_name_suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">ground_resolution</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">scale_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ext</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">suffix</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">product_name</span> <span class="o">=</span> <span class="n">validate_and_convert_product_name</span><span class="p">(</span><span class="n">strip_all_extensions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">product_name</span> <span class="o">+</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;_</span><span class="si">{</span><span class="n">output_name_suffix</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">output_name_suffix</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="ow">not</span> <span class="p">(</span><span class="n">ground_resolution</span> <span class="ow">and</span> <span class="n">scale_factor</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;Both a ground_resolution and a scale_factor were provided.&quot;</span>
+                                                          <span class="s2">&quot; Please only specify one.&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span> <span class="o">=</span> <span class="n">ground_resolution</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span> <span class="o">=</span> <span class="n">scale_factor</span>
+
+        <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+         <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">,</span>
+         <span class="bp">self</span><span class="o">.</span><span class="n">x_scale_factor</span><span class="p">,</span>
+         <span class="bp">self</span><span class="o">.</span><span class="n">y_scale_factor</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_data</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_load_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">data</span><span class="p">,</span> <span class="n">metadata</span><span class="p">,</span> <span class="n">x_scale_factor</span><span class="p">,</span> <span class="n">y_scale_factor</span> <span class="o">=</span> <span class="n">read_raster</span><span class="p">(</span>
+            <span class="n">path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span>
+            <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span>
+            <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;crs&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">metadata</span><span class="p">:</span>
+            <span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="s1">&#39;transform&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">metadata</span><span class="p">:</span>
+            <span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Could not find a CRS in the raster file </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Could not find a transform in the raster file </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">.&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">data</span><span class="p">,</span> <span class="n">metadata</span><span class="p">,</span> <span class="n">x_scale_factor</span><span class="p">,</span> <span class="n">y_scale_factor</span>
+
+<div class="viewcode-block" id="Raster.get_tile">
+<a class="viewcode-back" href="../../../geodata.html#geodataset.geodata.Raster.get_tile">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">window</span><span class="p">:</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">windows</span><span class="o">.</span><span class="n">Window</span><span class="p">,</span>
+                 <span class="n">tile_id</span><span class="p">:</span> <span class="nb">int</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tile</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">:</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generates and returns a Tile from a window of the Raster.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        window: rasterio.windows.Window</span>
+<span class="sd">            The window to generate the Tile from.</span>
+<span class="sd">        tile_id: int or None</span>
+<span class="sd">            The id of the tile. Used in the tile name, and should be unique across a dataset.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Tile</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">tile_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span>
+                    <span class="p">:,</span>
+                    <span class="n">window</span><span class="o">.</span><span class="n">row_off</span><span class="p">:</span><span class="n">window</span><span class="o">.</span><span class="n">row_off</span> <span class="o">+</span> <span class="n">window</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
+                    <span class="n">window</span><span class="o">.</span><span class="n">col_off</span><span class="p">:</span><span class="n">window</span><span class="o">.</span><span class="n">col_off</span> <span class="o">+</span> <span class="n">window</span><span class="o">.</span><span class="n">width</span><span class="p">]</span>
+
+        <span class="n">pad_row</span> <span class="o">=</span> <span class="n">window</span><span class="o">.</span><span class="n">width</span> <span class="o">-</span> <span class="n">tile_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">pad_col</span> <span class="o">=</span> <span class="n">window</span><span class="o">.</span><span class="n">height</span> <span class="o">-</span> <span class="n">tile_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">pad_row</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">pad_col</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">padding</span> <span class="o">=</span> <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pad_row</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pad_col</span><span class="p">))</span>  <span class="c1"># No padding for bands, pad rows and columns as needed</span>
+            <span class="n">tile_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">tile_data</span><span class="p">,</span> <span class="n">padding</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">window_transform</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">windows</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">window</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">])</span>
+
+        <span class="n">tile_metadata</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;driver&#39;</span><span class="p">:</span> <span class="s1">&#39;GTiff&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;height&#39;</span><span class="p">:</span> <span class="n">window</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
+            <span class="s1">&#39;width&#39;</span><span class="p">:</span> <span class="n">window</span><span class="o">.</span><span class="n">width</span><span class="p">,</span>
+            <span class="s1">&#39;count&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;dtype&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;crs&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;transform&#39;</span><span class="p">:</span> <span class="n">window_transform</span>
+        <span class="p">}</span>
+
+        <span class="n">tile</span> <span class="o">=</span> <span class="n">Tile</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">tile_data</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">tile_metadata</span><span class="p">,</span> <span class="n">output_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>
+                    <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span> <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span>
+                    <span class="n">row</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">row_off</span><span class="p">,</span> <span class="n">col</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">col_off</span><span class="p">,</span> <span class="n">tile_id</span><span class="o">=</span><span class="n">tile_id</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">tile</span></div>
+
+
+<div class="viewcode-block" id="Raster.get_polygon_tile">
+<a class="viewcode-back" href="../../../geodata.html#geodataset.geodata.Raster.get_polygon_tile">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_polygon_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                         <span class="n">polygon</span><span class="p">:</span> <span class="n">Polygon</span><span class="p">,</span>
+                         <span class="n">polygon_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                         <span class="n">tile_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                         <span class="n">use_variable_tile_size</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+                         <span class="n">variable_tile_size_pixel_buffer</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">PolygonTile</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">]:</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generates and returns a PolygonTile from a Polygon geometry, along with the possibly cropped original Polygon.</span>
+<span class="sd">        The PolygonTile (object representing an image containing the pixels of the Raster where the Polygon is)</span>
+<span class="sd">        will be centered on the Polygon&#39;s centroid.</span>
+<span class="sd">        The pixels of the generated PolygonTile that are outside the Polygon will be blacked-out (masked).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        polygon: Polygon</span>
+<span class="sd">            The Polygon geometry to generate the PolygonTile from.</span>
+<span class="sd">        polygon_id: int</span>
+<span class="sd">            The id of the polygon. Used in the tile name, and should be unique across a dataset.</span>
+<span class="sd">        tile_size: int</span>
+<span class="sd">            The size of the tile in pixels. If the polygon extent is larger than this value,</span>
+<span class="sd">            then the returned Polygon will be cropped to the tile extent.</span>
+<span class="sd">            If not, the returned Polygon will be identical to the source Polygon.</span>
+<span class="sd">        use_variable_tile_size: bool</span>
+<span class="sd">            If True, the tile size will be automatically adjusted to the Polygon&#39;s extent,</span>
+<span class="sd">            up to the tile_size value, which in this case acts as a &#39;maximum size&#39;.</span>
+<span class="sd">            This avoids having too many blacked-out pixels around the Polygon of interest.</span>
+<span class="sd">            It should be combined with the variable_tile_size_pixel_buffer parameter to add a</span>
+<span class="sd">            fixed pixel buffer around the Polygon.</span>
+<span class="sd">            This parameter is recommended if saving disk space is a concern.</span>
+<span class="sd">        variable_tile_size_pixel_buffer: int</span>
+<span class="sd">            The number of blacked-out pixels to add around the Polygon&#39;s extent as a buffer.</span>
+<span class="sd">            Only used when use_variable_tile_size is set to &#39;True&#39;.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Tuple[PolygonTile, Polygon]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">centroid</span><span class="o">.</span><span class="n">coords</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">use_variable_tile_size</span><span class="p">:</span>
+            <span class="n">max_dist_to_polygon_border</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="n">x</span> <span class="o">-</span> <span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">-</span> <span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">y</span><span class="p">])</span>
+            <span class="n">final_tile_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">tile_size</span><span class="p">,</span> <span class="n">max_dist_to_polygon_border</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">variable_tile_size_pixel_buffer</span> <span class="o">*</span> <span class="mi">2</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Finding the box centered on the polygon&#39;s centroid</span>
+            <span class="n">final_tile_size</span> <span class="o">=</span> <span class="n">tile_size</span>
+
+        <span class="n">binary_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">final_tile_size</span><span class="p">,</span> <span class="n">final_tile_size</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+        <span class="n">mask_box</span> <span class="o">=</span> <span class="n">box</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">final_tile_size</span><span class="p">,</span>
+                       <span class="n">y</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">final_tile_size</span><span class="p">,</span>
+                       <span class="n">x</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">final_tile_size</span><span class="p">,</span>
+                       <span class="n">y</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">final_tile_size</span><span class="p">)</span>
+
+        <span class="c1"># Making sure the polygon is valid</span>
+        <span class="n">polygon</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">buffer</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">polygon_intersection</span> <span class="o">=</span> <span class="n">mask_box</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span>
+
+        <span class="n">translated_polygon_intersection</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span>
+            <span class="n">polygon_intersection</span><span class="p">,</span>
+            <span class="n">xoff</span><span class="o">=-</span><span class="n">mask_box</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">yoff</span><span class="o">=-</span><span class="n">mask_box</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Making sure the polygon is a Polygon and not a GeometryCollection (GeometryCollection can happen on Raster edges due to intersection)</span>
+        <span class="c1"># Use an empty Polygon as the default value</span>
+        <span class="k">if</span> <span class="n">translated_polygon_intersection</span><span class="o">.</span><span class="n">geom_type</span> <span class="o">!=</span> <span class="s1">&#39;Polygon&#39;</span><span class="p">:</span>
+            <span class="c1"># Get the Polygon with the largest area</span>
+            <span class="n">translated_polygon_intersection</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">translated_polygon_intersection</span><span class="o">.</span><span class="n">geoms</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">area</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">Polygon</span><span class="p">())</span>
+
+        <span class="c1"># Ensure the result has an exterior before accessing its coordinates</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">translated_polygon_intersection</span><span class="o">.</span><span class="n">is_empty</span><span class="p">:</span>
+            <span class="n">contours</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">translated_polygon_intersection</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Handle the case when the intersection is empty (e.g., set contours to an empty array)</span>
+            <span class="n">contours</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])</span>
+
+        <span class="c1"># Check if contours is not empty before calling cv2.fillPoly</span>
+        <span class="k">if</span> <span class="n">contours</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">cv2</span><span class="o">.</span><span class="n">fillPoly</span><span class="p">(</span><span class="n">binary_mask</span><span class="p">,</span> <span class="p">[</span><span class="n">contours</span><span class="p">],</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Handle the case where there are no contours (e.g., skip filling the polygon)</span>
+            <span class="k">pass</span>
+
+        <span class="c1"># Getting the pixels from the raster</span>
+        <span class="n">mask_bounds</span> <span class="o">=</span> <span class="n">mask_box</span><span class="o">.</span><span class="n">bounds</span>
+        <span class="n">mask_bounds</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">mask_bounds</span><span class="p">]</span>
+
+        <span class="c1"># Handling bounds outside the data</span>
+        <span class="n">start_row</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">mask_bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">end_row</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">mask_bounds</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">start_col</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">mask_bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">end_col</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">mask_bounds</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span>
+               <span class="p">:,</span>
+               <span class="n">start_row</span><span class="p">:</span><span class="n">end_row</span><span class="p">,</span>
+               <span class="n">start_col</span><span class="p">:</span><span class="n">end_col</span>
+               <span class="p">]</span>
+
+        <span class="c1"># Padding to tile_size if necessary</span>
+        <span class="n">pre_row_pad</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">mask_bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">post_row_pad</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">mask_bounds</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">pre_col_pad</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">mask_bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">post_col_pad</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">mask_bounds</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">final_tile_size</span> <span class="o">-</span> <span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">pre_row_pad</span> <span class="o">+</span> <span class="n">post_row_pad</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">post_row_pad</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">final_tile_size</span> <span class="o">-</span> <span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">pre_col_pad</span> <span class="o">+</span> <span class="n">post_col_pad</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">post_col_pad</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="n">pre_row_pad</span><span class="p">,</span> <span class="n">post_row_pad</span><span class="p">),</span> <span class="p">(</span><span class="n">pre_col_pad</span><span class="p">,</span> <span class="n">post_col_pad</span><span class="p">)],</span>
+                      <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># Masking the pixels around the Polygon</span>
+        <span class="n">masked_data</span> <span class="o">=</span> <span class="n">data</span> <span class="o">*</span> <span class="n">binary_mask</span>
+
+        <span class="c1"># Creating the PolygonTile, with the appropriate metadata</span>
+        <span class="n">window</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">windows</span><span class="o">.</span><span class="n">Window</span><span class="p">(</span>
+            <span class="n">mask_box</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">mask_box</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">width</span><span class="o">=</span><span class="n">final_tile_size</span><span class="p">,</span>
+            <span class="n">height</span><span class="o">=</span><span class="n">final_tile_size</span>
+        <span class="p">)</span>
+        <span class="n">window_transform</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">windows</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">window</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">])</span>
+
+        <span class="n">tile_metadata</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;driver&#39;</span><span class="p">:</span> <span class="s1">&#39;GTiff&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;height&#39;</span><span class="p">:</span> <span class="n">window</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
+            <span class="s1">&#39;width&#39;</span><span class="p">:</span> <span class="n">window</span><span class="o">.</span><span class="n">width</span><span class="p">,</span>
+            <span class="s1">&#39;count&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;dtype&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;crs&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;transform&#39;</span><span class="p">:</span> <span class="n">window_transform</span>
+        <span class="p">}</span>
+
+        <span class="n">polygon_tile</span> <span class="o">=</span> <span class="n">PolygonTile</span><span class="p">(</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">masked_data</span><span class="p">,</span>
+            <span class="n">metadata</span><span class="o">=</span><span class="n">tile_metadata</span><span class="p">,</span>
+            <span class="n">output_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>
+            <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span>
+            <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span>
+            <span class="n">polygon_id</span><span class="o">=</span><span class="n">polygon_id</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">polygon_tile</span><span class="p">,</span> <span class="n">translated_polygon_intersection</span></div>
+
+
+<div class="viewcode-block" id="Raster.adjust_geometries_to_raster_crs_if_necessary">
+<a class="viewcode-back" href="../../../geodata.html#geodataset.geodata.Raster.adjust_geometries_to_raster_crs_if_necessary">[docs]</a>
+    <span class="k">def</span> <span class="nf">adjust_geometries_to_raster_crs_if_necessary</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Adjusts the geometries in a GeoDataFrame to the CRS of the Raster.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        gdf: gpd.GeoDataFrame</span>
+<span class="sd">            The GeoDataFrame containing the geometries to adjust.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        gpd.GeoDataFrame</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]:</span>
+                <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">])</span>
+            <span class="k">elif</span> <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The geometries have a CRS but not the Raster.&quot;</span>
+                                <span class="sa">f</span><span class="s2">&quot; Please verify the correct raster path was set&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">gdf</span></div>
+
+
+<div class="viewcode-block" id="Raster.adjust_geometries_to_raster_pixel_coordinates">
+<a class="viewcode-back" href="../../../geodata.html#geodataset.geodata.Raster.adjust_geometries_to_raster_pixel_coordinates">[docs]</a>
+    <span class="k">def</span> <span class="nf">adjust_geometries_to_raster_pixel_coordinates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Adjusts the geometries in a GeoDataFrame to the pixel coordinates of the Raster.</span>
+<span class="sd">        This should be called after calling the method adjust_geometries_to_raster_crs_if_necessary.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        gdf: gpd.GeoDataFrame</span>
+<span class="sd">            The GeoDataFrame containing the geometries to adjust.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        gpd.GeoDataFrame</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Scaling the geometries to pixel coordinates aligned with the Raster</span>
+        <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span><span class="p">:</span>
+            <span class="c1"># If the labels have a CRS, their geometries are in CRS coordinates,</span>
+            <span class="c1"># so we need to apply the inverse of the Raster transform to get pixel coordinates.</span>
+            <span class="c1"># This also applies the scaling_factor as the Raster is supposedly already scaled too.</span>
+            <span class="n">inverse_transform</span> <span class="o">=</span> <span class="o">~</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span>
+
+            <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">geom</span><span class="p">:</span> <span class="n">apply_affine_transform</span><span class="p">(</span><span class="n">geom</span><span class="p">,</span> <span class="n">inverse_transform</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">:</span>
+            <span class="c1"># If the labels don&#39;t have a CRS, we expect them to already be in pixel coordinates.</span>
+            <span class="c1"># So we just need to apply the scaling factor.</span>
+            <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">geom</span><span class="p">:</span> <span class="n">Polygon</span><span class="p">(</span>
+                    <span class="p">[(</span><span class="n">x</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span> <span class="n">y</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">geom</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">coords</span><span class="p">])</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">:</span>
+            <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">geom</span><span class="p">:</span> <span class="n">Polygon</span><span class="p">(</span>
+                    <span class="p">[(</span><span class="n">x</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_scale_factor</span><span class="p">,</span> <span class="n">y</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_scale_factor</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">geom</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">coords</span><span class="p">])</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">gdf</span></div>
+</div>
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Hugo Baudchon.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

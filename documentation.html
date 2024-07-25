@@ -88,13 +88,57 @@
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="tilerize.html">Tilerizers</a></li>
-<li class="toctree-l1"><a class="reference internal" href="aoi.html">AOI (Area Of Interest)</a></li>
-<li class="toctree-l1"><a class="reference internal" href="dataset.html">Dataset</a></li>
-<li class="toctree-l1"><a class="reference internal" href="aggregator.html">Aggregator</a></li>
-<li class="toctree-l1"><a class="reference internal" href="geodata.html">Geodata</a></li>
-<li class="toctree-l1"><a class="reference internal" href="labels.html">Labels</a></li>
-<li class="toctree-l1"><a class="reference internal" href="utils.html">Utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tilerize.html">Tilerizers</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="tilerize.html#geodataset.tilerize.RasterTilerizer"><code class="docutils literal notranslate"><span class="pre">RasterTilerizer</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="tilerize.html#geodataset.tilerize.RasterTilerizerGDF"><code class="docutils literal notranslate"><span class="pre">RasterTilerizerGDF</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="tilerize.html#geodataset.tilerize.LabeledRasterTilerizer"><code class="docutils literal notranslate"><span class="pre">LabeledRasterTilerizer</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="aoi.html">AOI (Area Of Interest)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="aoi.html#geodataset.aoi.AOIFromPackageConfig"><code class="docutils literal notranslate"><span class="pre">AOIFromPackageConfig</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="aoi.html#geodataset.aoi.AOIGeneratorConfig"><code class="docutils literal notranslate"><span class="pre">AOIGeneratorConfig</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="dataset.html">Dataset</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="dataset.html#geodataset.dataset.BaseDataset"><code class="docutils literal notranslate"><span class="pre">BaseDataset</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="dataset.html#geodataset.dataset.UnlabeledRasterDataset"><code class="docutils literal notranslate"><span class="pre">UnlabeledRasterDataset</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="dataset.html#geodataset.dataset.BaseLabeledRasterCocoDataset"><code class="docutils literal notranslate"><span class="pre">BaseLabeledRasterCocoDataset</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="dataset.html#geodataset.dataset.DetectionLabeledRasterCocoDataset"><code class="docutils literal notranslate"><span class="pre">DetectionLabeledRasterCocoDataset</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="dataset.html#geodataset.dataset.SegmentationLabeledRasterCocoDataset"><code class="docutils literal notranslate"><span class="pre">SegmentationLabeledRasterCocoDataset</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="aggregator.html">Aggregator</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="aggregator.html#geodataset.aggregator.DetectorAggregator"><code class="docutils literal notranslate"><span class="pre">DetectorAggregator</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="aggregator.html#geodataset.aggregator.SegmentationAggregator"><code class="docutils literal notranslate"><span class="pre">SegmentationAggregator</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="geodata.html">Geodata</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="geodata.html#geodataset.geodata.Raster"><code class="docutils literal notranslate"><span class="pre">Raster</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="geodata.html#geodataset.geodata.Tile"><code class="docutils literal notranslate"><span class="pre">Tile</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="geodata.html#geodataset.geodata.PolygonTile"><code class="docutils literal notranslate"><span class="pre">PolygonTile</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="labels.html">Labels</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="labels.html#geodataset.labels.RasterPolygonLabels"><code class="docutils literal notranslate"><span class="pre">RasterPolygonLabels</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="utils.html">Utils</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.read_raster"><code class="docutils literal notranslate"><span class="pre">read_raster()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.polygon_to_mask"><code class="docutils literal notranslate"><span class="pre">polygon_to_mask()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.mask_to_polygon"><code class="docutils literal notranslate"><span class="pre">mask_to_polygon()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.polygon_to_coco_coordinates_segmentation"><code class="docutils literal notranslate"><span class="pre">polygon_to_coco_coordinates_segmentation()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.coco_coordinates_segmentation_to_bbox"><code class="docutils literal notranslate"><span class="pre">coco_coordinates_segmentation_to_bbox()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.coco_coordinates_segmentation_to_polygon"><code class="docutils literal notranslate"><span class="pre">coco_coordinates_segmentation_to_polygon()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.polygon_to_coco_rle_segmentation"><code class="docutils literal notranslate"><span class="pre">polygon_to_coco_rle_segmentation()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.coco_rle_segmentation_to_mask"><code class="docutils literal notranslate"><span class="pre">coco_rle_segmentation_to_mask()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.coco_rle_segmentation_to_bbox"><code class="docutils literal notranslate"><span class="pre">coco_rle_segmentation_to_bbox()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.coco_rle_segmentation_to_polygon"><code class="docutils literal notranslate"><span class="pre">coco_rle_segmentation_to_polygon()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.COCOGenerator"><code class="docutils literal notranslate"><span class="pre">COCOGenerator</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.coco_to_geopackage"><code class="docutils literal notranslate"><span class="pre">coco_to_geopackage()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.tiles_polygons_gdf_to_crs_gdf"><code class="docutils literal notranslate"><span class="pre">tiles_polygons_gdf_to_crs_gdf()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#geodataset.utils.display_image_with_polygons"><code class="docutils literal notranslate"><span class="pre">display_image_with_polygons()</span></code></a></li>
+</ul>
+</li>
 </ul>
 </div>
 </section>

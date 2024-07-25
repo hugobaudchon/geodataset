@@ -53,7 +53,26 @@
 <li class="toctree-l2"><a class="reference internal" href="aggregator.html">Aggregator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="geodata.html">Geodata</a></li>
 <li class="toctree-l2"><a class="reference internal" href="labels.html">Labels</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Utils</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Utils</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.read_raster"><code class="docutils literal notranslate"><span class="pre">read_raster()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.polygon_to_mask"><code class="docutils literal notranslate"><span class="pre">polygon_to_mask()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.mask_to_polygon"><code class="docutils literal notranslate"><span class="pre">mask_to_polygon()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.polygon_to_coco_coordinates_segmentation"><code class="docutils literal notranslate"><span class="pre">polygon_to_coco_coordinates_segmentation()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.coco_coordinates_segmentation_to_bbox"><code class="docutils literal notranslate"><span class="pre">coco_coordinates_segmentation_to_bbox()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.coco_coordinates_segmentation_to_polygon"><code class="docutils literal notranslate"><span class="pre">coco_coordinates_segmentation_to_polygon()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.polygon_to_coco_rle_segmentation"><code class="docutils literal notranslate"><span class="pre">polygon_to_coco_rle_segmentation()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.coco_rle_segmentation_to_mask"><code class="docutils literal notranslate"><span class="pre">coco_rle_segmentation_to_mask()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.coco_rle_segmentation_to_bbox"><code class="docutils literal notranslate"><span class="pre">coco_rle_segmentation_to_bbox()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.coco_rle_segmentation_to_polygon"><code class="docutils literal notranslate"><span class="pre">coco_rle_segmentation_to_polygon()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.COCOGenerator"><code class="docutils literal notranslate"><span class="pre">COCOGenerator</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.utils.COCOGenerator.generate_coco"><code class="docutils literal notranslate"><span class="pre">COCOGenerator.generate_coco()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.coco_to_geopackage"><code class="docutils literal notranslate"><span class="pre">coco_to_geopackage()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.tiles_polygons_gdf_to_crs_gdf"><code class="docutils literal notranslate"><span class="pre">tiles_polygons_gdf_to_crs_gdf()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.utils.display_image_with_polygons"><code class="docutils literal notranslate"><span class="pre">display_image_with_polygons()</span></code></a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -85,6 +104,318 @@
              
   <section id="utils">
 <h1>Utils<a class="headerlink" href="#utils" title="Link to this heading"></a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="geodataset.utils.read_raster">
+<span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">read_raster</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ground_resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale_factor</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#read_raster"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.read_raster" title="Link to this definition"></a></dt>
+<dd><p>Read a raster file and rescale it if necessary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>Path</em>) – The path to the raster file.</p></li>
+<li><p><strong>ground_resolution</strong> (<em>float</em>) – The desired ground resolution in meters.</p></li>
+<li><p><strong>scale_factor</strong> (<em>float</em>) – The desired scale factor to apply to the raster.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The (possibly resampled) raster pixels data.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="geodataset.utils.polygon_to_mask">
+<span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">polygon_to_mask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">polygon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">array_height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">array_width</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#polygon_to_mask"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.polygon_to_mask" title="Link to this definition"></a></dt>
+<dd><p>Encodes a Polygon or MultiPolygon object into a binary mask.</p>
+<p>Parameters
+polygon: Polygon or MultiPolygon</p>
+<blockquote>
+<div><p>The polygon to encode.</p>
+</div></blockquote>
+<dl class="simple">
+<dt>array_height: int</dt><dd><p>The height of the array to encode the polygon into.</p>
+</dd>
+<dt>array_width: int</dt><dd><p>The width of the array to encode the polygon into.</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A binary mask of the polygon.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="geodataset.utils.mask_to_polygon">
+<span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">mask_to_polygon</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simplify_tolerance</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#mask_to_polygon"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.mask_to_polygon" title="Link to this definition"></a></dt>
+<dd><p>Converts a 1HW mask to a simplified shapely Polygon by finding the contours of the mask
+and simplifying it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mask</strong> (<em>np.ndarray</em>) – The mask to convert, in 1HW format.</p></li>
+<li><p><strong>simplify_tolerance</strong> (<em>float</em>) – The tolerance for simplifying the polygon. Higher values result in more simplified shapes.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A simplified shapely Polygon object representing the outer boundary of the mask.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Polygon</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="geodataset.utils.polygon_to_coco_coordinates_segmentation">
+<span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">polygon_to_coco_coordinates_segmentation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">polygon</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#polygon_to_coco_coordinates_segmentation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.polygon_to_coco_coordinates_segmentation" title="Link to this definition"></a></dt>
+<dd><p>Encodes a polygon into a list of coordinates supported by COCO.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>polygon</strong> (<em>shapely.Polygon</em><em> or </em><em>shapely.MultiPolygon</em>) – The polygon to encode.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A list of coordinates in the format expected by COCO.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="geodataset.utils.coco_coordinates_segmentation_to_bbox">
+<span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">coco_coordinates_segmentation_to_bbox</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">segmentation</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#coco_coordinates_segmentation_to_bbox"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.coco_coordinates_segmentation_to_bbox" title="Link to this definition"></a></dt>
+<dd><p>Calculates the bounding box from a polygon list of coordinates in COCO format.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>segmentation</strong> (<em>list</em>) – A list of coordinates in the format expected by COCO.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A shapely box representing the bounding box of the polygon.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>shapely.box</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="geodataset.utils.coco_coordinates_segmentation_to_polygon">
+<span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">coco_coordinates_segmentation_to_polygon</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">segmentation</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#coco_coordinates_segmentation_to_polygon"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.coco_coordinates_segmentation_to_polygon" title="Link to this definition"></a></dt>
+<dd><p>Converts a list of polygon coordinates in COCO format to a shapely Polygon or MultiPolygon.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>segmentation</strong> (<em>list</em>) – A list of coordinates in the format expected by COCO.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A shapely Polygon object representing the outer boundary of the polygon.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Polygon</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="geodataset.utils.polygon_to_coco_rle_segmentation">
+<span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">polygon_to_coco_rle_segmentation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">polygon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_width</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#polygon_to_coco_rle_segmentation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.polygon_to_coco_rle_segmentation" title="Link to this definition"></a></dt>
+<dd><p>Encodes a Polygon or MultiPolygon object into a COCO annotation RLE mask.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>polygon</strong> (<em>Polygon</em><em> or </em><em>MultiPolygon</em>) – The polygon to encode.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A COCO RLE mask segmentation.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="geodataset.utils.coco_rle_segmentation_to_mask">
+<span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">coco_rle_segmentation_to_mask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">segmentation</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#coco_rle_segmentation_to_mask"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.coco_rle_segmentation_to_mask" title="Link to this definition"></a></dt>
+<dd><p>Decodes a COCO annotation RLE segmentation into a binary mask.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>segmentation</strong> (<em>dict</em>) – The RLE segmentation to decode.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A binary mask of the segmentation.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="geodataset.utils.coco_rle_segmentation_to_bbox">
+<span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">coco_rle_segmentation_to_bbox</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">segmentation</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#coco_rle_segmentation_to_bbox"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.coco_rle_segmentation_to_bbox" title="Link to this definition"></a></dt>
+<dd><p>Calculates the bounding box from a COCO annotation RLE segmentation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>segmentation</strong> (<em>dict</em>) – The RLE segmentation to decode.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A shapely box representing the bounding box of the segmentation.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>shapely.box</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="geodataset.utils.coco_rle_segmentation_to_polygon">
+<span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">coco_rle_segmentation_to_polygon</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">segmentation</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#coco_rle_segmentation_to_polygon"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.coco_rle_segmentation_to_polygon" title="Link to this definition"></a></dt>
+<dd><p>Decodes a COCO annotation RLE segmentation into a shapely Polygon or MultiPolygon.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>segmentation</strong> (<em>dict</em>) – The RLE segmentation to decode.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A shapely Polygon or MultiPolygon representing the segmentation.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Polygon or MultiPolygon</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="geodataset.utils.COCOGenerator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">COCOGenerator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">description</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tiles_paths</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygons</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">categories</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">other_attributes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_rle_for_labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_workers</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coco_categories_list</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#COCOGenerator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.COCOGenerator" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A class to generate a COCO dataset from a list of tiles and their associated polygons.
+After instantiating the class, the <a class="reference internal" href="#geodataset.utils.COCOGenerator.generate_coco" title="geodataset.utils.COCOGenerator.generate_coco"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_coco()</span></code></a> method should be used to generate and save the COCO
+dataset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>description</strong> (<em>str</em>) – A description of the COCO dataset.</p></li>
+<li><p><strong>tiles_paths</strong> (<em>List</em><em>[</em><em>Path</em><em>]</em>) – A list of paths to the tiles/images.</p></li>
+<li><p><strong>polygons</strong> (<em>List</em><em>[</em><em>List</em><em>[</em><em>Polygon</em><em>]</em><em>]</em>) – A list of lists of polygons associated with each tile.</p></li>
+<li><p><strong>scores</strong> (<em>List</em><em>[</em><em>List</em><em>[</em><em>float</em><em>]</em><em>] or </em><em>None</em>) – A list of lists of scores associated with each polygon.</p></li>
+<li><p><strong>categories</strong> (<em>List</em><em>[</em><em>List</em><em>[</em><em>Union</em><em>[</em><em>str</em><em>, </em><em>int</em><em>]</em><em>]</em><em>] or </em><em>None</em>) – A list of lists of categories (str or int) associated with each polygon.</p></li>
+<li><p><strong>other_attributes</strong> (<em>List</em><em>[</em><em>List</em><em>[</em><em>Dict</em><em>]</em><em>] or </em><em>None</em>) – <p>A list of lists of dictionaries of other attributes associated with each polygon.
+Such a dict could be:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;attribute1&#39;</span><span class="p">:</span> <span class="n">value1</span><span class="p">,</span>
+    <span class="s1">&#39;attribute2&#39;</span><span class="p">:</span> <span class="n">value2</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<br><p><strong>IMPORTANT</strong>: the ‘score’ attribute is reserved for the score associated with the polygon.</p>
+</p></li>
+<li><p><strong>output_path</strong> (<em>Path</em>) – The path to save the COCO dataset JSON file (should have .json extension).</p></li>
+<li><p><strong>use_rle_for_labels</strong> (<em>bool</em>) – Whether to use RLE encoding for the labels or not. If False, the polygon’s exterior coordinates will be used.
+RLE Encoding takes less space on disk but takes more time to encode.</p></li>
+<li><p><strong>n_workers</strong> (<em>int</em>) – The number of workers to use for parallel processing.</p></li>
+<li><p><strong>coco_categories_list</strong> (<em>List</em><em>[</em><em>dict</em><em>] or </em><em>None</em>) – <p>A list of category dictionaries in COCO format. If a polygon has a category that is not in this list, its
+category_id will be set to None in its COCO annotation. If ‘coco_categories_list’ is None, the categories ids
+will be automatically generated from the unique categories found in the ‘categories’ parameter.</p>
+<br><p>To assign a category_id to a polygon, the code will check the ‘name’ and ‘other_names’ fields of the categories.</p>
+<br><p><strong>IMPORTANT</strong>: It is strongly advised to provide this list if you want to have consistent category ids across
+multiple COCO datasets.</p>
+<br><p>Exemple of 2 categories, one being the parent of the other:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[{</span>
+    <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Pinaceae&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;other_names&quot;</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="s2">&quot;supercategory&quot;</span><span class="p">:</span> <span class="n">null</span>
+<span class="p">},</span>
+<span class="p">{</span>
+    <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Picea&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;other_names&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;PIGL&quot;</span><span class="p">,</span> <span class="s2">&quot;PIMA&quot;</span><span class="p">,</span> <span class="s2">&quot;PIRU&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;supercategory&quot;</span><span class="p">:</span> <span class="mi">1</span>
+<span class="p">}]</span>
+</pre></div>
+</div>
+</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="geodataset.utils.COCOGenerator.generate_coco">
+<span class="sig-name descname"><span class="pre">generate_coco</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#COCOGenerator.generate_coco"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.COCOGenerator.generate_coco" title="Link to this definition"></a></dt>
+<dd><p>Generate the COCO dataset from the provided tiles, polygons, scores and other metadata.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="geodataset.utils.coco_to_geopackage">
+<span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">coco_to_geopackage</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coco_json_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">images_directory</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">convert_to_crs_coordinates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geopackage_output_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#coco_to_geopackage"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.coco_to_geopackage" title="Link to this definition"></a></dt>
+<dd><p>Converts a COCO JSON dataset into a GeoDataFrame, then saved if needed as a GeoPackage file.</p>
+<p>The resulting GeoDataFrame (or GeoPackage if saved) will have the following columns:</p>
+<ul class="simple">
+<li><p>geometry: The polygon geometry</p></li>
+<li><p>tile_id: The ID of the tile the polygon belongs to</p></li>
+<li><p>tile_path: The path to the tile image</p></li>
+<li><p>category_id: The ID of the category of the polygon</p></li>
+<li><p>category_name: The name of the category of the polygon</p></li>
+<li><p>any other attributes found in the ‘other_attributes’ field of the COCO JSON annotations</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>coco_json_path</strong> (<em>str</em>) – The path to the COCO JSON dataset (.json).</p></li>
+<li><p><strong>images_directory</strong> (<em>str</em>) – The directory containing the images associated with the COCO dataset.</p></li>
+<li><p><strong>convert_to_crs_coordinates</strong> (<em>bool</em>) – Whether to convert the polygon pixel coordinates to a common CRS (uses the CRS of the first .tif tile).</p></li>
+<li><p><strong>geopackage_output_path</strong> (<em>str</em><em> or </em><em>None</em>) – The path to save the GeoPackage file. If None, the GeoPackage file will not be saved to the disk.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A GeoDataFrame containing the polygons from the COCO dataset</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>GeoDataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="geodataset.utils.tiles_polygons_gdf_to_crs_gdf">
+<span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">tiles_polygons_gdf_to_crs_gdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataframe</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#tiles_polygons_gdf_to_crs_gdf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.tiles_polygons_gdf_to_crs_gdf" title="Link to this definition"></a></dt>
+<dd><p>Converts a GeoDataFrame of polygons from multiple tiles to a common CRS.
+The dataframe passed must have a ‘tile_path’ column containing the path to the tile image, as the function
+needs to read each tile metadata to get their respective CRS.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dataframe</strong> (<em>GeoDataFrame</em>) – The GeoDataFrame containing the polygons from multiple tiles.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A GeoDataFrame containing the polygons in a common CRS.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>GeoDataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="geodataset.utils.display_image_with_polygons">
+<span class="sig-prename descclassname"><span class="pre">geodataset.utils.</span></span><span class="sig-name descname"><span class="pre">display_image_with_polygons</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygons</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/utils/utils.html#display_image_with_polygons"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.utils.display_image_with_polygons" title="Link to this definition"></a></dt>
+<dd><p>Display an image with polygons overlaid.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>image</strong> (<em>np.ndarray</em>) – The image to display.</p></li>
+<li><p><strong>polygons</strong> (<em>List</em><em>[</em><em>shapely.Polygon</em><em>]</em>) – The polygons to overlay on the image.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 </section>
 
 
