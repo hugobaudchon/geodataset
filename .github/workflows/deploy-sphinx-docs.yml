@@ -9,6 +9,9 @@ jobs:
   build-deploy:
     runs-on: ubuntu-22.04
 
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
