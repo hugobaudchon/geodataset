@@ -30,8 +30,8 @@ jobs:
 
       - name: Move built documentation
         run: |
-          mv docs/_build/html/* docs/
-          rm -rf docs/_build/html
+          mv docs/source/_build/html/* docs/
+          rm -rf docs/source/_build/html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
