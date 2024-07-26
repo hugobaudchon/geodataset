@@ -200,7 +200,7 @@ class SegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
                 segmentation = label['segmentation']
                 if ('is_rle_format' in label and label['is_rle_format']) or isinstance(segmentation, dict):
                     # RLE format
-                    mask = rle_segmentation_to_mask(segmentation)
+                    mask = coco_rle_segmentation_to_mask(segmentation)
                 else:
                     raise NotImplementedError("Please make sure that the masks are encoded using RLE.")
 
