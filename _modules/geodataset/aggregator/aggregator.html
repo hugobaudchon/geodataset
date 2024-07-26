@@ -905,8 +905,10 @@
                                 <span class="c1"># &#39;TopologyException: found non-noded intersection&#39;</span>
                                 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;* Skipped polygon union between </span><span class="si">{}</span><span class="s1"> and </span><span class="si">{}</span><span class="s1"> &#39;</span>
                                       <span class="s1">&#39;for shapely union error. *&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">current_id</span><span class="p">,</span> <span class="n">g_id</span><span class="p">))</span>
+                                <span class="n">skip_ids</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">g_id</span><span class="p">)</span>
+                                <span class="k">continue</span>
 
-                            <span class="n">new_geometry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">check_geometry_collection</span><span class="p">(</span><span class="n">new_geometry</span><span class="p">)</span>
+                            <span class="n">new_geometry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_geometry_collection</span><span class="p">(</span><span class="n">new_geometry</span><span class="p">)</span>
 
                             <span class="k">if</span> <span class="ow">not</span> <span class="n">new_geometry</span><span class="o">.</span><span class="n">is_valid</span><span class="p">:</span>
                                 <span class="n">new_geometry</span> <span class="o">=</span> <span class="n">new_geometry</span><span class="o">.</span><span class="n">buffer</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>

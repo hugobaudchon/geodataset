@@ -284,7 +284,7 @@
                 <span class="n">segmentation</span> <span class="o">=</span> <span class="n">label</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">]</span>
                 <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;is_rle_format&#39;</span> <span class="ow">in</span> <span class="n">label</span> <span class="ow">and</span> <span class="n">label</span><span class="p">[</span><span class="s1">&#39;is_rle_format&#39;</span><span class="p">])</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">segmentation</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
                     <span class="c1"># RLE format</span>
-                    <span class="n">mask</span> <span class="o">=</span> <span class="n">rle_segmentation_to_mask</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+                    <span class="n">mask</span> <span class="o">=</span> <span class="n">coco_rle_segmentation_to_mask</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Please make sure that the masks are encoded using RLE.&quot;</span><span class="p">)</span>
 
