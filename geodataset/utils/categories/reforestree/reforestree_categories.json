@@ -1,0 +1,52 @@
+{
+  "categories": [
+    {
+      "id": 1,
+      "name": "other",
+      "global_id": 1,
+      "rank": null,
+      "other_names": [],
+      "supercategory": null
+    },
+    {
+      "id": 2,
+      "name": "banana",
+      "global_id": 2,
+      "rank": null,
+      "other_names": [],
+      "supercategory": null
+    },
+    {
+      "id": 3,
+      "name": "cacao",
+      "global_id": 3,
+      "rank": null,
+      "other_names": [],
+      "supercategory": null
+    },
+    {
+      "id": 4,
+      "name": "citrus",
+      "global_id": 4,
+      "rank": null,
+      "other_names": [],
+      "supercategory": null
+    },
+    {
+      "id": 5,
+      "name": "timber",
+      "global_id": 5,
+      "rank": null,
+      "other_names": [],
+      "supercategory": null
+    },
+    {
+      "id": 6,
+      "name": "fruit",
+      "global_id": 6,
+      "rank": null,
+      "other_names": [],
+      "supercategory": null
+    }
+  ]
+}

@@ -274,9 +274,13 @@ class UnlabeledRasterDataset(BaseDataset):
 
         for directory in directories:
             if directory.is_dir() and directory.name == 'tiles':
-                for path in directory.iterdir():
-                    if path.suffix == ".tif":
-                        self.tile_paths.append(path)
+                fold_directory = (directory / self.fold)
+                # Datasets may not contain all splits
+                if fold_directory.exists():
+                    for path in fold_directory.iterdir():
+                        # Iterate within the corresponding split folder
+                        if path.suffix == ".tif":
+                            self.tile_paths.append(path)
 
             if directory.is_dir():
                 for path in directory.iterdir():
