@@ -368,7 +368,9 @@
 
             <span class="c1"># Save the tile images</span>
             <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">]:</span>
-                <span class="n">tile</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">output_folder</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_path</span><span class="p">)</span>
+                <span class="n">tiles_path_aoi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tiles_path</span> <span class="o">/</span> <span class="n">aoi</span>
+                <span class="n">tiles_path_aoi</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">tile</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">output_folder</span><span class="o">=</span><span class="n">tiles_path_aoi</span><span class="p">)</span>
 
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The tiles have been saved to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_path</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span></div>
 </div>
