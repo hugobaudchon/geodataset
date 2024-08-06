@@ -391,7 +391,7 @@ class PointCloudTilerizer:
             if point_cloud_tile_data is not None:
                 file_path = (
                     self.output_folder_path
-                    / f"{self.tiles_metadata[i].output_filename}.las"
+                    / f"{self.tiles_metadata[i].output_filename}"
                 )
 
                 if file_path.is_file():
