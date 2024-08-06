@@ -200,7 +200,7 @@ class SegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
                 segmentation = label['segmentation']
                 if ('is_rle_format' in label and label['is_rle_format']) or isinstance(segmentation, dict):
                     # RLE format
-                    mask = rle_segmentation_to_mask(segmentation)
+                    mask = coco_rle_segmentation_to_mask(segmentation)
                 else:
                     raise NotImplementedError("Please make sure that the masks are encoded using RLE.")
 
@@ -274,9 +274,13 @@ class UnlabeledRasterDataset(BaseDataset):
 
         for directory in directories:
             if directory.is_dir() and directory.name == 'tiles':
-                for path in directory.iterdir():
-                    if path.suffix == ".tif":
-                        self.tile_paths.append(path)
+                fold_directory = (directory / self.fold)
+                # Datasets may not contain all splits
+                if fold_directory.exists():
+                    for path in fold_directory.iterdir():
+                        # Iterate within the corresponding split folder
+                        if path.suffix == ".tif":
+                            self.tile_paths.append(path)
 
             if directory.is_dir():
                 for path in directory.iterdir():

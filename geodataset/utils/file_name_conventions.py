@@ -218,3 +218,32 @@ class AoiTilesImageConvention(FileNameConvention):
         return product_name, scale_factor, ground_resolution
 
 
+class PointCloudTileNameConvention(FileNameConvention):
+    @staticmethod
+    def _validate_name(name):
+        pattern = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_pc_tile_[0-9]+_[0-9]+\.las$"
+        if not re.match(pattern, name):
+            raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
+        else:
+            return True
+
+    @staticmethod
+    def create_name(product_name: str, col: int, row: int, scale_factor=None, ground_resolution=None):
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
+        tile_name = f"{product_name}_pc_{specifier}_{col}_{row}.las"
+        PointCloudTileNameConvention._validate_name(tile_name)
+        return tile_name
+
+    @staticmethod
+    def parse_name(tile_name: str):
+        PointCloudTileNameConvention._validate_name(tile_name)
+
+        parts = tile_name.split("_")
+        product_name = "_".join(parts[:-4])
+        specifier = parts[-3]
+        col = parts[-2]
+        row = parts[-1].replace('.las', '')
+
+        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+
+        return product_name, scale_factor, ground_resolution, col, row

@@ -820,8 +820,10 @@ class SegmentationAggregator(AggregatorBase):
                                 # 'TopologyException: found non-noded intersection'
                                 print('* Skipped polygon union between {} and {} '
                                       'for shapely union error. *'.format(current_id, g_id))
+                                skip_ids.add(g_id)
+                                continue
 
-                            new_geometry = self.check_geometry_collection(new_geometry)
+                            new_geometry = self._check_geometry_collection(new_geometry)
 
                             if not new_geometry.is_valid:
                                 new_geometry = new_geometry.buffer(0)

@@ -290,7 +290,9 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
 
             # Save the tile images
             for tile in aois_tiles[aoi]:
-                tile.save(output_folder=self.tiles_path)
+                tiles_path_aoi = self.tiles_path / aoi
+                tiles_path_aoi.mkdir(parents=True, exist_ok=True)
+                tile.save(output_folder=tiles_path_aoi)
 
         print(f"The tiles have been saved to {self.tiles_path}.")
 
