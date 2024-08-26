@@ -8,7 +8,14 @@ from pyproj import CRS as PyProjCRS
 from tqdm import tqdm
 
 from geodataset.utils.file_name_conventions import PointCloudTileNameConvention
+from geodataset.aoi import AOIFromPackageConfig
 
+from abc import ABC, abstractmethod
+import geopandas as gpd
+
+from shapely import MultiPolygon, Polygon
+from shapely.geometry import box
+import json
 
 class TileMetadata:
     """
@@ -49,6 +56,7 @@ class TileMetadata:
             "max_z",
             "crs",
             "output_filename",
+            "bbox"
         )
 
         self.min_x, self.max_x = x_bound if x_bound else (None, None)
@@ -61,6 +69,7 @@ class TileMetadata:
         ), f"Invalid output_filename: {output_filename}"
 
         self.output_filename = output_filename
+        self.bbox = self._get_bounding_box()
 
     def __repr__(self) -> str:
         return self.info()
@@ -100,6 +109,10 @@ class TileMetadata:
         Returns whether the z-axis is bounded.
         """
         return self._bounded((self.min_z, self.max_z))
+    
+    def _get_bounding_box(self,):
+        bounding_box = box(self.min_x, self.min_y, self.max_x, self.max_y )
+        return gpd.GeoDataFrame(index=[0], crs= self.crs, geometry=[bounding_box])
 
 
 class TileCollectionMetadata:
@@ -201,13 +214,19 @@ class TileCollectionMetadata:
         """
         return all(tile.is_bounded_z() for tile in self.tile_metadata_list)
 
-    def plot(self, dim1: str = "x", dim2: str = "y") -> plt.Axes:
+    def plot(self, dim1: str = "x", dim2: str = "y", ) -> plt.Axes:
         """
         Plots the tiles and their boundaries.
         """
         min_dim1, max_dim1 = getattr(self, f"min_{dim1}"), getattr(self, f"max_{dim1}")
         min_dim2, max_dim2 = getattr(self, f"min_{dim2}"), getattr(self, f"max_{dim2}")
 
+        palette = {
+            "blue": "#26547C",
+            "red": "#EF476F",
+            "yellow": "#FFD166",
+            "green": "#06D6A0",
+        }
         fig, ax = plt.subplots()
         bound_rect = plt.Rectangle(
             (min_dim1, min_dim2),
@@ -229,6 +248,10 @@ class TileCollectionMetadata:
         )
 
         for tile in self.tile_metadata_list:
+           
+            color = "white"
+            
+
             tile_min_dim1, tile_max_dim1 = getattr(tile, f"min_{dim1}"), getattr(
                 tile, f"max_{dim1}"
             )
@@ -241,8 +264,8 @@ class TileCollectionMetadata:
                 tile_max_dim1 - tile_min_dim1,
                 tile_max_dim2 - tile_min_dim2,
                 edgecolor="k",
-                facecolor="k",
-                alpha=0.1,
+                facecolor=color,
+                alpha=0.2,
             )
             ax.add_patch(tile_patch)
 
@@ -267,7 +290,7 @@ class TileCollectionMetadata:
         ax.set_ylabel(dim2)
         ax.set_title("All tiles with a randomly highlighted tile")
 
-        return ax
+        return fig, ax
 
     def info(self) -> str:
         """
@@ -350,38 +373,64 @@ class PointCloudTilerizer:
         point_cloud_path: Path,
         output_folder_path: Path,
         tiles_metadata: List[TileCollectionMetadata],
+        aois_config: Union[AOIFromPackageConfig , None] = None,
     ):
         self.point_cloud_path = point_cloud_path
         self.tiles_metadata = tiles_metadata
         self.output_folder_path = Path(output_folder_path)
+        self.aois_config = aois_config
+        self.aoi_engine =  AOIBaseFromGeoFile(self.aois_config)
+
+        # Create point_clouds folder
+        (self.output_folder_path / "point_clouds").mkdir(parents=True, exist_ok=True)
+
+        # Create annotation folder
+        (self.output_folder_path / "annotations").mkdir(parents=True, exist_ok=True)
+
 
     def lazy_tilerize(self, chunk_size: Union[int, None] = 500_000) -> None:
         """
         Tilerizes the point cloud data lazily.
         """
-        self.xy_to_tile_index = self._get_xy_to_tile_index()
+        # self.xy_to_tile_index = self._get_xy_to_tile_index()
 
-        for tile_md in self.tiles_metadata:
-            file_path = self.output_folder_path / f"{tile_md.output_filename}.las"
-            if file_path.is_file():
-                raise FileExistsError(
-                    f"{tile_md.output_filename} exists at {str(self.output_folder_path)}." +
-                    "Update output_filename in metadata or remove existing files."
-                )
+        # for tile_md in self.tiles_metadata:
+        #     file_path = self.output_folder_path / "point_cloud" /f"{tile_md.output_filename}.las"
+        #     if file_path.is_file():
+        #         raise FileExistsError(
+        #             f"{file_path} exists at {str(self.output_folder_path)}." +
+        #             "Update output_filename in metadata or remove existing files."
+        #         )
 
-        with laspy.open(self.point_cloud_path) as f:
-            self.tile_data = PointCloudTiles(
-                n_tiles=len(self.tiles_metadata), header=f.header
-            )
-            if chunk_size is None:
-                chunk_size = f.header.point_records_count
-            with tqdm(
-                total=-(-f.header.point_records_count // chunk_size)
-            ) as pbar:  # ceil divide -(a // -b)
-                for chunked_points in f.chunk_iterator(chunk_size):
-                    self._bin_chunk_points(chunked_points)
-                    self._lazy_write()
-                    pbar.update(1)
+        # with laspy.open(self.point_cloud_path) as f:
+        #     self.tile_data = PointCloudTiles(
+        #         n_tiles=len(self.tiles_metadata), header=f.header
+        #     )
+        #     if chunk_size is None:
+        #         chunk_size = f.header.point_records_count
+        #     with tqdm(
+        #         total=-(-f.header.point_records_count // chunk_size)
+        #     ) as pbar:  # ceil divide -(a // -b)
+        #         for chunked_points in f.chunk_iterator(chunk_size):
+        #             self._bin_chunk_points(chunked_points)
+        #             self._lazy_write()
+        #             pbar.update(1)
+
+        fig, ax = self.tiles_metadata.plot()
+
+        self.write_aoi()
+        palette = {
+            "blue": "#26547C",
+            "red": "#EF476F",
+            "yellow": "#FFD166",
+            "green": "#06D6A0",
+        }
+
+        self.aoi_engine.loaded_aois["train"].plot(ax=ax, color=palette["blue"], alpha=0.5)
+        self.aoi_engine.loaded_aois["valid"].plot(ax=ax, color=palette["green"], alpha=0.5)
+        self.aoi_engine.loaded_aois["test"].plot(ax=ax, color=palette["red"], alpha=0.5)
+
+        plt.savefig(self.output_folder_path / "split.png")
 
     def _lazy_write(self) -> None:
         """
@@ -391,9 +440,9 @@ class PointCloudTilerizer:
             if point_cloud_tile_data is not None:
                 file_path = (
                     self.output_folder_path
-                    / f"{self.tiles_metadata[i].output_filename}"
+                    / "point_clouds" / 
+                    f"{self.tiles_metadata[i].output_filename}"
                 )
-
                 if file_path.is_file():
                     with laspy.open(file_path, mode="a") as writer:
                         writer.append_points(point_cloud_tile_data)
@@ -417,7 +466,43 @@ class PointCloudTilerizer:
         Tilerizes the point cloud data.
         """
         self.lazy_tilerize(chunk_size=None)
+        # Add AOI to the tile
 
+
+    def write_aoi(self, ):
+        
+
+        train_coco = COCO_MMS(self.output_folder_path / "annotations"/ "train.json")
+        valid_coco = COCO_MMS(self.output_folder_path / "annotations"/ "valid.json")
+        test_coco = COCO_MMS(self.output_folder_path / "annotations"/ "test.json")
+
+        for i, tile_md in enumerate(self.tiles_metadata):
+            bbox = tile_md.bbox
+            train_polygon = gpd.overlay(bbox, self.aoi_engine.loaded_aois["train"])
+            valid_polygon = gpd.overlay(bbox, self.aoi_engine.loaded_aois["valid"])
+            test_polygon = gpd.overlay(bbox, self.aoi_engine.loaded_aois["test"])
+
+            file_name = tile_md.output_filename
+
+            if len(train_polygon):
+                mask = self._mask(bbox, train_polygon)
+                if mask is None:
+                    print(i, file_name)
+                train_coco.add_point_cloud(point_cloud_id=i, file_name=file_name, mask=mask)
+            if len(valid_polygon):
+                mask = self._mask(bbox, valid_polygon)
+                valid_coco.add_point_cloud(point_cloud_id=i, file_name=file_name, mask=mask)
+            if len(test_polygon):
+                mask = self._mask(bbox,test_polygon)
+                test_coco.add_point_cloud(point_cloud_id=i, file_name=file_name, mask=mask)
+
+        train_coco.write_json()
+        valid_coco.write_json()
+        test_coco.write_json()
+
+    def _mask(self, bbox, aoi):
+        return None if (aoi.area == bbox.area).all() else json.loads(aoi.to_json())
+    
     def _bin_chunk_points(self, chunked_data: laspy.ScaleAwarePointRecord) -> None:
         """
         Bins the chunked points into the appropriate tiles.
@@ -425,7 +510,9 @@ class PointCloudTilerizer:
         for i, x_b in enumerate(self.tiles_metadata.unique_x_bounds):
             index = (x_b[0] < chunked_data.x) & (chunked_data.x <= x_b[1])
             subset_px = chunked_data[index]
+            
             if subset_px:
+                
                 for j, y_b in enumerate(self.tiles_metadata.unique_y_bounds):
                     if (x_b + y_b) in self.tiles_metadata.unique_xy_bounds:
                         index = (y_b[0] < subset_px.y) & (subset_px.y <= y_b[1])
@@ -452,3 +539,70 @@ class PointCloudTilerizer:
                         xy_to_tile[(i, j)] = k
 
         return xy_to_tile
+
+
+#### AOIConfig
+
+class AOIBaseFromGeoFile:
+    def __init__(self, aois_config: AOIFromPackageConfig):
+        
+        self.aois_config = aois_config
+        self.loaded_aois = self._load_aois()
+        self.crs = None #TODO: Check for CRS  
+
+    def _load_aois(self):
+        """
+        Load the AOI from the provided path, converting it to a MultiPolygon if necessary.
+        """
+
+        loaded_aois = {}
+        for aoi_name in self.aois_config.aois:
+            # Load the AOI using geopandas
+            aoi_gdf = gpd.read_file(self.aois_config.aois[aoi_name])
+
+            # Ensure the geometry is a MultiPolygon
+            aoi_gdf['geometry'] = aoi_gdf['geometry'].astype(object).apply(
+                lambda geom: MultiPolygon([geom]) if isinstance(geom, Polygon) else geom
+            )
+
+            # Making sure the geometries have the same CRS as the raster
+            # aoi_gdf = self.associated_raster.adjust_geometries_to_raster_crs_if_necessary(gdf=aoi_gdf)
+
+            # Scaling the geometries to pixel coordinates aligned with the Raster
+            # aoi_gdf = self.associated_raster.adjust_geometries_to_raster_pixel_coordinates(gdf=aoi_gdf)
+
+            # Store the loaded data
+            loaded_aois[aoi_name] = aoi_gdf
+
+        return loaded_aois
+
+
+class COCO_MMS:
+    """
+    Multi-modal coco dataset generator with split information 
+    """
+    def __init__(self, output_path):
+        self.output_path = output_path
+        self.json_dict = dict(info={}, licenses=[], images =[], point_cloud =[], annotation=[], categories = [])
+
+    def update_info(self, year=None, version=None, descriptor=None, contributor=None, url=None, date_created=None):
+
+        self.json_dict.info = dict(year=year, version=version, descriptor=descriptor, contributor=contributor, url=url, date_created=date_created)
+
+    def add_images(self, image_id, file_name, width, height, date_captured, license, coco_url, flickr_url, mask=None):
+        self.json_dict.images.append(dict(id=image_id, file_name=file_name, width=width, height=height, date_captured=date_captured, license=license, coco_url=coco_url, flickr_url=flickr_url, mask=mask))
+
+    def add_point_cloud(self, point_cloud_id, file_name, mask=None):
+        self.json_dict["point_cloud"].append(dict(id=point_cloud_id, file_name=file_name, mask=mask))
+
+    def add_annotation(self, annotation_id, image_id, category_id, segmentation, area, bbox, iscrowd):
+        self.json_dict.annotation.append(dict(id=annotation_id, image_id=image_id, category_id=category_id, segmentation=segmentation, area=area, bbox=bbox, iscrowd=iscrowd))
+
+    def add_categories(self, category_id, name, supercategory):
+        self.json_dict.categories.append(dict(id=category_id, name=name, supercategory=supercategory))
+
+    def write_json(self):
+        with open(self.output_path, 'w') as json_file:
+            json.dump(self.json_dict, json_file, indent=4)
+
+
