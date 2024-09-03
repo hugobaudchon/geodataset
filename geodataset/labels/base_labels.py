@@ -11,51 +11,44 @@ from shapely import box
 from geodataset.geodata import Raster
 from geodataset.utils import try_cast_multipolygon_to_polygon
 
-class RasterPolygonLabels:
-    """
-    Class to handle the loading and processing of polygon labels associated with a :class:`~geodataset.geodata.Raster`.
-    The labels will automatically be adjusted to the associated :class:`~geodataset.geodata.Raster`
-    pixel coordinate system.
-    For example, this class is instantiated by the :class:`~geodataset.tilerize.LabeledRasterTilerizer` to align the Raster and labels.
+from abc import ABC, abstractmethod
 
-    Parameters
-    ----------
-    path: str or Path
-        Path to the labels file. Supported formats are: .gpkg, .geojson, .shp, .xml, .csv.
-        For .xml and .csv files, only specific formats are supported.
-        Supported .xml and .csv files will also be converted to a GeoDataFrame for downstream uses.
-    associated_raster: :class:`~geodataset.geodata.Raster`
-        The instanced :class:`~geodataset.geodata.Raster` object associated with the labels.
-        The labels will automatically be adjusted to this :class:`~geodataset.geodata.Raster` pixel coordinate system.
-    geopackage_layer_name : str, optional
-        The name of the layer in the geopackage file to use as labels. Only used if the labels_path is a .gpkg, .geojson
-        or .shp file. Only useful when the labels geopackage file contains multiple layers.
-    main_label_category_column_name : str, optional
-        The name of the column in the labels file that contains the main category of the labels.
-    other_labels_attributes_column_names : list of str, optional
-        The names of the columns in the labels file that contains other attributes of the labels, which should be kept
-        as a dictionary in the COCO annotations data.
-    """
+from typing import Union
+
+class BaseLabels(ABC):
+    @abstractmethod
+    def _load_labels(self):
+        pass
+
+class PolygonLabels(BaseLabels):
     def __init__(self,
-                 path: str or Path,
-                 associated_raster: Raster,
+                 path: Union[str, Path],
                  geopackage_layer_name: str = None,
-                 main_label_category_column_name: str = None,
-                 other_labels_attributes_column_names: List[str] = None):
+                 main_label_category_column: str = None,
+                 other_labels_attributes_column: List[str] = None):
 
         self.path = Path(path)
         self.ext = self.path.suffix
-        self.associated_raster = associated_raster
         self.geopackage_layer_name = geopackage_layer_name
-        self.ground_resolution = self.associated_raster.ground_resolution
-        self.scale_factor = self.associated_raster.scale_factor
-        self.main_label_category_column_name = main_label_category_column_name
-        self.other_labels_attributes_column_names = other_labels_attributes_column_names
+        self.main_label_category_column_name = main_label_category_column
+        self.other_labels_attributes_column_names = other_labels_attributes_column
+        self.main_label_category_column_name = main_label_category_column
 
         self.geometries_gdf = self._load_labels()
 
     def _load_labels(self):
         # Loading the labels into a GeoDataFrame
+        labels_gdf = self._load_gdf_labels()
+
+        # Making sure we are working with Polygons and not Multipolygons
+        labels_gdf = self._check_multipolygons(labels_gdf)
+
+        # Making sure the labels polygons are valid (they are not None)
+        self._check_valid_polygons(labels_gdf)
+
+        return labels_gdf
+    
+    def _load_gdf_labels(self):
         if self.ext.lower() == '.xml':
             labels_gdf = self._load_xml_labels()
         elif self.ext == '.csv':
@@ -64,52 +57,32 @@ class RasterPolygonLabels:
             labels_gdf = self._load_geopandas_labels()
         else:
             raise Exception(f'Annotation format {self.ext} is not yet supported.')
+        return labels_gdf
 
-        # Making sure we are working with Polygons and not Multipolygons
+        
+
+    def _check_valid_polygons(self, labels_gdf):
+        n_labels = len(labels_gdf)
+        labels_gdf = labels_gdf.dropna(subset=['geometry'])
+        if n_labels != len(labels_gdf):
+            warnings.warn(f"Removed {n_labels - len(labels_gdf)} out of {n_labels} labels as they have 'None' geometries.")
+
+        n_labels = len(labels_gdf)
+        labels_gdf = labels_gdf[labels_gdf.geometry.area > 0]
+        if n_labels != len(labels_gdf):
+            warnings.warn(f"Removed {n_labels - len(labels_gdf)} out of {n_labels} labels as they have an area of 0.")
+
+        return labels_gdf
+    
+    def _check_multipolygons(self, labels_gdf):
         if (labels_gdf['geometry'].type == 'MultiPolygon').any():
             labels_gdf['geometry'] = labels_gdf['geometry'].astype(object).apply(try_cast_multipolygon_to_polygon)
             n_poly_before = len(labels_gdf)
             labels_gdf = labels_gdf.dropna(subset=['geometry'])
             warnings.warn(f"Removed {n_poly_before - len(labels_gdf)} out of {n_poly_before} labels as they are MultiPolygons"
                           f" that can't be cast to Polygons.")
-
-        # Making sure the labels and associated raster CRS are matching.
-        labels_gdf = self.associated_raster.adjust_geometries_to_raster_crs_if_necessary(gdf=labels_gdf)
-
-        # Making sure the labels polygons are valid (they are not None)
-        n_labels = len(labels_gdf)
-        labels_gdf = labels_gdf.dropna(subset=['geometry'])
-        if n_labels != len(labels_gdf):
-            warnings.warn(f"Removed {n_labels - len(labels_gdf)} out of {n_labels} labels as they have 'None' geometries.")
-
-        # Scaling the geometries to pixel coordinates aligned with the Raster
-        labels_gdf = self.associated_raster.adjust_geometries_to_raster_pixel_coordinates(gdf=labels_gdf)
-
-        # Making sure the polygons have an area > 0
-        n_labels = len(labels_gdf)
-        labels_gdf = labels_gdf[labels_gdf.geometry.area > 0]
-        if n_labels != len(labels_gdf):
-            warnings.warn(f"Removed {n_labels - len(labels_gdf)} out of {n_labels} labels as they have an area of 0.")
-
-        # Checking if most of the labels are intersecting the Raster.
-        # If not, something probably went wrong with the CRS, transform or scaling factor.
-        raster_gdf = gpd.GeoDataFrame(data={'geometry': [box(0,
-                                                             0,
-                                                             self.associated_raster.metadata['height'],
-                                                             self.associated_raster.metadata['width'])]})
-
-        labels_in_raster_gdf = labels_gdf[labels_gdf.intersects(raster_gdf.unary_union)]
-
-        if len(labels_gdf) == 0:
-            raise ValueError("Found no geometries in the labels geopackage file.")
-        elif len(labels_in_raster_gdf) == 0:
-            raise ValueError("Found no geometries in the labels geopackage file that intersect the raster.")
-        elif len(labels_in_raster_gdf) / len(labels_gdf) < 0.10:
-            warnings.warn(f"Less than 10% of the labels are intersecting the Raster."
-                          f" Something probably went wrong with the CRS, transform or scaling factor.")
-
         return labels_gdf
-
+    
     def _load_geopandas_labels(self):
         # Load polygons
 
@@ -235,3 +208,4 @@ class RasterPolygonLabels:
                                     f' The columns of the CSV are: {labels_df.columns}')
 
         return labels_gdf
+

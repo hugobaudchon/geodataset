@@ -12,7 +12,7 @@ from geodataset.geodata.tile import TileSaver, PolygonTile
 from geodataset.labels import RasterPolygonLabels
 from geodataset.utils import CocoNameConvention, COCOGenerator
 
-
+ 
 class PolygonTilerizer:
     def __init__(self,
                  raster_path: Path,
