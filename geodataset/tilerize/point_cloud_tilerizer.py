@@ -4,7 +4,6 @@ from typing import List, Tuple, Union
 import laspy
 import matplotlib.pyplot as plt
 import numpy as np
-from pyproj import CRS as PyProjCRS
 from tqdm import tqdm
 
 from geodataset.aoi import AOIFromPackageConfig
@@ -20,7 +19,8 @@ import numpy as np
 import pandas as pd
 from geodataset.utils.file_name_conventions import CocoNameConvention
 from geodataset.dataset.coco_generator import PointCloudCOCOGenerator
-
+import open3d as o3d
+import open3d.core as o3c
 
 class PointCloudTiles:
     """
@@ -83,16 +83,23 @@ class PointCloudTilerizer:
         output_path: Path,
         tiles_metadata: Union[TileMetadataCollection, None]=None,
         aois_config: Union[AOIFromPackageConfig , None] = None,
-    ):
+        donwsample_args: Union[dict, None] = None,
+):
         
         self.point_cloud_path = point_cloud_path
         self.tiles_metadata = tiles_metadata
         self.output_path = Path(output_path)
         self.aoi_engine =  AOIBaseFromGeoFile(aois_config)
 
-        
         self.pc_tiles_folder_path = self.output_path / "point_clouds"
         self.annotation_folder_path = self.output_path / "annotations"
+
+        self.dowsample_args = donwsample_args
+
+        if donwsample_args:
+            assert "voxel_size" in donwsample_args
+
+        self.downsample_folder_path = self.output_path / f"downsampled_{donwsample_args['voxel_size']}" if  self.dowsample_args else None
 
         self.create_folder()
 
@@ -101,6 +108,8 @@ class PointCloudTilerizer:
 
         self.pc_tiles_folder_path.mkdir(parents=True, exist_ok=True)
         self.annotation_folder_path.mkdir(parents=True, exist_ok=True)
+        if self.downsample_folder_path:
+            self.downsample_folder_path.mkdir(parents=True, exist_ok=True)
 
     def _lazy_tilerize(self, chunk_size: Union[int, None] = 500_000) -> None:
         """
@@ -109,7 +118,7 @@ class PointCloudTilerizer:
         self.xy_to_tile_index = self._get_xy_to_tile_index()
 
         for tile_md in self.tiles_metadata:
-            file_path = self.pc_tiles_folder_path /f"{tile_md.output_filename}.las"
+            file_path = self.pc_tiles_folder_path /f"{tile_md.output_filename}"
             if file_path.is_file():
                 raise FileExistsError(
                     f"{file_path} exists at {str(self.pc_tiles_folder_path)}." +
@@ -130,14 +139,13 @@ class PointCloudTilerizer:
                     self._lazy_write()
                     pbar.update(1)
 
-        self.plot_aoi()
+        self.plot_aois()
 
     def lazy_tilerize(self, chunk_size: Union[int, None] = 500_000) -> None:
         
-        self.generate_coco_labels()
-
         self._lazy_tilerize(chunk_size=chunk_size)
-        self.generate_coco_labels()
+        self._generate_coco_labels()
+        self._downsample()
 
     def _lazy_write(self) -> None:
         """
@@ -188,7 +196,7 @@ class PointCloudTilerizer:
 
         return aois_tiles
 
-    def generate_coco_labels(self):
+    def _generate_coco_labels(self):
         
         aoi_tiles = self._get_aoi_tiles()
         coco_paths = {}
@@ -261,6 +269,84 @@ class PointCloudTilerizer:
 
         return xy_to_tile
 
+    def plot_aois(self) -> None:
+        
+        fig, ax = self.tiles_metadata.plot()
+
+        palette = {
+            "blue": "#26547C",
+            "red": "#EF476F",
+            "yellow": "#FFD166",
+            "green": "#06D6A0",
+        }
+
+        self.aoi_engine.loaded_aois["train"].plot(ax=ax, color=palette["blue"], alpha=0.5)
+        self.aoi_engine.loaded_aois["valid"].plot(ax=ax, color=palette["green"], alpha=0.5)
+        self.aoi_engine.loaded_aois["test"].plot(ax=ax, color=palette["red"], alpha=0.5)
+
+        plt.savefig(self.output_path / "split.png")
+    
+    def _downsample_tile(self, pc_tile_path: Path, keep_dims: List[str], voxel_size) -> None:
+        
+        pc_file = laspy.read(pc_tile_path)
+        dimensions = list(pc_file.point_format.dimension_names)
+        
+        if keep_dims == "ALL":
+            keep_dims = dimensions 
+        
+        
+        assert all([dim in keep_dims for dim in ["X", "Y", "Z"]])
+        assert all([dim in dimensions for dim in keep_dims])
+
+        pc = np.ascontiguousarray(np.vstack([pc_file.x, pc_file.y, pc_file.z]).T.astype(np.float64))
+        map_to_tensors = {}
+        map_to_tensors["positions"] = o3c.Tensor(pc)
+
+        keep_dims.remove("X")
+        keep_dims.remove("Y")
+        keep_dims.remove("Z")
+
+        if "red" in keep_dims and "green" in keep_dims and "blue" in keep_dims:
+
+            pc_colors = np.ascontiguousarray(np.vstack([pc_file.red, pc_file.green, pc_file.blue]).T.astype(np.float64))/255
+            map_to_tensors["colors"] = o3c.Tensor(pc_colors)
+            keep_dims.remove("red")
+            keep_dims.remove("blue")
+            keep_dims.remove("green")
+
+            map_to_tensors["colors"] = o3c.Tensor(pc_colors)
+
+        for dim in keep_dims:
+            dim_value = np.ascontiguousarray(pc_file[dim])
+            assert len(dim_value.shape) == 1
+            dim_value = dim_value.reshape(-1, 1) 
+            map_to_tensors[dim] = o3c.Tensor(dim_value)
+
+        pcd = o3d.t.geometry.PointCloud(map_to_tensors)
+        downpcd =  pcd.voxel_down_sample(voxel_size=voxel_size)
+
+        return downpcd
+
+    def _downsample(self,):
+
+        #//TODO - Add suppport for threading here
+        # The process is completely parallelizable
+
+        if "keep_dims" in self.dowsample_args:
+            keep_dims = self.dowsample_args["keep_dims"]
+        else:
+            keep_dims = "ALL"
+
+        voxel_size = self.dowsample_args["voxel_size"]
+
+        for tile_md in tqdm(self.tiles_metadata):
+            
+            pc_tile_path = self.pc_tiles_folder_path / f"{tile_md.output_filename}"
+            downsampled_tile = self._downsample_tile(pc_tile_path, keep_dims=keep_dims.copy(), voxel_size=voxel_size)
+            downsampled_tile_path = self.downsample_folder_path / f"{tile_md.output_filename.replace('.las', '.ply')}"
+            
+            o3d.t.io.write_point_cloud(str(downsampled_tile_path), downsampled_tile)
+
 
 #### AOIConfig
 
@@ -301,20 +387,4 @@ class AOIBaseFromGeoFile:
 
         return aois_gdf
     
-    def plot_aoi(self) -> None:
-        
-        fig, ax = self.tiles_metadata.plot()
-
-        self.write_aoi()
-        palette = {
-            "blue": "#26547C",
-            "red": "#EF476F",
-            "yellow": "#FFD166",
-            "green": "#06D6A0",
-        }
-
-        self.aoi_engine.loaded_aois["train"].plot(ax=ax, color=palette["blue"], alpha=0.5)
-        self.aoi_engine.loaded_aois["valid"].plot(ax=ax, color=palette["green"], alpha=0.5)
-        self.aoi_engine.loaded_aois["test"].plot(ax=ax, color=palette["red"], alpha=0.5)
-
-        plt.savefig(self.output_path / "split.png")
+    
