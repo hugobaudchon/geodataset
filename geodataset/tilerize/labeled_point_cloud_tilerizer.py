@@ -267,7 +267,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
     def lazy_tilerize(self, chunk_size: int | None = 500000) -> None:
         self.create_folder()
         print("Creating tiles...")
-        self._lazy_tilerize(chunk_size)
+        # self._lazy_tilerize(chunk_size)
 
         self.generate_labels()
         if self.dowsample_args:
