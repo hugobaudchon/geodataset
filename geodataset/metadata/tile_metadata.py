@@ -76,6 +76,8 @@ class TileMetadata:
          
         self.height = height
         self.width = width
+
+        
     
     def __repr__(self) -> str:
         return self.info()
@@ -119,6 +121,7 @@ class TileMetadata:
     def _get_bounding_box(self,):
         bounding_box = box(self.min_x, self.min_y, self.max_x, self.max_y )
         return gpd.GeoDataFrame(index=[0], crs= self.crs, geometry=[bounding_box])
+
 
 
 class TileMetadataCollection:
@@ -179,6 +182,7 @@ class TileMetadataCollection:
 
         self.crs = self.tile_metadata_list[0].crs
         self.gdf = self._create_gdf()
+        self.tile_id_to_idx = {tile_id: idx for idx, tile_id in enumerate([tile.id for tile in self.tile_metadata_list])}
 
     def _create_gdf(self,):
         
@@ -306,6 +310,15 @@ class TileMetadataCollection:
         ax.set_title("All tiles with a randomly highlighted tile")
 
         return fig, ax
+    
+    def get_tile_by_id(self, id: int) -> Tuple[float, float, float, float]:
+        """
+        Returns the tile with the given id.
+        """
+
+        idx = self.tile_id_to_idx[id]
+
+        return self.tile_metadata_list[idx]
 
     def info(self) -> str:
         """
@@ -326,3 +339,5 @@ class TileMetadataCollection:
             f"num_unique_xz_bounds: {len(self.unique_xz_bounds)}\n"
             f"num_unique_yz_bounds: {len(self.unique_yz_bounds)}\n"
         )
+
+        

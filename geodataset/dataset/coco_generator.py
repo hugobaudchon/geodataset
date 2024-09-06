@@ -653,8 +653,7 @@ class PointCloudCOCOGenerator:
         detections_cocos = []
         for result in results:
             images_cocos.append(result["image_coco"])
-            if result["detections_coco"][0]["segmentation"]!=[[]]:
-                detections_cocos.extend(result["detections_coco"])
+            detections_cocos.extend(result["detections_coco"])
 
         # Save the COCO dataset to a JSON file
         with self.output_path.open('w') as f:
@@ -675,13 +674,16 @@ class PointCloudCOCOGenerator:
 
         print(f'Saved COCO dataset to {self.output_path}.')
 
+        return categories_coco, category_to_id_map
+
     def _generate_tile_coco(self, tile_data):
-        (tile_id,
+        (_,
          (tile_metadata, tile_polygons, tiles_polygons_category_ids, tiles_polygons_other_attributes, use_rle_for_labels)) = tile_data
 
         local_detections_coco = []
 
         tile_width, tile_height = tile_metadata.height, tile_metadata.width
+        tile_id = tile_metadata.id
 
         for i in range(len(tile_polygons)):
             detection = self._generate_label_coco(

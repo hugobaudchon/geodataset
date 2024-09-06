@@ -44,6 +44,7 @@ class PolygonLabels(BaseLabels):
         labels_gdf = self._check_multipolygons(labels_gdf)
 
         # Making sure the labels polygons are valid (they are not None)
+        labels_gdf = self._remove_overlapping_polygons(labels_gdf)
         self._check_valid_polygons(labels_gdf)
 
         return labels_gdf
@@ -206,6 +207,20 @@ class PolygonLabels(BaseLabels):
                                     f' Please manually double check the CSV columns or remove that attribute'
                                     f' value from parameter \'other_labels_attributes_column_names\'.'
                                     f' The columns of the CSV are: {labels_df.columns}')
+
+        return labels_gdf
+
+
+    def _remove_overlapping_polygons(self, labels_gdf):
+
+        labels_gdf['id'] = labels_gdf.index
+
+        overlap_polygons = labels_gdf.sjoin(labels_gdf, how='inner', predicate="overlaps")
+        
+        ind = overlap_polygons.id_left.values
+        labels_gdf = labels_gdf[~(labels_gdf.id.isin(ind))]
+
+        print(f"Removing {ind.shape[0]} overlapping polygons")
 
         return labels_gdf
 

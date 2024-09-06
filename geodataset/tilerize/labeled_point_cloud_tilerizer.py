@@ -13,7 +13,17 @@ from geodataset.metadata.tile_metadata import TileMetadata, TileMetadataCollecti
 from geodataset.dataset.coco_generator import PointCloudCOCOGenerator
 from geodataset.utils.file_name_conventions import CocoNameConvention
 
-class LabeledPointCloudTilerizer(LabeledTilerizer):
+from geodataset.tilerize.point_cloud_tilerizer import PointCloudTilerizer
+from shapely.geometry import Point
+
+import open3d as o3d
+from tqdm import tqdm
+import numpy as np
+import open3d.core as o3c
+
+from concurrent.futures import ThreadPoolExecutor
+
+class LabeledPointCloudTilerizer(PointCloudTilerizer):
     """
     Tiler for labeled point cloud data
     """
@@ -31,7 +41,8 @@ class LabeledPointCloudTilerizer(LabeledTilerizer):
                  other_labels_attributes_column: List[str] = None,
                  use_rle_for_labels: bool =True,
                  coco_n_workers: int =1,
-                 coco_categories_list: List[dict] or None =None ) -> None:
+                 coco_categories_list: Union[List[dict],None] =None,
+                 donwsample_args: Union[dict, None] = None ) -> None:
         
         self.point_cloud_path = point_cloud_path
         self.label_path = labels_path
@@ -44,10 +55,23 @@ class LabeledPointCloudTilerizer(LabeledTilerizer):
         self.coco_n_workers = coco_n_workers
         self.coco_categories_list = coco_categories_list
 
+        self.pc_tiles_folder_path = self.output_path / "pc_tiles"
+        self.annotation_folder_path = self.output_path / "annotations"
 
-        self.labels = self._load_labels(geopackage_layer=geopackage_layer, main_label_category=main_label_category_column, other_labels_attributes=other_labels_attributes_column)
+        self.dowsample_args = donwsample_args
 
-    def _load_labels(self, 
+        if donwsample_args:
+            assert "voxel_size" in donwsample_args
+
+        self.downsample_folder_path = self.output_path / f"pc_tiles_downsampled_{donwsample_args['voxel_size']}" if  self.dowsample_args else None
+
+        self.labels = self.load_labels(geopackage_layer=geopackage_layer, main_label_category=main_label_category_column, other_labels_attributes=other_labels_attributes_column)
+
+        self.aoi_tiles = None
+        self.aois_labels = None
+        self.category_to_id_map = None
+
+    def load_labels(self, 
                      geopackage_layer= None, 
                      main_label_category= "labels",
                      other_labels_attributes= None,
@@ -177,19 +201,19 @@ class LabeledPointCloudTilerizer(LabeledTilerizer):
     def get_tile(self, **kwargs):
         return super().get_tile(**kwargs)
     
-    def generate_coco_labels(self):
+    def generate_labels(self):
         """
         Generate the tiles and the COCO dataset(s) for each AOI (or for the 'all' AOI) and save everything to the disk.
         """
-        aoi_tiles, aois_labels = self._get_aoi_labels()
+        self.aoi_tiles, self.aois_labels = self._get_aoi_labels()
 
         coco_paths = {}
-        for aoi in aois_labels:
-            if aoi == 'all' and len(aois_labels.keys()) > 1:
+        for aoi in self.aois_labels:
+            if aoi == 'all' and len(self.aois_labels.keys()) > 1:
                 # don't save the 'all' tiles if aois were provided.
                 continue
 
-            labels = aois_labels[aoi]
+            labels = self.aois_labels[aoi]
 
             if len(labels) == 0:
                 print(f"No tiles found for AOI {aoi}, skipping...")
@@ -199,7 +223,7 @@ class LabeledPointCloudTilerizer(LabeledTilerizer):
                 print(f"No tiles found for AOI {aoi}. Skipping...")
                 continue
 
-            tiles_metadata = TileMetadataCollection([tile for tile in self.tiles_metadata if tile.id in aoi_tiles[aoi]])
+            tiles_metadata = TileMetadataCollection([tile for tile in self.tiles_metadata if tile.id in self.aoi_tiles[aoi]])
             polygons = [x['geometry'].to_list() for x in labels]
             categories_list = [x[self.labels.main_label_category_column_name].to_list() for x in labels]\
                 if self.labels.main_label_category_column_name else None
@@ -231,11 +255,126 @@ class LabeledPointCloudTilerizer(LabeledTilerizer):
                 coco_categories_list=self.coco_categories_list
             )
 
-            coco_generator.generate_coco()
+            categories_coco, category_to_id_map = coco_generator.generate_coco()
             coco_paths[aoi] = coco_output_file_path
 
-        return coco_paths
+            self.category_to_id_map = category_to_id_map
+            self.category_to_id_map[np.nan] = np.nan
 
+        return coco_paths, categories_coco, category_to_id_map
+
+
+    def lazy_tilerize(self, chunk_size: int | None = 500000) -> None:
+        self.create_folder()
+        print("Creating tiles...")
+        self._lazy_tilerize(chunk_size)
+
+        self.generate_labels()
+        if self.dowsample_args:
+            print("Downsampling the tiles...")
+            self._downsample()
+
+
+    def _downsample(self,):
+
+        #//TODO - Add suppport for threading here
+        # The process is completely parallelizable
+
+        if "keep_dims" in self.dowsample_args:
+            keep_dims = self.dowsample_args["keep_dims"]
+        else:
+            keep_dims = "ALL"
+
+        voxel_size = self.dowsample_args["voxel_size"]
+
+        for tile_md in tqdm(self.tiles_metadata):
+            self._parallel_downsample((tile_md, keep_dims, voxel_size, self.aoi_tiles.copy(), self.aois_labels.copy()))
+
+        # iterable = [(tile_md, keep_dims, voxel_size, self.aoi_tiles.copy(), self.aois_labels.copy()) for tile_md in self.tiles_metadata]
+        # print("Iterable created")
+        
+        # with ThreadPoolExecutor(5) as executor:
+        #     list(tqdm(executor.map(self._parallel_downsample, iterable), total=len(iterable)))
+
+
+    def _parallel_downsample(self, arg):
+        tile_md, keep_dims, voxel_size, aois_tiles, aois_labels = arg
+        tile_labels = self._get_tile_labels(tile_md.id, aois_tiles, aois_labels)
+        pc_tile_path = self.pc_tiles_folder_path / f"{tile_md.output_filename}"
+        downsampled_tile = self._downsample_tile(pc_tile_path, keep_dims=keep_dims.copy(), voxel_size=voxel_size)
+        if not tile_labels.empty:
+            downsampled_tile = self._add_labels(downsampled_tile, tile_labels)
+        downsampled_tile_path = self.downsample_folder_path / f"{tile_md.output_filename.replace('.las', '.ply')}"
+        
+        o3d.t.io.write_point_cloud(str(downsampled_tile_path), downsampled_tile)
+
+    
+    def _add_labels(self, pcd, tile_labels):
+        
+        # Create a geodataframe for all the points
+        positions = pcd.point.positions.numpy()
+        geopoints = gpd.GeoDataFrame(positions)
+        geopoints = gpd.GeoDataFrame(geopoints.apply(lambda x: Point(x), axis=1))
+        geopoints.columns = ['points']
+        geopoints = geopoints.set_geometry('points')
+
+
+        geopoints.crs = tile_labels.crs
+
+        joined_label = tile_labels.sjoin(geopoints, how='right', predicate='contains')
+
+        points = np.vstack([joined_label.geometry.x, joined_label.geometry.y, joined_label.geometry.z]).T
+
+        assert np.array_equal(positions, points), f"The points are not in the same order for {tile_labels['tile_id']}"
+        
+        joined_label['Label'] = joined_label['Label'].apply(lambda x: self.category_to_id_map[x])
+
+        joined_label = joined_label[~joined_label.index.duplicated(keep='first')] # Removes mismatch in very few of the cases #//TODO: - Check why this is happening
+        
+        semantic_labels = joined_label['Label'].values.reshape((-1, 1))
+        instance_labels = joined_label['label_id'].values.reshape((-1, 1))
+
+        tensor_map = {}
+        for k, v in pcd.point.items():
+            v = v.numpy()
+            if len(v.shape) == 1:
+                value = o3c.Tensor(v.reshape((-1, 1)))
+            else:
+                value = o3c.Tensor(v)
+
+            tensor_map[k] = value
+
+        tensor_map['semantic_labels'] = o3c.Tensor(semantic_labels)
+        tensor_map['instance_labels'] = o3c.Tensor(instance_labels)
+
+        new_pcd = o3d.t.geometry.PointCloud(tensor_map)
+
+        return new_pcd
+
+
+    def _get_tile_labels(self, tile_id, aois_tiles, aois_labels):
+
+        aoi = self._get_aoi_from_tile_id(tile_id, aois_tiles)
+        ind_aoi = self._get_ind_aoi_tiles(tile_id, aoi, aois_labels)
+                
+        return self.aois_labels[aoi][ind_aoi] if ind_aoi is not None else gpd.GeoDataFrame()
+    
+    def _get_aoi_from_tile_id(self, tile_id, aois_tiles):
+        
+        for aoi in ["train", "valid", "test"]:
+            tile_ids = aois_tiles[aoi]
+            if tile_id in tile_ids:
+                return aoi
+        
+        assert KeyError(f"Tile {tile_id} not found in any AOI")
+
+    def _get_ind_aoi_tiles(self, tile_id, aoi, aois_labels):
+        for i, labels in enumerate(aois_labels[aoi]):
+            if tile_id in labels['tile_id'].values:
+                return i
+
+        assert KeyError(f"Tile {tile_id} not found in any AOI")
+        
 
 class AOIBaseFromGeoFile:
     def __init__(self, aois_config: AOIFromPackageConfig):
@@ -273,3 +412,5 @@ class AOIBaseFromGeoFile:
         aois_gdf = gpd.GeoDataFrame(pd.concat(aois_frames, ignore_index=True)).reset_index()
 
         return aois_gdf
+    
+    

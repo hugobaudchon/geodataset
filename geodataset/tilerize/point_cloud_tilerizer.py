@@ -91,7 +91,7 @@ class PointCloudTilerizer:
         self.output_path = Path(output_path)
         self.aoi_engine =  AOIBaseFromGeoFile(aois_config)
 
-        self.pc_tiles_folder_path = self.output_path / "point_clouds"
+        self.pc_tiles_folder_path = self.output_path / "pc_tiles"
         self.annotation_folder_path = self.output_path / "annotations"
 
         self.dowsample_args = donwsample_args
@@ -99,7 +99,7 @@ class PointCloudTilerizer:
         if donwsample_args:
             assert "voxel_size" in donwsample_args
 
-        self.downsample_folder_path = self.output_path / f"downsampled_{donwsample_args['voxel_size']}" if  self.dowsample_args else None
+        self.downsample_folder_path = self.output_path / f"pc_tiles_downsampled_{donwsample_args['voxel_size']}" if  self.dowsample_args else None
 
         self.create_folder()
 
@@ -299,8 +299,13 @@ class PointCloudTilerizer:
         assert all([dim in dimensions for dim in keep_dims])
 
         pc = np.ascontiguousarray(np.vstack([pc_file.x, pc_file.y, pc_file.z]).T.astype(np.float64))
+
+        unique_pc, ind = np.unique(pc, axis=0, return_index=True)
+
         map_to_tensors = {}
-        map_to_tensors["positions"] = o3c.Tensor(pc)
+        map_to_tensors["positions"] = o3c.Tensor(unique_pc)
+        # map_to_tensors["positions"] = o3c.Tensor(pc)
+
 
         keep_dims.remove("X")
         keep_dims.remove("Y")
@@ -309,15 +314,18 @@ class PointCloudTilerizer:
         if "red" in keep_dims and "green" in keep_dims and "blue" in keep_dims:
 
             pc_colors = np.ascontiguousarray(np.vstack([pc_file.red, pc_file.green, pc_file.blue]).T.astype(np.float64))/255
-            map_to_tensors["colors"] = o3c.Tensor(pc_colors)
+            # map_to_tensors["colors"] = o3c.Tensor(pc_colors)
+            map_to_tensors["colors"] = o3c.Tensor(pc_colors[ind])
+
             keep_dims.remove("red")
             keep_dims.remove("blue")
             keep_dims.remove("green")
 
-            map_to_tensors["colors"] = o3c.Tensor(pc_colors)
 
         for dim in keep_dims:
-            dim_value = np.ascontiguousarray(pc_file[dim])
+            # dim_value = np.ascontiguousarray(pc_file[dim])
+            dim_value = np.ascontiguousarray(pc_file[dim][ind])
+
             assert len(dim_value.shape) == 1
             dim_value = dim_value.reshape(-1, 1) 
             map_to_tensors[dim] = o3c.Tensor(dim_value)
