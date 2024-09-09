@@ -20,8 +20,7 @@ import pandas as pd
 from geodataset.utils.file_name_conventions import CocoNameConvention
 from geodataset.dataset.coco_generator import PointCloudCOCOGenerator
 import open3d as o3d
-import open3d.core as o3c
-import warnings
+import warnings 
 from geodataset.utils.file_name_conventions import PointCloudTileNameConvention
 
 class PointCloudTiles:
@@ -86,12 +85,12 @@ class PointCloudTilerizer:
         
         tiles_metadata: Union[TileMetadataCollection, None]=None,
         aois_config: Union[AOIFromPackageConfig , None] = None,
-        donwsample_args: Union[dict, None] = None,
         tile_resolution: float = None,
         tile_overlap: float = None,
         max_tile: int = 5000,
         keep_dims: List[str] = None,
         downsample_voxel_size: float = None,
+        verbose: bool = False,
         
 ):
         
@@ -103,15 +102,16 @@ class PointCloudTilerizer:
         self.tile_overlap = tile_overlap
         self.keep_dims = keep_dims if keep_dims is not None else "ALL"
         self.downsample_voxel_size = downsample_voxel_size
+        self.verbose = verbose
 
 
         assert tile_resolution or self.tiles_metadata
 
         if self.tiles_metadata:
             if self.tile_resolution:
-                warnings("Tile Metadata is provided, so the tile resolution will be ignored")
-            if self.tile_overlap!=0:
-                warnings("Tile Metadata is provided, so the tile overlap will be ignored")
+                warnings.warm("Tile Metadata is provided, so the tile resolution will be ignored")
+            if self.tile_overlap!=None:
+                warnings.warn("Tile Metadata is provided, so the tile overlap will be ignored")
 
         if self.tiles_metadata is None:
             assert self.tile_overlap is not None, "Tile Overlap is required if tile metadata is not provided"
@@ -174,10 +174,10 @@ class PointCloudTilerizer:
                 if len(data) == 0:
                     continue
                 
-                pcd = self._laspy_to_o3d(data, self.keep_dims)
+                pcd = self._laspy_to_o3d(data, self.keep_dims.copy())
                 if self.downsample_voxel_size:
                     pcd = self._downsample_tile(pcd, self.downsample_voxel_size)
-
+                pcd = self._keep_unique_points(pcd)
                 new_tile_md_list.append(tile_md)
                 downsampled_tile_path = self.pc_tiles_folder_path / f"{tile_md.output_filename.replace('.las', '.ply')}"
                 o3d.t.io.write_point_cloud(str(downsampled_tile_path), pcd)
@@ -262,7 +262,8 @@ class PointCloudTilerizer:
         dimensions = list(pc_file.point_format.dimension_names)
         
         if keep_dims == "ALL":
-            keep_dims = dimensions 
+            keep_dims = dimensions
+
         
         
         assert all([dim in keep_dims for dim in ["X", "Y", "Z"]])
@@ -270,11 +271,9 @@ class PointCloudTilerizer:
 
         pc = np.ascontiguousarray(np.vstack([pc_file.x, pc_file.y, pc_file.z]).T.astype(np.float64))
 
-        unique_pc, ind = np.unique(pc, axis=0, return_index=True)
 
         map_to_tensors = {}
-        map_to_tensors["positions"] = o3c.Tensor(unique_pc.astype(np.float64))
-        # map_to_tensors["positions"] = o3c.Tensor(pc)
+        map_to_tensors["positions"] = pc.astype(np.float64)
 
 
         keep_dims.remove("X")
@@ -284,8 +283,7 @@ class PointCloudTilerizer:
         if "red" in keep_dims and "green" in keep_dims and "blue" in keep_dims:
 
             pc_colors = np.ascontiguousarray(np.vstack([pc_file.red, pc_file.green, pc_file.blue]).T.astype(np.float64))/255
-            # map_to_tensors["colors"] = o3c.Tensor(pc_colors)
-            map_to_tensors["colors"] = o3c.Tensor(pc_colors[ind])
+            map_to_tensors["colors"] = pc_colors.astype(np.float64)
 
             keep_dims.remove("red")
             keep_dims.remove("blue")
@@ -293,15 +291,34 @@ class PointCloudTilerizer:
 
 
         for dim in keep_dims:
-            dim_value = np.ascontiguousarray(pc_file[dim][ind]).astype(np.float64)
+            dim_value = np.ascontiguousarray(pc_file[dim]).astype(np.float64)
 
             assert len(dim_value.shape) == 1
             dim_value = dim_value.reshape(-1, 1) 
-            map_to_tensors[dim] = o3c.Tensor(dim_value)
+            map_to_tensors[dim] = dim_value
 
         pcd = o3d.t.geometry.PointCloud(map_to_tensors)
 
         return pcd
+
+    def _keep_unique_points(self, pcd):
+        
+        map_to_tensors = {}
+        positions =  pcd.point.positions.numpy()
+        unique_pc, ind = np.unique(positions, axis=0, return_index=True)
+
+        map_to_tensors["positions"] = unique_pc
+        
+        for attr in pcd.point:
+            if attr != "positions":
+                map_to_tensors[attr] = getattr(pcd.point, attr)[ind]
+
+        if self.verbose:
+            n_removed = positions.shape[0] - unique_pc.shape[0]
+            percentage_removed = (n_removed/positions.shape[0])*100
+            print(f"Removed {n_removed} duplicate points ({percentage_removed:.2f}%)")
+        return o3d.t.geometry.PointCloud(map_to_tensors)
+
 
     def _downsample_tile(self, pcd, voxel_size) -> None:
         
