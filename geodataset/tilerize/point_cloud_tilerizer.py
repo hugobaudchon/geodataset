@@ -90,6 +90,8 @@ class PointCloudTilerizer:
         tile_resolution: float = None,
         tile_overlap: float = None,
         max_tile: int = 5000,
+        keep_dims: List[str] = None,
+        downsample_voxel_size: float = None,
         
 ):
         
@@ -99,9 +101,8 @@ class PointCloudTilerizer:
         self.aoi_engine =  AOIBaseFromGeoFile(aois_config)
         self.tile_resolution = tile_resolution
         self.tile_overlap = tile_overlap
-        self.pc_tiles_folder_path = self.output_path / "pc_tiles"
-        self.annotation_folder_path = self.output_path / "annotations"
-
+        self.keep_dims = keep_dims if keep_dims is not None else "ALL"
+        self.downsample_voxel_size = downsample_voxel_size
 
 
         assert tile_resolution or self.tiles_metadata
@@ -119,12 +120,10 @@ class PointCloudTilerizer:
 
         assert len(self.tiles_metadata) < max_tile, f"Number of max possible tiles {len(self.tiles_metadata)} exceeds the maximum number of tiles {max_tile}"
 
-        self.dowsample_args = donwsample_args
+        self.pc_tiles_folder_path = self.output_path / f"pc_tiles_{self.downsample_voxel_size}" if self.downsample_voxel_size else self.output_path / "pc_tiles"
+        self.annotation_folder_path = self.output_path / "annotations"
 
-        if donwsample_args:
-            assert "voxel_size" in donwsample_args
 
-        self.downsample_folder_path = self.output_path / f"pc_tiles_downsampled_{donwsample_args['voxel_size']}" if  self.dowsample_args else None
 
         self.create_folder()
 
@@ -156,9 +155,7 @@ class PointCloudTilerizer:
 
         self.pc_tiles_folder_path.mkdir(parents=True, exist_ok=True)
         self.annotation_folder_path.mkdir(parents=True, exist_ok=True)
-        if self.downsample_folder_path:
-            self.downsample_folder_path.mkdir(parents=True, exist_ok=True)
-
+        
     def query_tile(self, tile_md, reader):
         mins = np.array([tile_md.min_x, tile_md.min_y])
         maxs = np.array([tile_md.max_x, tile_md.max_y])
@@ -172,23 +169,19 @@ class PointCloudTilerizer:
         new_tile_md_list = []
         with CopcReader.open(self.point_cloud_path) as reader:
             for tile_md in tqdm(self.tiles_metadata):
-                # new_header = laspy.LasHeader(
-                #     version=reader.header.version,
-                #     point_format=reader.header.point_format
-                # )
-                
                 data = self.query_tile(tile_md, reader)
 
                 if len(data) == 0:
                     continue
                 
-                new_tile_md_list.append(tile_md)
-                data = self._downsample(data)
-                downsampled_tile_path = self.downsample_folder_path / f"{tile_md.output_filename.replace('.las', '.ply')}"
-                o3d.t.io.write_point_cloud(str(downsampled_tile_path), data)
+                pcd = self._laspy_to_o3d(data, self.keep_dims)
+                if self.downsample_voxel_size:
+                    pcd = self._downsample_tile(pcd, self.downsample_voxel_size)
 
-                # with laspy.open(self.pc_tiles_folder_path / tile_md.output_filename, mode="w", header=new_header) as writer:
-                #     writer.write_points(data)
+                new_tile_md_list.append(tile_md)
+                downsampled_tile_path = self.pc_tiles_folder_path / f"{tile_md.output_filename.replace('.las', '.ply')}"
+                o3d.t.io.write_point_cloud(str(downsampled_tile_path), pcd)
+
         self.tiles_metadata = TileMetadataCollection(new_tile_md_list)
 
     def tilerize(self,):
@@ -263,8 +256,9 @@ class PointCloudTilerizer:
 
         plt.savefig(self.output_path / "split.png")
     
-    def _downsample_tile(self, pc_file: Path, keep_dims: List[str], voxel_size) -> None:
-        
+
+    def _laspy_to_o3d(self, pc_file: Path, keep_dims:List[str]):
+
         dimensions = list(pc_file.point_format.dimension_names)
         
         if keep_dims == "ALL":
@@ -279,7 +273,7 @@ class PointCloudTilerizer:
         unique_pc, ind = np.unique(pc, axis=0, return_index=True)
 
         map_to_tensors = {}
-        map_to_tensors["positions"] = o3c.Tensor(unique_pc)
+        map_to_tensors["positions"] = o3c.Tensor(unique_pc.astype(np.float64))
         # map_to_tensors["positions"] = o3c.Tensor(pc)
 
 
@@ -299,33 +293,21 @@ class PointCloudTilerizer:
 
 
         for dim in keep_dims:
-            # dim_value = np.ascontiguousarray(pc_file[dim])
-            dim_value = np.ascontiguousarray(pc_file[dim][ind])
+            dim_value = np.ascontiguousarray(pc_file[dim][ind]).astype(np.float64)
 
             assert len(dim_value.shape) == 1
             dim_value = dim_value.reshape(-1, 1) 
             map_to_tensors[dim] = o3c.Tensor(dim_value)
 
         pcd = o3d.t.geometry.PointCloud(map_to_tensors)
-        downpcd =  pcd.voxel_down_sample(voxel_size=voxel_size)
 
-        return downpcd
+        return pcd
 
-    def _downsample(self,data):
+    def _downsample_tile(self, pcd, voxel_size) -> None:
+        
+        pcd =  pcd.voxel_down_sample(voxel_size=voxel_size)
 
-        #//TODO - Add suppport for threading here
-        # The process is completely parallelizable
-
-        if "keep_dims" in self.dowsample_args:
-            keep_dims = self.dowsample_args["keep_dims"]
-        else:
-            keep_dims = "ALL"
-
-        voxel_size = self.dowsample_args["voxel_size"]
-            
-        downsampled_tile = self._downsample_tile(data, keep_dims=keep_dims.copy(), voxel_size=voxel_size)
-
-        return downsampled_tile      
+        return pcd
 
 
 #### AOIConfig
