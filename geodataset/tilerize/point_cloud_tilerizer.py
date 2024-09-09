@@ -123,8 +123,6 @@ class PointCloudTilerizer:
         self.pc_tiles_folder_path = self.output_path / f"pc_tiles_{self.downsample_voxel_size}" if self.downsample_voxel_size else self.output_path / "pc_tiles"
         self.annotation_folder_path = self.output_path / "annotations"
 
-
-
         self.create_folder()
 
     def populate_tiles_metadata(self,):
@@ -185,7 +183,7 @@ class PointCloudTilerizer:
         self.tiles_metadata = TileMetadataCollection(new_tile_md_list)
 
     def tilerize(self,):
-        self._generate_coco_labels()
+        self._generate_labels()
         self._tilerize()
         self.plot_aois() # This should come after tilerize as the tiles_metadata will be updated after tilerize
 
@@ -203,7 +201,7 @@ class PointCloudTilerizer:
 
         return aois_tiles
 
-    def _generate_coco_labels(self):
+    def _generate_labels(self):
         
         aoi_tiles = self._get_aoi_tiles()
         coco_paths = {}
