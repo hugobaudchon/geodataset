@@ -33,15 +33,15 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                 labels_path,
                 output_path,
                 tiles_metadata,
+                coco_categories_list: List[dict] = None,
                 aois_config: Union[AOIFromPackageConfig , None] = None,
                 min_intersection_ratio: float = 0.9,
                 ignore_tiles_without_labels: bool = False,
-                geopackage_layer: str = None,
+                geopackage_layer_name: str = None,
                 main_label_category_column: str = None,
                 other_labels_attributes_column: List[str] = None,
                 use_rle_for_labels: bool =True,
                 coco_n_workers: int =1,
-                coco_categories_list: Union[List[dict],None] =None,
                 tile_resolution: float = None,
                 tile_overlap: float = None,
                 max_tile: int = 5000,
@@ -72,14 +72,14 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         self.pc_tiles_folder_path = self.output_path / f"pc_tiles_{self.downsample_voxel_size}" if self.downsample_voxel_size else self.output_path / "pc_tiles"
         self.annotation_folder_path = self.output_path / "annotations"
 
-        
-
-
         self.aoi_tiles = None
         self.aoi_labels = None
         self.category_to_id_map = None
 
-        self.labels = self.load_labels(geopackage_layer=geopackage_layer, main_label_category=main_label_category_column, other_labels_attributes=other_labels_attributes_column)
+        keep_categories = list(self.create_category_to_id_map().keys())
+
+        # PolygonLabel class
+        self.labels = self.load_labels(geopackage_layer=geopackage_layer_name, main_label_category=main_label_category_column, other_labels_attributes=other_labels_attributes_column, keep_categories=keep_categories)
 
 
         if self.tiles_metadata is None:
@@ -91,13 +91,24 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
 
         super().create_folder()
+
+    def create_category_to_id_map(self):
+        category_id_map = {}
+        for category_dict in self.coco_categories_list:
+            category_id_map[category_dict['name']] = category_dict['id']
+            for name in category_dict['other_names']:
+                category_id_map[name] = category_dict['id']
+
+        return category_id_map
+    
     def load_labels(self, 
                      geopackage_layer= None, 
                      main_label_category= "labels",
                      other_labels_attributes= None,
+                     keep_categories = None,
                      ) -> None:
         
-        labels = PolygonLabels(path=self.label_path, geopackage_layer_name=geopackage_layer, main_label_category_column= main_label_category, other_labels_attributes_column=other_labels_attributes)
+        labels = PolygonLabels(path=self.label_path, geopackage_layer_name=geopackage_layer, main_label_category_column= main_label_category, other_labels_attributes_column=other_labels_attributes, keep_categories=keep_categories)
         return labels
     
     def _find_tiles_associated_labels(self):
@@ -109,15 +120,15 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         tiles_gdf = gpd.GeoDataFrame(data={'tile_id': tile_ids,
                                            'geometry': geometry}) #CRS not set here
         
-        tiles_gdf.crs = self.tiles_metadata[0].crs
+        tiles_gdf.crs = self.tiles_metadata.crs
 
         labels_gdf = self.labels.geometries_gdf
         
-        labels_gdf['label_area'] = labels_gdf.geometry.area
+        labels_gdf['total_instance_area'] = labels_gdf.geometry.area
         inter_polygons = gpd.overlay(tiles_gdf, labels_gdf, how='intersection', keep_geom_type=True)
-        inter_polygons['area'] = inter_polygons.geometry.area
-        inter_polygons['intersection_ratio'] = inter_polygons['area'] / inter_polygons['label_area']
-        significant_polygons_inter = inter_polygons[inter_polygons['intersection_ratio'] > self.min_intersection_ratio]
+        inter_polygons['instance_area_within_tile'] = inter_polygons.geometry.area
+        inter_polygons['intersection_ratio_tiles'] = inter_polygons['instance_area_within_tile'] / inter_polygons['total_instance_area']
+        significant_polygons_inter = inter_polygons[inter_polygons['intersection_ratio_tiles'] > self.min_intersection_ratio]
         significant_polygons_inter.reset_index()
 
         # No geometry adjustment here, as the labels are already in the same CRS as the tiles
@@ -156,19 +167,15 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
         tiles_gdf = self.tiles_metadata.gdf
         
+        # To generate aois_tiles, we need to find the tiles that intersect with the AOIs
         intersections = gpd.overlay(tiles_gdf, aois_gdf, how='intersection')
         intersections['intersection_area'] = intersections.geometry.area
         max_intersection_per_tile = intersections.loc[intersections.groupby('tile_id')['intersection_area'].idxmax()]
         aois_tiles = max_intersection_per_tile.groupby('aoi')['tile_id'].apply(list).to_dict()
         
-        tile_associated_labels["label_id"] = tile_associated_labels.index
-        tile_associated_labels["label_area"] = tile_associated_labels.geometry.area
-        intersected_labels_aois = gpd.overlay(tile_associated_labels, aois_gdf, how='intersection', keep_geom_type=False)
-        intersected_labels_aois['intersection_area'] = intersected_labels_aois.geometry.area
-        intersected_labels_aois['intersection_ratio'] = intersected_labels_aois['intersection_area'] / intersected_labels_aois['label_area']
-        intersected_labels_aois = intersected_labels_aois[intersected_labels_aois['intersection_ratio'] > self.min_intersection_ratio]
+        tile_associated_labels["instance_id"] = tile_associated_labels.index
 
-
+        intersected_labels_aois = gpd.overlay(tile_associated_labels, aois_gdf, how='intersection', keep_geom_type=False)        
         final_aoi_labels = {aoi: [] for aoi in list(aois_tiles.keys()) + ['all']}
 
         for aoi in aois_tiles:
@@ -176,8 +183,8 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                 
                 labels_crs_coords = intersected_labels_aois[intersected_labels_aois['tile_id'] == tile_id]
                 labels_crs_coords = labels_crs_coords[labels_crs_coords['aoi'] == aoi]
-                labels_ids = labels_crs_coords['label_id'].tolist()
-                labels_tiles_coords = intersected_labels_aois[intersected_labels_aois.label_id.isin(labels_ids)]
+                labels_ids = labels_crs_coords['instance_id'].tolist()
+                labels_tiles_coords = intersected_labels_aois[intersected_labels_aois.instance_id.isin(labels_ids)]
 
                 # removing boxes that have an area of 0.0
                 labels_tiles_coords = labels_tiles_coords[labels_tiles_coords.geometry.area > 0.0]
@@ -212,7 +219,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         return tiles_per_aoi
     
     def tilerize(self):
-        self.generate_labels()
+        self._generate_labels()
         self._tilerize()
         super().plot_aois()
         
@@ -233,7 +240,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                 pcd = super()._keep_unique_points(pcd)
                 tile_labels = self._get_tile_labels(tile_md.id,self.aoi_tiles.copy(), self.aoi_labels.copy())
                 
-                self._add_labels(pcd, tile_labels)
+                pcd = self._add_labels(pcd, tile_labels)
                 
                 new_tile_md_list.append(tile_md)
                 downsampled_tile_path = self.pc_tiles_folder_path / f"{tile_md.output_filename.replace('.las', '.ply')}"
@@ -247,7 +254,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
     def get_tile(self, **kwargs):
         return super().get_tile(**kwargs)
     
-    def generate_labels(self):
+    def _generate_labels(self):
         """
         Generate the tiles and the COCO dataset(s) for each AOI (or for the 'all' AOI) and save everything to the disk.
         """
@@ -322,6 +329,13 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         geopoints = geopoints.set_geometry('points')
         
         
+        def category_to_id(x):
+            if x in self.category_to_id_map:
+                return self.category_to_id_map[x]
+            else:
+                return np.nan
+
+        print(tile_labels)
 
         if tile_labels.empty is False:
             geopoints.crs = tile_labels.crs
@@ -334,12 +348,13 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
             assert np.array_equal(positions, points), f"The points are not in the same order for {tile_labels['tile_id']}"
             
-            joined_label['Label'] = joined_label['Label'].apply(lambda x: self.category_to_id_map[x])
+            
+            joined_label['Label'] = joined_label['Label'].apply(category_to_id)
 
             
             
             semantic_labels = joined_label['Label'].values.reshape((-1, 1))
-            instance_labels = joined_label['label_id'].values.reshape((-1, 1))
+            instance_labels = joined_label['instance_id'].values.reshape((-1, 1))
         
         else:
             if self.verbose:

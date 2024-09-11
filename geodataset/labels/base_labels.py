@@ -25,7 +25,8 @@ class PolygonLabels(BaseLabels):
                  path: Union[str, Path],
                  geopackage_layer_name: str = None,
                  main_label_category_column: str = None,
-                 other_labels_attributes_column: List[str] = None):
+                 other_labels_attributes_column: List[str] = None,
+                 keep_categories: List[str] = None):
 
         self.path = Path(path)
         self.ext = self.path.suffix
@@ -34,18 +35,19 @@ class PolygonLabels(BaseLabels):
         self.other_labels_attributes_column_names = other_labels_attributes_column
         self.main_label_category_column_name = main_label_category_column
 
-        self.geometries_gdf = self._load_labels()
+        gdf = self._load_labels()
+        
+        self.geometries_gdf = gdf[gdf.Label.isin(keep_categories)]
 
     def _load_labels(self):
         # Loading the labels into a GeoDataFrame
         labels_gdf = self._load_gdf_labels()
-
         # Making sure we are working with Polygons and not Multipolygons
         labels_gdf = self._check_multipolygons(labels_gdf)
 
         labels_gdf = self._remove_overlapping_polygons(labels_gdf)
         # Making sure the labels polygons are valid (they are not None)
-        self._check_valid_polygons(labels_gdf)
+        labels_gdf = self._check_valid_polygons(labels_gdf)
 
         return labels_gdf
     
