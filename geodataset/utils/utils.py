@@ -873,19 +873,20 @@ def coco_to_geopackage(coco_json_path: str,
             'category_name': [categories_ids_to_names_map[annotation.get('category_id')] for annotation in tile_annotations],
         })
 
-        if 'other_attributes' in tile_annotations[0] and type(tile_annotations[0]['other_attributes']) is dict:
-            other_attributes = set()
-            for tile_annotation in tile_annotations:
-                other_attributes = other_attributes.union(set(tile_annotation['other_attributes'].keys()))
+        if tile_annotations:
+            if 'other_attributes' in tile_annotations[0] and type(tile_annotations[0]['other_attributes']) is dict:
+                other_attributes = set()
+                for tile_annotation in tile_annotations:
+                    other_attributes = other_attributes.union(set(tile_annotation['other_attributes'].keys()))
 
-            for other_attribute in other_attributes:
-                gdf[other_attribute] = [annotation['other_attributes'][other_attribute]
-                                        if (other_attribute in annotation['other_attributes']
-                                            and type(annotation['other_attributes'][other_attribute])
-                                            in [str, int, float]) else None for annotation in tile_annotations]
+                for other_attribute in other_attributes:
+                    gdf[other_attribute] = [annotation['other_attributes'][other_attribute]
+                                            if (other_attribute in annotation['other_attributes']
+                                                and type(annotation['other_attributes'][other_attribute])
+                                                in [str, int, float]) else None for annotation in tile_annotations]
 
-        if 'score' in tile_annotations[0]:
-            gdf['score'] = [annotation['score'] for annotation in tile_annotations]
+            if 'score' in tile_annotations[0]:
+                gdf['score'] = [annotation['score'] for annotation in tile_annotations]
 
         gdfs.append(gdf)
 

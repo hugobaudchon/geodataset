@@ -1,0 +1,59 @@
+{
+    "categories": [
+	{
+	    "id": 1,
+	    "name": "piba",
+	    "supercategory": "",
+	    "rank": "SPECIES"
+	},
+	{
+	    "id": 2,
+	    "name": "pima",
+	    "supercategory": "",
+	    "rank": "SPECIES"
+	},
+	{
+	    "id": 3,
+	    "name": "pist",
+	    "supercategory": "",
+	    "rank": "SPECIES"
+	},
+	{
+	    "id": 4,
+	    "name": "pigl",
+	    "supercategory": "",
+	    "rank": "SPECIES"
+	},
+	{
+	    "id": 5,
+	    "name": "thoc",
+	    "supercategory": "",
+	    "rank": "SPECIES"
+	},
+	{
+	    "id": 6,
+	    "name": "ulam",
+	    "supercategory": "",
+	    "rank": "SPECIES"
+	},
+	{
+	    "id": 7,
+	    "name": "other",
+	    "other_names": ["qeru","bepa","potr","lala","pire"],
+	    "supercategory": "",
+	    "rank": "SPECIES"
+	},
+	{
+	    "id": 8,
+	    "name": "beal",
+	    "supercategory": "",
+	    "rank": "SPECIES"
+	},
+	{
+	    "id": 9,
+	    "name": "acsa",
+	    "supercategory": "",
+	    "rank": "SPECIES"
+	}
+    ]
+}
