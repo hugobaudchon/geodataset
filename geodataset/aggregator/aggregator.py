@@ -134,7 +134,7 @@ class AggregatorBase(ABC):
                 for score_name in scores.keys():
                     tile_ids_to_scores[image_id][score_name].append(scores[score_name])
                 for class_name in classes.keys():
-                    tile_ids_to_classes[image_id][clas_name].append(classes[class_name])
+                    tile_ids_to_classes[image_id][class_name].append(classes[class_name])
             else:
                 tile_ids_to_polygons[image_id] = [annotation_polygon]
                 tile_ids_to_scores[image_id] = {score_name: [scores[score_name]] for score_name in scores.keys()}
