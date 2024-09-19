@@ -594,10 +594,10 @@ class DetectorAggregator(AggregatorBase):
         """
 
         if scores_names is None:
-            scores_names = ['score']
+            scores_names = ['score']    # will try to find a 'score' attribute as it's required for NMS algorithm.
 
         if classes_names is None:
-            classes_names = ['class']
+            classes_names = []  # by default classes are not mandatory
 
         if scores_weights:
             assert len(scores_names) == len(scores_weights), ("The scores_weights must have "
@@ -813,10 +813,10 @@ class SegmentationAggregator(AggregatorBase):
         """
 
         if scores_names is None:
-            scores_names = ['score']
+            scores_names = ['score']    # will try to find a 'score' attribute as it's required for NMS algorithm.
 
         if classes_names is None:
-            classes_names = ['classe']
+            classes_names = []      # by default classes are not mandatory
 
         if scores_weights:
             assert len(scores_names) == len(scores_weights), ("The scores_weights must have "
