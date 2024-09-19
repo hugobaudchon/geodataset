@@ -453,7 +453,6 @@ class AggregatorBase(ABC):
                     label_attributes['score'] = label_data['score']
                     label_scores = {score_name: label_data[score_name] for score_name in self.scores_names}
                     label_attributes.update(label_scores)
-                    label_attributes['class'] = int(label_data['class'])
                     label_classes = {class_name: int(label_data[class_name]) for class_name in self.classes_names}
                     label_attributes.update(label_classes)
                     tile_attributes.append(label_attributes)
