@@ -116,7 +116,7 @@ class AggregatorBase(ABC):
             warn_classes_not_found = []
             for class_name in classes_names:
                 if class_name in annotation:
-                    classes[class_name] = annotation["class_name"]
+                    classes[class_name] = annotation[class_name]
                 elif ("other_attributes" in annotation
                       and annotation["other_attributes"]
                       and class_name in annotation["other_attributes"]):
@@ -151,7 +151,8 @@ class AggregatorBase(ABC):
             tile_ids_to_path=tile_ids_to_path,
             tile_ids_to_polygons=tile_ids_to_polygons,
             tile_ids_to_scores=tile_ids_to_scores,
-            tile_ids_to_classes=tile_ids_to_classes)
+            tile_ids_to_classes=tile_ids_to_classes
+        )
 
         return all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path
 
