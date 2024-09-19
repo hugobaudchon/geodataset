@@ -226,7 +226,7 @@ class AggregatorBase(ABC):
             scores = {'score': scores}
 
         if type(classes) is list:
-            scores = {'class': classes}
+            classes = {'class': classes}
 
         if scores_weights:
             assert set(scores_weights.keys()) == set(scores.keys()), ("The scores_weights keys must be "
