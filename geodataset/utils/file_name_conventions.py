@@ -17,23 +17,40 @@ def validate_and_convert_product_name(product_name_stem: str):
 
 class FileNameConvention(ABC):
     @staticmethod
-    def create_specifier(scale_factor=None, ground_resolution=None):
+    def create_specifier(scale_factor=None, ground_resolution=None, voxel_size=None):
         if scale_factor is not None:
-            return f"sf{str(scale_factor).replace('.', 'p')}"
+            specifier = f"sf{str(scale_factor).replace('.', 'p')}"
         elif ground_resolution is not None:
-            return f"gr{str(ground_resolution).replace('.', 'p')}"
+            specifier =  f"gr{str(ground_resolution).replace('.', 'p')}"
         else:
             return FileNameConvention.create_specifier(scale_factor=1.0)
+        if voxel_size is not None:
+            specifier = specifier + f"vs{str(voxel_size).replace('.', 'p')}"
+
+        return specifier
 
     @staticmethod
     def parse_specifier(specifier):
+        scale_factor = None
+        ground_resolution = None
+        voxel_size = None
+
         if 'sf' in specifier:
-            return float(specifier.replace('sf', '').replace('p', '.')), None
-        elif 'gr' in specifier:
-            return None, float(specifier.replace('gr', '').replace('p', '.'))
-        else:
+            # Extract the part after 'sf' up to the next specifier or end of string
+            sf_part = specifier.split('sf')[1].split('_')[0]
+            scale_factor = float(sf_part.replace('p', '.'))
+        if 'gr' in specifier:
+            gr_part = specifier.split('gr')[1].split('_')[0]
+            ground_resolution = float(gr_part.replace('p', '.'))
+        if 'vs' in specifier:
+            vs_part = specifier.split('vs')[1].split('_')[0]
+            voxel_size = float(vs_part.replace('p', '.'))
+
+        if scale_factor is None and ground_resolution is None:
             raise ValueError("Specifier must contain either 'sf' for scale factor or 'gr' for ground resolution.")
 
+        return scale_factor, ground_resolution, voxel_size
+    
     @staticmethod
     @abstractmethod
     def _validate_name(**kwargs):
@@ -53,7 +70,7 @@ class FileNameConvention(ABC):
 class TileNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
+        pattern = r"^.*pc_tile_((sf|gr)[0-9]+p[0-9]+_)?(ds[0-9]+p[0-9]+_)?[0-9]+_[0-9]+_id_[0-9]+\.(ply|las)$"
         if not re.match(pattern, name):
             raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
 
@@ -74,7 +91,7 @@ class TileNameConvention(FileNameConvention):
         col = parts[-2]
         row = parts[-1].replace('.tif', '')
 
-        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+        scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
 
         return product_name, scale_factor, ground_resolution, col, row
 
@@ -102,7 +119,7 @@ class PolygonTileNameConvention(FileNameConvention):
         specifier = parts[-2]
         polygon_id = parts[-1].replace('.tif', '')
 
-        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+        scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
 
         return product_name, scale_factor, ground_resolution, polygon_id
 
@@ -130,7 +147,7 @@ class CocoNameConvention(FileNameConvention):
         specifier = parts[-2]
         fold = parts[-1].replace(".json", "")
 
-        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+        scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
 
         return product_name, scale_factor, ground_resolution, fold
 
@@ -158,7 +175,7 @@ class GeoJsonNameConvention(FileNameConvention):
         specifier = parts[-2]
         fold = parts[-1].replace(".geojson", "")
 
-        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+        scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
 
         return product_name, scale_factor, ground_resolution, fold
 
@@ -172,7 +189,7 @@ class GeoPackageNameConvention(FileNameConvention):
 
     @staticmethod
     def create_name(product_name: str, fold: str, scale_factor=None, ground_resolution=None):
-        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution,)
         geojson_name = f"{product_name}_{specifier}_{fold}.gpkg"
         GeoPackageNameConvention._validate_name(geojson_name)
         return geojson_name
@@ -186,7 +203,7 @@ class GeoPackageNameConvention(FileNameConvention):
         specifier = parts[-2]
         fold = parts[-1].replace(".gpkg", "")
 
-        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+        scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
 
         return product_name, scale_factor, ground_resolution, fold
 
@@ -213,7 +230,7 @@ class AoiTilesImageConvention(FileNameConvention):
         product_name = "_".join(parts[:-2])
         specifier = parts[-1].replace(".png", "")
 
-        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+        scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
 
         return product_name, scale_factor, ground_resolution
 
@@ -221,29 +238,30 @@ class AoiTilesImageConvention(FileNameConvention):
 class PointCloudTileNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_pc_tile_(([0-9]+_[0-9])|(sf[0-9]+p[0-9]+))+_id_(([0-9]_[0-9])|([0-9]))+\.las$"
+        pattern = r"^.*pc_tile_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+_id_[0-9]+\.(ply|las)$"
         if not re.match(pattern, name):
             raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
         else:
             return True
 
     @staticmethod
-    def create_name(product_name: str, tile_id:str, scale_factor=None, ground_resolution=None):
-        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
-        tile_name = f"{product_name}_pc_tile_{specifier}_{tile_id}.las"
-        # PointCloudTileNameConvention._validate_name(tile_name)
+    def create_name(product_name: str, tile_id:str, scale_factor=None, ground_resolution=None, voxel_size=None, extension='ply'):
+        assert extension in ["ply", "las"], f"Extension must be either 'ply' or 'las', not {extension}."
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size)
+        tile_name = f"{product_name}_pc_tile_{specifier}_id_{tile_id}.{extension}"
+        PointCloudTileNameConvention._validate_name(tile_name)
         return tile_name
 
     @staticmethod
     def parse_name(tile_name: str):
         PointCloudTileNameConvention._validate_name(tile_name)
 
-        parts = tile_name.split("_")
-        product_name = "_".join(parts[:-4])
-        specifier = parts[-3]
-        col = parts[-2]
-        row = parts[-1].replace('.las', '')
+        parts = tile_name.split("_pc_tile_")
+        product_name = parts[0]
+        specifier, col, row, _, tile_id_extension = parts[1].rsplit("_", 4)
+        tile_id, extension = tile_id_extension.split(".")
 
-        scale_factor, ground_resolution = FileNameConvention.parse_specifier(specifier)
+        scale_factor, ground_resolution, voxel_size = FileNameConvention.parse_specifier(specifier)
 
-        return product_name, scale_factor, ground_resolution, col, row
+        return product_name, scale_factor, ground_resolution, voxel_size, int(col), int(row), int(tile_id)
+    

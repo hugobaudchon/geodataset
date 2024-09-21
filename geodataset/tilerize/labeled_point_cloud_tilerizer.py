@@ -44,7 +44,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                 coco_n_workers: int =1,
                 tile_resolution: float = None,
                 tile_overlap: float = None,
-                max_tile: int = 5000,
+                max_tile: int = 50000,
                 keep_dims: List[str] = None,
                 downsample_voxel_size: float = None,
                 verbose: bool = False,
@@ -180,11 +180,13 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
         for aoi in aois_tiles:
             for tile_id in aois_tiles[aoi]:
-                
+                    
                 labels_crs_coords = intersected_labels_aois[intersected_labels_aois['tile_id'] == tile_id]
                 labels_crs_coords = labels_crs_coords[labels_crs_coords['aoi'] == aoi]
                 labels_ids = labels_crs_coords['instance_id'].tolist()
                 labels_tiles_coords = intersected_labels_aois[intersected_labels_aois.instance_id.isin(labels_ids)]
+                labels_tiles_coords = labels_tiles_coords[labels_tiles_coords['aoi'] == aoi]
+
 
                 # removing boxes that have an area of 0.0
                 labels_tiles_coords = labels_tiles_coords[labels_tiles_coords.geometry.area > 0.0]
@@ -238,7 +240,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                     pcd = super()._downsample_tile(pcd, self.downsample_voxel_size)
                 
                 pcd = super()._keep_unique_points(pcd)
-                tile_labels = self._get_tile_labels(tile_md.id,self.aoi_tiles.copy(), self.aoi_labels.copy())
+                tile_labels = self._get_tile_labels(tile_md.id, self.aoi_tiles.copy(), self.aoi_labels.copy())
                 
                 pcd = self._add_labels(pcd, tile_labels)
                 
@@ -335,8 +337,6 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
             else:
                 return np.nan
 
-        print(tile_labels)
-
         if tile_labels.empty is False:
             geopoints.crs = tile_labels.crs
 
@@ -394,7 +394,9 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
     
     def _get_aoi_from_tile_id(self, tile_id, aois_tiles):
         
-        for aoi in ["train", "valid", "test"]:
+        aoi_types = list(aois_tiles.keys())
+
+        for aoi in aoi_types:
             tile_ids = aois_tiles[aoi]
             if tile_id in tile_ids:
                 return aoi

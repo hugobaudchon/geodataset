@@ -177,7 +177,7 @@ class PointCloudTilerizer:
                     pcd = self._downsample_tile(pcd, self.downsample_voxel_size)
                 pcd = self._keep_unique_points(pcd)
                 new_tile_md_list.append(tile_md)
-                downsampled_tile_path = self.pc_tiles_folder_path / f"{tile_md.output_filename.replace('.las', '.ply')}"
+                downsampled_tile_path = self.pc_tiles_folder_path / f"{tile_md.output_filename}"
                 o3d.t.io.write_point_cloud(str(downsampled_tile_path), pcd)
 
         self.tiles_metadata = TileMetadataCollection(new_tile_md_list)
@@ -298,6 +298,29 @@ class PointCloudTilerizer:
         pcd = o3d.t.geometry.PointCloud(map_to_tensors)
 
         return pcd
+
+    def _remove_black_points(self, tile, tile_size):
+        
+        is_rgb = self.raster.data.shape[0] == 3
+        is_rgba = self.raster.data.shape[0] == 4
+        skip_ratio = self.ignore_black_white_alpha_tiles_threshold
+
+        # Checking if the tile has more than a certain ratio of white, black, or alpha pixels.
+        if is_rgb:
+            if np.sum(tile.data == 0) / (tile_size * tile_size * 3) > skip_ratio:
+                return True
+            if np.sum(tile.data == 255) / (tile_size * tile_size * 3) > skip_ratio:
+                return True
+        elif is_rgba:
+            if np.sum(tile.data[:-1] == 0) / (tile_size * tile_size * 3) > skip_ratio:
+                return True
+            if np.sum(tile.data[:-1] == 255) / (tile_size * tile_size * 3) > skip_ratio:
+                return True
+            if np.sum(tile.data[-1] == 0) / (tile_size * tile_size * 3) > skip_ratio:
+                return True
+
+        return False
+    
 
     def _keep_unique_points(self, pcd):
         
