@@ -649,10 +649,10 @@ class PointCloudCOCOGenerator:
                     )
             )))
 
-        images_cocos = []
+        point_cloud_cocos = []
         detections_cocos = []
         for result in results:
-            images_cocos.append(result["image_coco"])
+            point_cloud_cocos.append(result["point_cloud_coco"])
             detections_cocos.extend(result["detections_coco"])
 
         # Save the COCO dataset to a JSON file
@@ -667,7 +667,7 @@ class PointCloudCOCOGenerator:
                 "licenses": [
                     # Placeholder for licenses
                 ],
-                "point_cloud": images_cocos,
+                "point_cloud": point_cloud_cocos,
                 "annotations": detections_cocos,
                 "categories": categories_coco
             }, f, ensure_ascii=False, indent=2)
@@ -697,7 +697,7 @@ class PointCloudCOCOGenerator:
             )
             local_detections_coco.append(detection)
         return {
-            "image_coco": {
+            "point_cloud_coco": {
                 "id": tile_id,
                 "width": tile_width,
                 "height": tile_height,

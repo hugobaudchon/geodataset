@@ -135,7 +135,8 @@ class TileMetadataCollection:
         A list of tile metadata.
     """
 
-    def __init__(self, tile_metadata_list: List[TileMetadata]):
+    def __init__(self, tile_metadata_list: List[TileMetadata], product_name=Union[str, None]):
+        self.product_name = product_name
         self.tile_metadata_list = tile_metadata_list
         self.min_x, self.max_x, self.min_y, self.max_y, self.min_z, self.max_z = (
             self._calculate_bounds()

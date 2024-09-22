@@ -23,9 +23,9 @@ class FileNameConvention(ABC):
         elif ground_resolution is not None:
             specifier =  f"gr{str(ground_resolution).replace('.', 'p')}"
         else:
-            return FileNameConvention.create_specifier(scale_factor=1.0)
+            return FileNameConvention.create_specifier(scale_factor=1.0, voxel_size=voxel_size)
         if voxel_size is not None:
-            specifier = specifier + f"vs{str(voxel_size).replace('.', 'p')}"
+            specifier = specifier + f"_vs{str(voxel_size).replace('.', 'p')}"
 
         return specifier
 
@@ -151,7 +151,33 @@ class CocoNameConvention(FileNameConvention):
 
         return product_name, scale_factor, ground_resolution, fold
 
+class PointCloudCocoNameConvention(FileNameConvention):
+    @staticmethod
+    def _validate_name(name):
+        pattern = r'^.*point_cloud_coco_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[a-zA-Z0-9]+\.json$'
+        if not re.match(pattern, name):
+            raise ValueError(f"coco_name {name} does not match the expected format {pattern}.")
 
+    @staticmethod
+    def create_name(product_name: str, fold: str, scale_factor=None, ground_resolution=None, voxel_size=None):
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size)
+        coco_name = f"{product_name}_point_cloud_coco_{specifier}_{fold}.json"
+        PointCloudCocoNameConvention._validate_name(coco_name)
+        return coco_name
+
+    @staticmethod
+    def parse_name(coco_name: str):
+        PointCloudCocoNameConvention._validate_name(coco_name)
+
+        parts = coco_name.split("point_cloud_coco_")
+        product_name = parts[0]
+        specifier, fold_extension = parts[1].rsplit("_", 1)
+        fold, extension = fold_extension.split(".")
+
+        scale_factor, ground_resolution, voxel_size = FileNameConvention.parse_specifier(specifier)
+
+        return product_name, scale_factor, ground_resolution, voxel_size, fold 
+    
 class GeoJsonNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):

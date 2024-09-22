@@ -6,8 +6,9 @@ from warnings import warn
 
 import albumentations
 
-from geodataset.utils import CocoNameConvention
+from geodataset.utils import CocoNameConvention, PointCloudCocoNameConvention
 
+from icecream import ic
 
 class BaseDataset(ABC):
     """
@@ -26,7 +27,7 @@ class BaseDataset(ABC):
     def __iter__(self):
         pass
 
-class BasePointCloudCocoDataset(BaseDataset, ABC):
+class BaseLabeledPointCloudCocoDataset(BaseDataset, ABC):
     def __init__(self,
                  fold: str,
                  root_path: Union[str, List[str], Path, List[Path]],
@@ -64,16 +65,12 @@ class BasePointCloudCocoDataset(BaseDataset, ABC):
         """
         for directory in directories:
             for path in directory.iterdir():
-                if path.is_file() and path.name.endswith(f".json"):
-                    try:
-                        product_name, scale_factor, ground_resolution, fold = CocoNameConvention.parse_name(path.name)
+                if path.is_file() and path.name.endswith(f".json") and "point_cloud_coco" in path.name:
+                        product_name, scale_factor, ground_resolution, voxel_size, fold  = PointCloudCocoNameConvention.parse_name(path.name)
+
                         if fold == self.fold:
                             self._load_coco_json(json_path=path)
-                    except ValueError:
-                        return
-                elif path.is_dir() and path.name != 'tiles':
-                    self._load_coco_datasets(directories=[path])
-
+                        
     def _load_coco_json(self, json_path: Path):
         """
         Loads a COCO JSON file and its associated tiles.
@@ -95,7 +92,7 @@ class BasePointCloudCocoDataset(BaseDataset, ABC):
         - coco_data: dict, the COCO dataset loaded from a JSON file.
         """
         coco_tiles = {}
-        for image in coco_data['images']:
+        for image in coco_data['point_cloud']:
             tile_name = image['file_name']
 
             if tile_name not in self.tiles_path_to_id_mapping:
@@ -134,21 +131,18 @@ class BasePointCloudCocoDataset(BaseDataset, ABC):
         Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
         """
         for directory in directories:
-            if directory.is_dir() and directory.name == 'tiles':
-                for tile_path in directory.iterdir():
-                    if tile_path.name in self.tiles_path_to_id_mapping:
-                        tile_id = self.tiles_path_to_id_mapping[tile_path.name]
-                        if 'path' in self.tiles[tile_id] and self.tiles[tile_id]['path'] != tile_path:
-                            raise Exception(
-                                f"At least two tiles under the root directories {self.root_path} have the same"
-                                f" name, which is ambiguous. Make sure all tiles have unique names. The 2"
-                                f" ambiguous tiles are {tile_path} and {self.tiles[tile_id]['path']}.")
-                        self.tiles[tile_id]['path'] = tile_path
+            for folder in directory.iterdir():
+                if folder.is_dir() and "pc_tiles" in folder.name:         
+                    for tile_path in folder.iterdir():
+                        if tile_path.name in self.tiles_path_to_id_mapping:
+                            tile_id = self.tiles_path_to_id_mapping[tile_path.name]
+                            if 'path' in self.tiles[tile_id] and self.tiles[tile_id]['path'] != tile_path:
+                                raise Exception(
+                                    f"At least two tiles under the root directories {self.root_path} have the same"
+                                    f" name, which is ambiguous. Make sure all tiles have unique names. The 2"
+                                    f" ambiguous tiles are {tile_path} and {self.tiles[tile_id]['path']}.")
+                            self.tiles[tile_id]['path'] = tile_path
 
-            if directory.is_dir():
-                for path in directory.iterdir():
-                    if path.is_dir():
-                        self._find_tiles_paths(directories=[path])
 
     def _remove_tiles_not_found(self):
         original_tiles_number = len(self.tiles)

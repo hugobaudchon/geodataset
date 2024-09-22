@@ -10,7 +10,7 @@ import warnings
 
 from geodataset.metadata.tile_metadata import TileMetadata, TileMetadataCollection
 from geodataset.dataset.coco_generator import PointCloudCOCOGenerator
-from geodataset.utils.file_name_conventions import CocoNameConvention
+from geodataset.utils.file_name_conventions import PointCloudCocoNameConvention
 
 from geodataset.tilerize.point_cloud_tilerizer import PointCloudTilerizer
 from shapely.geometry import Point
@@ -222,8 +222,8 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
     
     def tilerize(self):
         self._generate_labels()
-        self._tilerize()
-        super().plot_aois()
+        # self._tilerize()
+        # super().plot_aois()
         
     def _tilerize(self):
         
@@ -290,10 +290,11 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
             # Saving the tiles
             
-            coco_output_file_path = self.output_path / CocoNameConvention.create_name(
-                product_name="PointCloud",
+            coco_output_file_path = self.output_path / PointCloudCocoNameConvention.create_name(
+                product_name=self.tiles_metadata.product_name ,
                 ground_resolution=None,
                 scale_factor=None,
+                voxel_size = self.downsample_voxel_size,
                 fold=aoi
             )
 
