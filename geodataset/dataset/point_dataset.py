@@ -37,6 +37,7 @@ class SegmentationLabeledPointCloudCocoDataset(BaseLabeledPointCloudCocoDataset)
         super().__init__(fold=fold, root_path=root_path)
 
         self.label_type = label_type
+        self.transform = transform
 
         assert label_type in ['semantic', 'instance'], f"Invalid label type: {label_type}. Must be either 'semantic' or 'instance'."
 
@@ -91,5 +92,10 @@ class SegmentationLabeledPointCloudCocoDataset(BaseLabeledPointCloudCocoDataset)
 
         #     bboxes.append(np.array([int(x) for x in bbox.bounds]))
 
-    
+
+        if self.transform:
+            transformed_positions, transformed_semantic_labels = self.transform((position, semantic_labels))
+            position = transformed_positions
+            semantic_labels = transformed_semantic_labels
+
         return position, semantic_labels
