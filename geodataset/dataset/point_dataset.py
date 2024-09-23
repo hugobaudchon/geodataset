@@ -4,6 +4,8 @@ from pathlib import Path
 import albumentations
 import open3d as o3d
 import numpy as np
+from geodataset.utils import coco_rle_segmentation_to_bbox, coco_coordinates_segmentation_to_bbox, coco_rle_segmentation_to_mask
+from shapely import box
 
 
 class SegmentationLabeledPointCloudCocoDataset(BaseLabeledPointCloudCocoDataset):
@@ -31,12 +33,13 @@ class SegmentationLabeledPointCloudCocoDataset(BaseLabeledPointCloudCocoDataset)
                  transform: albumentations.core.composition.Compose = None,
                  ):
         
-        super().__init__(fold=fold, root_path=root_path, transform=transform)
+        print(f"transforms not being used" )
+        super().__init__(fold=fold, root_path=root_path)
 
         self.label_type = label_type
 
         assert label_type in ['semantic', 'instance'], f"Invalid label type: {label_type}. Must be either 'semantic' or 'instance'."
-    
+
     def __getitem__(self, idx: int):
         """
         Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,
@@ -65,5 +68,28 @@ class SegmentationLabeledPointCloudCocoDataset(BaseLabeledPointCloudCocoDataset)
 
         position = pcd.point.positions.numpy()
         semantic_labels = getattr(pcd.point, f"{self.label_type}_labels").numpy()
+
+        #TODO: Might be needed later
+        # labels = tile_info['labels']
+        # bboxes = []
+
+        # for label in labels:
+        #     if 'bbox' in label:
+        #         # Directly use the provided bbox
+        #         bbox_coco = label['bbox']
+        #         bbox = box(*[bbox_coco[0], bbox_coco[1], bbox_coco[0] + bbox_coco[2], bbox_coco[1] + bbox_coco[3]])
+        #     else:
+        #         segmentation = label['segmentation']
+        #         if ('is_rle_format' in label and label['is_rle_format']) or isinstance(segmentation, dict):
+        #             # RLE format
+        #             bbox = coco_rle_segmentation_to_bbox(segmentation)
+        #         elif ('is_rle_format' in label and not label['is_rle_format']) or isinstance(segmentation, list):
+        #             # Polygon (coordinates) format
+        #             bbox = coco_coordinates_segmentation_to_bbox(segmentation)
+        #         else:
+        #             raise NotImplementedError("Could not find the segmentation type (RLE vs polygon coordinates).")
+
+        #     bboxes.append(np.array([int(x) for x in bbox.bounds]))
+
     
         return position, semantic_labels
