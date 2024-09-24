@@ -97,6 +97,7 @@
                  <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
                  <span class="n">polygons_gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span>
                  <span class="n">scores_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+                 <span class="n">classes_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
                  <span class="n">scores_weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
                  <span class="n">tiles_extent_gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span>
                  <span class="n">tile_ids_to_path</span><span class="p">:</span> <span class="nb">dict</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
@@ -107,6 +108,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span> <span class="o">=</span> <span class="n">polygons_gdf</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span> <span class="o">=</span> <span class="n">scores_names</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">classes_names</span> <span class="o">=</span> <span class="n">classes_names</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scores_weights</span> <span class="o">=</span> <span class="n">scores_weights</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tiles_extent_gdf</span> <span class="o">=</span> <span class="n">tiles_extent_gdf</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tile_ids_to_path</span> <span class="o">=</span> <span class="n">tile_ids_to_path</span>
@@ -117,6 +119,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_check_parameters</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_validate_polygons</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_scores</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_classes</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_remove_low_score_polygons</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_apply_nms_algorithm</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_save_polygons</span><span class="p">()</span>
@@ -140,7 +143,8 @@
     <span class="k">def</span> <span class="nf">_from_coco</span><span class="p">(</span><span class="n">polygon_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
                    <span class="n">tiles_folder_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
                    <span class="n">coco_json_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
-                   <span class="n">scores_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]):</span>
+                   <span class="n">scores_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+                   <span class="n">classes_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]):</span>
 
         <span class="c1"># Read the JSON file</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">coco_json_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
@@ -149,6 +153,7 @@
         <span class="c1"># Reading the polygons</span>
         <span class="n">tile_ids_to_polygons</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="n">tile_ids_to_scores</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">tile_ids_to_classes</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">annotation</span> <span class="ow">in</span> <span class="n">coco_data</span><span class="p">[</span><span class="s1">&#39;annotations&#39;</span><span class="p">]:</span>
             <span class="n">image_id</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;image_id&#39;</span><span class="p">]</span>
 
@@ -168,7 +173,7 @@
             <span class="n">warn_scores_not_found</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">scores_names</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">annotation</span><span class="p">:</span>
-                    <span class="n">scores</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;score_name&quot;</span><span class="p">]</span>
+                    <span class="n">scores</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span>
                 <span class="k">elif</span> <span class="p">(</span><span class="s2">&quot;other_attributes&quot;</span> <span class="ow">in</span> <span class="n">annotation</span>
                       <span class="ow">and</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;other_attributes&quot;</span><span class="p">]</span>
                       <span class="ow">and</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;other_attributes&quot;</span><span class="p">]):</span>
@@ -181,13 +186,33 @@
                 <span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The following scores keys could not be found in the annotation, or in the &#39;other_attributes&#39; key&quot;</span>
                      <span class="sa">f</span><span class="s2">&quot; of the annotation: </span><span class="si">{</span><span class="n">warn_scores_not_found</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
+            <span class="n">classes</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">warn_classes_not_found</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="n">classes_names</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="n">annotation</span><span class="p">:</span>
+                    <span class="n">classes</span><span class="p">[</span><span class="n">class_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="n">class_name</span><span class="p">]</span>
+                <span class="k">elif</span> <span class="p">(</span><span class="s2">&quot;other_attributes&quot;</span> <span class="ow">in</span> <span class="n">annotation</span>
+                      <span class="ow">and</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;other_attributes&quot;</span><span class="p">]</span>
+                      <span class="ow">and</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;other_attributes&quot;</span><span class="p">]):</span>
+                    <span class="n">classes</span><span class="p">[</span><span class="n">class_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;other_attributes&quot;</span><span class="p">][</span><span class="n">class_name</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">classes</span><span class="p">[</span><span class="n">class_name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="n">warn_classes_not_found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">class_name</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">warn_classes_not_found</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The following classes keys could not be found in the annotation, or in the &#39;other_attributes&#39; key&quot;</span>
+                     <span class="sa">f</span><span class="s2">&quot; of the annotation: </span><span class="si">{</span><span class="n">warn_classes_not_found</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
             <span class="k">if</span> <span class="n">image_id</span> <span class="ow">in</span> <span class="n">tile_ids_to_polygons</span><span class="p">:</span>
                 <span class="n">tile_ids_to_polygons</span><span class="p">[</span><span class="n">image_id</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">annotation_polygon</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">scores</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
                     <span class="n">tile_ids_to_scores</span><span class="p">[</span><span class="n">image_id</span><span class="p">][</span><span class="n">score_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">scores</span><span class="p">[</span><span class="n">score_name</span><span class="p">])</span>
+                <span class="k">for</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="n">classes</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="n">tile_ids_to_classes</span><span class="p">[</span><span class="n">image_id</span><span class="p">][</span><span class="n">class_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">classes</span><span class="p">[</span><span class="n">class_name</span><span class="p">])</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">tile_ids_to_polygons</span><span class="p">[</span><span class="n">image_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">annotation_polygon</span><span class="p">]</span>
                 <span class="n">tile_ids_to_scores</span><span class="p">[</span><span class="n">image_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">score_name</span><span class="p">:</span> <span class="p">[</span><span class="n">scores</span><span class="p">[</span><span class="n">score_name</span><span class="p">]]</span> <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">scores</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+                <span class="n">tile_ids_to_classes</span><span class="p">[</span><span class="n">image_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">class_name</span><span class="p">:</span> <span class="p">[</span><span class="n">classes</span><span class="p">[</span><span class="n">class_name</span><span class="p">]]</span> <span class="k">for</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="n">classes</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
 
         <span class="n">tile_ids_to_path</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">image</span> <span class="ow">in</span> <span class="n">coco_data</span><span class="p">[</span><span class="s1">&#39;images&#39;</span><span class="p">]:</span>
@@ -199,7 +224,9 @@
         <span class="n">all_polygons_gdf</span><span class="p">,</span> <span class="n">all_tiles_extents_gdf</span> <span class="o">=</span> <span class="n">AggregatorBase</span><span class="o">.</span><span class="n">_prepare_polygons</span><span class="p">(</span>
             <span class="n">tile_ids_to_path</span><span class="o">=</span><span class="n">tile_ids_to_path</span><span class="p">,</span>
             <span class="n">tile_ids_to_polygons</span><span class="o">=</span><span class="n">tile_ids_to_polygons</span><span class="p">,</span>
-            <span class="n">tile_ids_to_scores</span><span class="o">=</span><span class="n">tile_ids_to_scores</span><span class="p">)</span>
+            <span class="n">tile_ids_to_scores</span><span class="o">=</span><span class="n">tile_ids_to_scores</span><span class="p">,</span>
+            <span class="n">tile_ids_to_classes</span><span class="o">=</span><span class="n">tile_ids_to_classes</span>
+        <span class="p">)</span>
 
         <span class="k">return</span> <span class="n">all_polygons_gdf</span><span class="p">,</span> <span class="n">all_tiles_extents_gdf</span><span class="p">,</span> <span class="n">tile_ids_to_path</span>
 
@@ -209,6 +236,7 @@
                       <span class="n">tiles_paths</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Path</span><span class="p">],</span>
                       <span class="n">polygons</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Polygon</span><span class="p">]],</span>
                       <span class="n">scores</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="ow">or</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]],</span>
+                      <span class="n">classes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="ow">or</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]],</span>
                       <span class="n">scores_weights</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                       <span class="n">score_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
                       <span class="n">nms_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
@@ -239,6 +267,8 @@
 
 <span class="sd">            This is useful if you have multiple scores for each polygon, such as detection confidence score and</span>
 <span class="sd">            segmentation confidence score.</span>
+<span class="sd">        classes: List[List[float]] or Dict[str, List[List[float]]]</span>
+<span class="sd">            Classes predicted from the detector. Structure is similar to &quot;scores&quot;</span>
 <span class="sd">        scores_weights: Dict[str, float]</span>
 <span class="sd">            The weights to apply to each score column in the polygons_gdf. Weights are exponents.</span>
 <span class="sd">            Only used if &#39;scores&#39; is a dict and has more than 1 key (more than 1 set of scores).</span>
@@ -269,6 +299,9 @@
         <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">scores</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
             <span class="n">scores</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;score&#39;</span><span class="p">:</span> <span class="n">scores</span><span class="p">}</span>
 
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">classes</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
+            <span class="n">classes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;class&#39;</span><span class="p">:</span> <span class="n">classes</span><span class="p">}</span>
+
         <span class="k">if</span> <span class="n">scores_weights</span><span class="p">:</span>
             <span class="k">assert</span> <span class="nb">set</span><span class="p">(</span><span class="n">scores_weights</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">==</span> <span class="nb">set</span><span class="p">(</span><span class="n">scores</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span> <span class="p">(</span><span class="s2">&quot;The scores_weights keys must be &quot;</span>
                                                                       <span class="s2">&quot;the same as the scores keys.&quot;</span><span class="p">)</span>
@@ -284,14 +317,24 @@
                 <span class="n">id_scores</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">score_values</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span>
             <span class="n">tile_ids_to_scores</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">id_scores</span>
 
+        <span class="n">tile_ids_to_classes</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">tile_id</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">:</span>
+            <span class="n">id_classes</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">class_name</span><span class="p">,</span> <span class="n">class_values</span> <span class="ow">in</span> <span class="n">classes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">id_classes</span><span class="p">[</span><span class="n">class_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">class_values</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span>
+            <span class="n">tile_ids_to_classes</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">id_classes</span>
+
         <span class="n">all_polygons_gdf</span><span class="p">,</span> <span class="n">all_tiles_extents_gdf</span> <span class="o">=</span> <span class="n">AggregatorBase</span><span class="o">.</span><span class="n">_prepare_polygons</span><span class="p">(</span>
             <span class="n">tile_ids_to_path</span><span class="o">=</span><span class="n">tile_ids_to_path</span><span class="p">,</span>
             <span class="n">tile_ids_to_polygons</span><span class="o">=</span><span class="n">tile_ids_to_polygons</span><span class="p">,</span>
-            <span class="n">tile_ids_to_scores</span><span class="o">=</span><span class="n">tile_ids_to_scores</span><span class="p">)</span>
+            <span class="n">tile_ids_to_scores</span><span class="o">=</span><span class="n">tile_ids_to_scores</span><span class="p">,</span>
+            <span class="n">tile_ids_to_classes</span><span class="o">=</span><span class="n">tile_ids_to_classes</span>
+        <span class="p">)</span>
 
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">output_path</span><span class="o">=</span><span class="n">output_path</span><span class="p">,</span>
                    <span class="n">polygons_gdf</span><span class="o">=</span><span class="n">all_polygons_gdf</span><span class="p">,</span>
                    <span class="n">scores_names</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">scores</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span>
+                   <span class="n">classes_names</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">classes</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span>
                    <span class="n">scores_weights</span><span class="o">=</span><span class="p">[</span><span class="n">scores_weights</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">scores</span><span class="o">.</span><span class="n">keys</span><span class="p">()],</span>
                    <span class="n">tiles_extent_gdf</span><span class="o">=</span><span class="n">all_tiles_extents_gdf</span><span class="p">,</span>
                    <span class="n">score_threshold</span><span class="o">=</span><span class="n">score_threshold</span><span class="p">,</span>
@@ -300,7 +343,7 @@
                    <span class="n">tile_ids_to_path</span><span class="o">=</span><span class="n">tile_ids_to_path</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">_prepare_polygons</span><span class="p">(</span><span class="n">tile_ids_to_path</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">tile_ids_to_polygons</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">tile_ids_to_scores</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_prepare_polygons</span><span class="p">(</span><span class="n">tile_ids_to_path</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">tile_ids_to_polygons</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">tile_ids_to_scores</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">tile_ids_to_classes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
         <span class="n">images_without_crs</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="n">all_gdfs_polygons</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">all_gdfs_tiles_extents</span> <span class="o">=</span> <span class="p">[]</span>
@@ -324,6 +367,10 @@
             <span class="n">gdf_polygons</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tile_id</span>
             <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">tile_ids_to_scores</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
                 <span class="n">gdf_polygons</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">tile_ids_to_scores</span><span class="p">[</span><span class="n">tile_id</span><span class="p">][</span><span class="n">score_name</span><span class="p">]</span>
+            <span class="n">all_gdfs_polygons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gdf_polygons</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="n">tile_ids_to_classes</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">gdf_polygons</span><span class="p">[</span><span class="n">class_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">tile_ids_to_classes</span><span class="p">[</span><span class="n">tile_id</span><span class="p">][</span><span class="n">class_name</span><span class="p">]</span>
             <span class="n">all_gdfs_polygons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gdf_polygons</span><span class="p">)</span>
 
             <span class="n">bounds</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">bounds</span>
@@ -373,6 +420,9 @@
         <span class="c1"># normalize the &#39;score&#39; column between 0 and 1</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">())</span> <span class="o">/</span> \
                                      <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="nf">_prepare_classes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;class&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">classes_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]]]</span>
 
     <span class="k">def</span> <span class="nf">_remove_low_score_polygons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">score_threshold</span><span class="p">:</span>
@@ -470,14 +520,18 @@
 
             <span class="n">other_attributes</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">tile_id</span> <span class="ow">in</span> <span class="n">tiles_ids</span><span class="p">:</span>
-                <span class="n">tile_scores</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">tile_attributes</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="k">for</span> <span class="n">label_index</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">tile_id</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">:</span>
+                    <span class="n">label_attributes</span> <span class="o">=</span> <span class="p">{}</span>
                     <span class="n">label_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">label_index</span><span class="p">]</span>
+                    <span class="n">label_attributes</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">label_data</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span>
                     <span class="n">label_scores</span> <span class="o">=</span> <span class="p">{</span><span class="n">score_name</span><span class="p">:</span> <span class="n">label_data</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span><span class="p">}</span>
-                    <span class="n">label_scores</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">label_data</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span>
-                    <span class="n">tile_scores</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">label_scores</span><span class="p">)</span>
+                    <span class="n">label_attributes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">label_scores</span><span class="p">)</span>
+                    <span class="n">label_classes</span> <span class="o">=</span> <span class="p">{</span><span class="n">class_name</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">label_data</span><span class="p">[</span><span class="n">class_name</span><span class="p">])</span> <span class="k">for</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">classes_names</span><span class="p">}</span>
+                    <span class="n">label_attributes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">label_classes</span><span class="p">)</span>
+                    <span class="n">tile_attributes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">label_attributes</span><span class="p">)</span>
 
-                <span class="n">other_attributes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile_scores</span><span class="p">)</span>
+                <span class="n">other_attributes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile_attributes</span><span class="p">)</span>
 
             <span class="n">coco_generator</span> <span class="o">=</span> <span class="n">COCOGenerator</span><span class="p">(</span>
                 <span class="n">description</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Aggregated polygons from multiple tiles.&quot;</span><span class="p">,</span>
@@ -521,6 +575,7 @@
                  <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
                  <span class="n">polygons_gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span>
                  <span class="n">scores_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+                 <span class="n">classes_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
                  <span class="n">scores_weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
                  <span class="n">tiles_extent_gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span>
                  <span class="n">tile_ids_to_path</span><span class="p">:</span> <span class="nb">dict</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
@@ -531,6 +586,7 @@
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">output_path</span><span class="o">=</span><span class="n">output_path</span><span class="p">,</span>
                          <span class="n">polygons_gdf</span><span class="o">=</span><span class="n">polygons_gdf</span><span class="p">,</span>
                          <span class="n">scores_names</span><span class="o">=</span><span class="n">scores_names</span><span class="p">,</span>
+                         <span class="n">classes_names</span><span class="o">=</span><span class="n">classes_names</span><span class="p">,</span>
                          <span class="n">scores_weights</span><span class="o">=</span><span class="n">scores_weights</span><span class="p">,</span>
                          <span class="n">tiles_extent_gdf</span><span class="o">=</span><span class="n">tiles_extent_gdf</span><span class="p">,</span>
                          <span class="n">tile_ids_to_path</span><span class="o">=</span><span class="n">tile_ids_to_path</span><span class="p">,</span>
@@ -546,6 +602,7 @@
                   <span class="n">tiles_folder_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
                   <span class="n">coco_json_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
                   <span class="n">scores_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                  <span class="n">classes_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                   <span class="n">scores_weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                   <span class="n">score_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
                   <span class="n">nms_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
@@ -591,7 +648,9 @@
 <span class="sd">                    },</span>
 <span class="sd">                    ...</span>
 <span class="sd">                ]</span>
-
+<span class="sd">        classes_names: List[str]</span>
+<span class="sd">            The names of the attributes in the COCO file annotations which should be used as classes.</span>
+<span class="sd">            Same structure than &quot;scores_names&quot;.</span>
 <span class="sd">        scores_weights: List[float]</span>
 <span class="sd">            The weights to apply to each score column in the polygons_gdf. Weights are exponents.</span>
 <span class="sd">            There should be as many weights as there are scores_names.</span>
@@ -612,7 +671,10 @@
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="n">scores_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">scores_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span>
+            <span class="n">scores_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span>    <span class="c1"># will try to find a &#39;score&#39; attribute as it&#39;s required for NMS algorithm.</span>
+
+        <span class="k">if</span> <span class="n">classes_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">classes_names</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># by default classes are not mandatory</span>
 
         <span class="k">if</span> <span class="n">scores_weights</span><span class="p">:</span>
             <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">scores_names</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">scores_weights</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;The scores_weights must have &quot;</span>
@@ -624,12 +686,14 @@
             <span class="n">polygon_type</span><span class="o">=</span><span class="s1">&#39;box&#39;</span><span class="p">,</span>
             <span class="n">tiles_folder_path</span><span class="o">=</span><span class="n">tiles_folder_path</span><span class="p">,</span>
             <span class="n">coco_json_path</span><span class="o">=</span><span class="n">coco_json_path</span><span class="p">,</span>
-            <span class="n">scores_names</span><span class="o">=</span><span class="n">scores_names</span>
+            <span class="n">scores_names</span><span class="o">=</span><span class="n">scores_names</span><span class="p">,</span>
+            <span class="n">classes_names</span><span class="o">=</span><span class="n">classes_names</span>
         <span class="p">)</span>
 
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">output_path</span><span class="o">=</span><span class="n">output_path</span><span class="p">,</span>
                    <span class="n">polygons_gdf</span><span class="o">=</span><span class="n">all_polygons_gdf</span><span class="p">,</span>
                    <span class="n">scores_names</span><span class="o">=</span><span class="n">scores_names</span><span class="p">,</span>
+                   <span class="n">classes_names</span><span class="o">=</span><span class="n">classes_names</span><span class="p">,</span>
                    <span class="n">scores_weights</span><span class="o">=</span><span class="n">scores_weights</span><span class="p">,</span>
                    <span class="n">tiles_extent_gdf</span><span class="o">=</span><span class="n">all_tiles_extents_gdf</span><span class="p">,</span>
                    <span class="n">score_threshold</span><span class="o">=</span><span class="n">score_threshold</span><span class="p">,</span>
@@ -730,6 +794,7 @@
                  <span class="n">output_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
                  <span class="n">polygons_gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span>
                  <span class="n">scores_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+                 <span class="n">classes_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
                  <span class="n">scores_weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
                  <span class="n">tiles_extent_gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span>
                  <span class="n">tile_ids_to_path</span><span class="p">:</span> <span class="nb">dict</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
@@ -744,6 +809,7 @@
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">output_path</span><span class="o">=</span><span class="n">output_path</span><span class="p">,</span>
                          <span class="n">polygons_gdf</span><span class="o">=</span><span class="n">polygons_gdf</span><span class="p">,</span>
                          <span class="n">scores_names</span><span class="o">=</span><span class="n">scores_names</span><span class="p">,</span>
+                         <span class="n">classes_names</span><span class="o">=</span><span class="n">classes_names</span><span class="p">,</span>
                          <span class="n">scores_weights</span><span class="o">=</span><span class="n">scores_weights</span><span class="p">,</span>
                          <span class="n">tiles_extent_gdf</span><span class="o">=</span><span class="n">tiles_extent_gdf</span><span class="p">,</span>
                          <span class="n">tile_ids_to_path</span><span class="o">=</span><span class="n">tile_ids_to_path</span><span class="p">,</span>
@@ -759,6 +825,7 @@
                   <span class="n">tiles_folder_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
                   <span class="n">coco_json_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
                   <span class="n">scores_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                  <span class="n">classes_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                   <span class="n">scores_weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                   <span class="n">score_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
                   <span class="n">nms_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
@@ -805,6 +872,9 @@
 <span class="sd">                    ...</span>
 <span class="sd">                ]</span>
 
+<span class="sd">        classes_names: List[str]</span>
+<span class="sd">            The names of the attributes in the COCO file annotations which should be used as classes.</span>
+<span class="sd">            Same structure than &quot;scores_names&quot;.</span>
 <span class="sd">        scores_weights: List[float]</span>
 <span class="sd">            The weights to apply to each score column in the polygons_gdf. Weights are exponents.</span>
 <span class="sd">            There should be as many weights as there are scores_names.</span>
@@ -826,7 +896,10 @@
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="n">scores_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">scores_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span>
+            <span class="n">scores_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span>    <span class="c1"># will try to find a &#39;score&#39; attribute as it&#39;s required for NMS algorithm.</span>
+
+        <span class="k">if</span> <span class="n">classes_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">classes_names</span> <span class="o">=</span> <span class="p">[]</span>      <span class="c1"># by default classes are not mandatory</span>
 
         <span class="k">if</span> <span class="n">scores_weights</span><span class="p">:</span>
             <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">scores_names</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">scores_weights</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;The scores_weights must have &quot;</span>
@@ -838,12 +911,14 @@
             <span class="n">polygon_type</span><span class="o">=</span><span class="s1">&#39;segmentation&#39;</span><span class="p">,</span>
             <span class="n">tiles_folder_path</span><span class="o">=</span><span class="n">tiles_folder_path</span><span class="p">,</span>
             <span class="n">coco_json_path</span><span class="o">=</span><span class="n">coco_json_path</span><span class="p">,</span>
-            <span class="n">scores_names</span><span class="o">=</span><span class="n">scores_names</span>
+            <span class="n">scores_names</span><span class="o">=</span><span class="n">scores_names</span><span class="p">,</span>
+            <span class="n">classes_names</span><span class="o">=</span><span class="n">classes_names</span>
         <span class="p">)</span>
 
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">output_path</span><span class="o">=</span><span class="n">output_path</span><span class="p">,</span>
                    <span class="n">polygons_gdf</span><span class="o">=</span><span class="n">all_polygons_gdf</span><span class="p">,</span>
                    <span class="n">scores_names</span><span class="o">=</span><span class="n">scores_names</span><span class="p">,</span>
+                   <span class="n">classes_names</span><span class="o">=</span><span class="n">classes_names</span><span class="p">,</span>
                    <span class="n">scores_weights</span><span class="o">=</span><span class="n">scores_weights</span><span class="p">,</span>
                    <span class="n">tiles_extent_gdf</span><span class="o">=</span><span class="n">all_tiles_extents_gdf</span><span class="p">,</span>
                    <span class="n">score_threshold</span><span class="o">=</span><span class="n">score_threshold</span><span class="p">,</span>
