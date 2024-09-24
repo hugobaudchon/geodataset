@@ -94,7 +94,7 @@ class AggregatorBase(ABC):
             warn_scores_not_found = []
             for score_name in scores_names:
                 if score_name in annotation:
-                    scores[score_name] = annotation["score_name"]
+                    scores[score_name] = annotation[score_name]
                 elif ("other_attributes" in annotation
                       and annotation["other_attributes"]
                       and score_name in annotation["other_attributes"]):
