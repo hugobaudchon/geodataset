@@ -23,6 +23,7 @@ class AggregatorBase(ABC):
                  output_path: str or Path,
                  polygons_gdf: gpd.GeoDataFrame,
                  scores_names: List[str],
+                 classes_names: List[str],
                  scores_weights: List[float],
                  tiles_extent_gdf: gpd.GeoDataFrame,
                  tile_ids_to_path: dict or None,
@@ -33,6 +34,7 @@ class AggregatorBase(ABC):
         self.output_path = Path(output_path)
         self.polygons_gdf = polygons_gdf
         self.scores_names = scores_names
+        self.classes_names = classes_names
         self.scores_weights = scores_weights
         self.tiles_extent_gdf = tiles_extent_gdf
         self.tile_ids_to_path = tile_ids_to_path
@@ -43,6 +45,7 @@ class AggregatorBase(ABC):
         self._check_parameters()
         self._validate_polygons()
         self._prepare_scores()
+        self._prepare_classes()
         self._remove_low_score_polygons()
         self._apply_nms_algorithm()
         self._save_polygons()
@@ -66,7 +69,8 @@ class AggregatorBase(ABC):
     def _from_coco(polygon_type: str,
                    tiles_folder_path: Path,
                    coco_json_path: Path,
-                   scores_names: List[str]):
+                   scores_names: List[str],
+                   classes_names: List[str]):
 
         # Read the JSON file
         with open(coco_json_path, 'r') as f:
@@ -75,6 +79,7 @@ class AggregatorBase(ABC):
         # Reading the polygons
         tile_ids_to_polygons = {}
         tile_ids_to_scores = {}
+        tile_ids_to_classes = {}
         for annotation in coco_data['annotations']:
             image_id = annotation['image_id']
 
@@ -107,13 +112,33 @@ class AggregatorBase(ABC):
                 warn(f"The following scores keys could not be found in the annotation, or in the 'other_attributes' key"
                      f" of the annotation: {warn_scores_not_found}")
 
+            classes = {}
+            warn_classes_not_found = []
+            for class_name in classes_names:
+                if class_name in annotation:
+                    classes[class_name] = annotation[class_name]
+                elif ("other_attributes" in annotation
+                      and annotation["other_attributes"]
+                      and class_name in annotation["other_attributes"]):
+                    classes[class_name] = annotation["other_attributes"][class_name]
+                else:
+                    classes[class_name] = 0
+                    warn_classes_not_found.append(class_name)
+
+            if len(warn_classes_not_found) > 0:
+                warn(f"The following classes keys could not be found in the annotation, or in the 'other_attributes' key"
+                     f" of the annotation: {warn_classes_not_found}")
+
             if image_id in tile_ids_to_polygons:
                 tile_ids_to_polygons[image_id].append(annotation_polygon)
                 for score_name in scores.keys():
                     tile_ids_to_scores[image_id][score_name].append(scores[score_name])
+                for class_name in classes.keys():
+                    tile_ids_to_classes[image_id][class_name].append(classes[class_name])
             else:
                 tile_ids_to_polygons[image_id] = [annotation_polygon]
                 tile_ids_to_scores[image_id] = {score_name: [scores[score_name]] for score_name in scores.keys()}
+                tile_ids_to_classes[image_id] = {class_name: [classes[class_name]] for class_name in classes.keys()}
 
         tile_ids_to_path = {}
         for image in coco_data['images']:
@@ -125,7 +150,9 @@ class AggregatorBase(ABC):
         all_polygons_gdf, all_tiles_extents_gdf = AggregatorBase._prepare_polygons(
             tile_ids_to_path=tile_ids_to_path,
             tile_ids_to_polygons=tile_ids_to_polygons,
-            tile_ids_to_scores=tile_ids_to_scores)
+            tile_ids_to_scores=tile_ids_to_scores,
+            tile_ids_to_classes=tile_ids_to_classes
+        )
 
         return all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path
 
@@ -135,6 +162,7 @@ class AggregatorBase(ABC):
                       tiles_paths: List[Path],
                       polygons: List[List[Polygon]],
                       scores: List[List[float]] or Dict[str, List[List[float]]],
+                      classes: List[List[float]] or Dict[str, List[List[float]]],
                       scores_weights: Dict[str, float] = None,
                       score_threshold: float = 0.1,
                       nms_threshold: float = 0.8,
@@ -165,6 +193,8 @@ class AggregatorBase(ABC):
 
             This is useful if you have multiple scores for each polygon, such as detection confidence score and
             segmentation confidence score.
+        classes: List[List[float]] or Dict[str, List[List[float]]]
+            Classes predicted from the detector. Structure is similar to "scores"
         scores_weights: Dict[str, float]
             The weights to apply to each score column in the polygons_gdf. Weights are exponents.
             Only used if 'scores' is a dict and has more than 1 key (more than 1 set of scores).
@@ -195,6 +225,9 @@ class AggregatorBase(ABC):
         if type(scores) is list:
             scores = {'score': scores}
 
+        if type(classes) is list:
+            classes = {'class': classes}
+
         if scores_weights:
             assert set(scores_weights.keys()) == set(scores.keys()), ("The scores_weights keys must be "
                                                                       "the same as the scores keys.")
@@ -210,14 +243,24 @@ class AggregatorBase(ABC):
                 id_scores[score_name] = score_values[tile_id]
             tile_ids_to_scores[tile_id] = id_scores
 
+        tile_ids_to_classes = {}
+        for tile_id in ids:
+            id_classes = {}
+            for class_name, class_values in classes.items():
+                id_classes[class_name] = class_values[tile_id]
+            tile_ids_to_classes[tile_id] = id_classes
+
         all_polygons_gdf, all_tiles_extents_gdf = AggregatorBase._prepare_polygons(
             tile_ids_to_path=tile_ids_to_path,
             tile_ids_to_polygons=tile_ids_to_polygons,
-            tile_ids_to_scores=tile_ids_to_scores)
+            tile_ids_to_scores=tile_ids_to_scores,
+            tile_ids_to_classes=tile_ids_to_classes
+        )
 
         return cls(output_path=output_path,
                    polygons_gdf=all_polygons_gdf,
                    scores_names=list(scores.keys()),
+                   classes_names=list(classes.keys()),
                    scores_weights=[scores_weights[score_name] for score_name in scores.keys()],
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
@@ -226,7 +269,7 @@ class AggregatorBase(ABC):
                    tile_ids_to_path=tile_ids_to_path)
 
     @staticmethod
-    def _prepare_polygons(tile_ids_to_path: dict, tile_ids_to_polygons: dict, tile_ids_to_scores: dict):
+    def _prepare_polygons(tile_ids_to_path: dict, tile_ids_to_polygons: dict, tile_ids_to_scores: dict, tile_ids_to_classes: dict):
         images_without_crs = 0
         all_gdfs_polygons = []
         all_gdfs_tiles_extents = []
@@ -250,6 +293,10 @@ class AggregatorBase(ABC):
             gdf_polygons['tile_id'] = tile_id
             for score_name in tile_ids_to_scores[tile_id].keys():
                 gdf_polygons[score_name] = tile_ids_to_scores[tile_id][score_name]
+            all_gdfs_polygons.append(gdf_polygons)
+
+            for class_name in tile_ids_to_classes[tile_id].keys():
+                gdf_polygons[class_name] = tile_ids_to_classes[tile_id][class_name]
             all_gdfs_polygons.append(gdf_polygons)
 
             bounds = src.bounds
@@ -299,6 +346,9 @@ class AggregatorBase(ABC):
         # normalize the 'score' column between 0 and 1
         self.polygons_gdf['score'] = (self.polygons_gdf['score'] - self.polygons_gdf['score'].min()) / \
                                      (self.polygons_gdf['score'].max() - self.polygons_gdf['score'].min())
+
+    def _prepare_classes(self):
+        self.polygons_gdf['class'] = [c for c in self.polygons_gdf[self.classes_names[0]]]
 
     def _remove_low_score_polygons(self):
         if self.score_threshold:
@@ -396,14 +446,18 @@ class AggregatorBase(ABC):
 
             other_attributes = []
             for tile_id in tiles_ids:
-                tile_scores = []
+                tile_attributes = []
                 for label_index in self.polygons_gdf[self.polygons_gdf['tile_id'] == tile_id].index:
+                    label_attributes = {}
                     label_data = self.polygons_gdf.loc[label_index]
+                    label_attributes['score'] = label_data['score']
                     label_scores = {score_name: label_data[score_name] for score_name in self.scores_names}
-                    label_scores['score'] = label_data['score']
-                    tile_scores.append(label_scores)
+                    label_attributes.update(label_scores)
+                    label_classes = {class_name: int(label_data[class_name]) for class_name in self.classes_names}
+                    label_attributes.update(label_classes)
+                    tile_attributes.append(label_attributes)
 
-                other_attributes.append(tile_scores)
+                other_attributes.append(tile_attributes)
 
             coco_generator = COCOGenerator(
                 description=f"Aggregated polygons from multiple tiles.",
@@ -445,6 +499,7 @@ class DetectorAggregator(AggregatorBase):
                  output_path: str or Path,
                  polygons_gdf: gpd.GeoDataFrame,
                  scores_names: List[str],
+                 classes_names: List[str],
                  scores_weights: List[float],
                  tiles_extent_gdf: gpd.GeoDataFrame,
                  tile_ids_to_path: dict or None,
@@ -455,6 +510,7 @@ class DetectorAggregator(AggregatorBase):
         super().__init__(output_path=output_path,
                          polygons_gdf=polygons_gdf,
                          scores_names=scores_names,
+                         classes_names=classes_names,
                          scores_weights=scores_weights,
                          tiles_extent_gdf=tiles_extent_gdf,
                          tile_ids_to_path=tile_ids_to_path,
@@ -468,6 +524,7 @@ class DetectorAggregator(AggregatorBase):
                   tiles_folder_path: Path,
                   coco_json_path: Path,
                   scores_names: List[str] = None,
+                  classes_names: List[str] = None,
                   scores_weights: List[float] = None,
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
@@ -513,7 +570,9 @@ class DetectorAggregator(AggregatorBase):
                     },
                     ...
                 ]
-
+        classes_names: List[str]
+            The names of the attributes in the COCO file annotations which should be used as classes.
+            Same structure than "scores_names".
         scores_weights: List[float]
             The weights to apply to each score column in the polygons_gdf. Weights are exponents.
             There should be as many weights as there are scores_names.
@@ -534,7 +593,10 @@ class DetectorAggregator(AggregatorBase):
         """
 
         if scores_names is None:
-            scores_names = ['score']
+            scores_names = ['score']    # will try to find a 'score' attribute as it's required for NMS algorithm.
+
+        if classes_names is None:
+            classes_names = []  # by default classes are not mandatory
 
         if scores_weights:
             assert len(scores_names) == len(scores_weights), ("The scores_weights must have "
@@ -546,12 +608,14 @@ class DetectorAggregator(AggregatorBase):
             polygon_type='box',
             tiles_folder_path=tiles_folder_path,
             coco_json_path=coco_json_path,
-            scores_names=scores_names
+            scores_names=scores_names,
+            classes_names=classes_names
         )
 
         return cls(output_path=output_path,
                    polygons_gdf=all_polygons_gdf,
                    scores_names=scores_names,
+                   classes_names=classes_names,
                    scores_weights=scores_weights,
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
@@ -648,6 +712,7 @@ class SegmentationAggregator(AggregatorBase):
                  output_path: Path,
                  polygons_gdf: gpd.GeoDataFrame,
                  scores_names: List[str],
+                 classes_names: List[str],
                  scores_weights: List[float],
                  tiles_extent_gdf: gpd.GeoDataFrame,
                  tile_ids_to_path: dict or None,
@@ -662,6 +727,7 @@ class SegmentationAggregator(AggregatorBase):
         super().__init__(output_path=output_path,
                          polygons_gdf=polygons_gdf,
                          scores_names=scores_names,
+                         classes_names=classes_names,
                          scores_weights=scores_weights,
                          tiles_extent_gdf=tiles_extent_gdf,
                          tile_ids_to_path=tile_ids_to_path,
@@ -675,6 +741,7 @@ class SegmentationAggregator(AggregatorBase):
                   tiles_folder_path: Path,
                   coco_json_path: Path,
                   scores_names: List[str] = None,
+                  classes_names: List[str] = None,
                   scores_weights: List[float] = None,
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
@@ -721,6 +788,9 @@ class SegmentationAggregator(AggregatorBase):
                     ...
                 ]
 
+        classes_names: List[str]
+            The names of the attributes in the COCO file annotations which should be used as classes.
+            Same structure than "scores_names".
         scores_weights: List[float]
             The weights to apply to each score column in the polygons_gdf. Weights are exponents.
             There should be as many weights as there are scores_names.
@@ -742,7 +812,10 @@ class SegmentationAggregator(AggregatorBase):
         """
 
         if scores_names is None:
-            scores_names = ['score']
+            scores_names = ['score']    # will try to find a 'score' attribute as it's required for NMS algorithm.
+
+        if classes_names is None:
+            classes_names = []      # by default classes are not mandatory
 
         if scores_weights:
             assert len(scores_names) == len(scores_weights), ("The scores_weights must have "
@@ -754,12 +827,14 @@ class SegmentationAggregator(AggregatorBase):
             polygon_type='segmentation',
             tiles_folder_path=tiles_folder_path,
             coco_json_path=coco_json_path,
-            scores_names=scores_names
+            scores_names=scores_names,
+            classes_names=classes_names
         )
 
         return cls(output_path=output_path,
                    polygons_gdf=all_polygons_gdf,
                    scores_names=scores_names,
+                   classes_names=classes_names,
                    scores_weights=scores_weights,
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
