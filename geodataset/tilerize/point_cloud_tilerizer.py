@@ -90,10 +90,16 @@ class PointCloudTilerizer:
 
     def populate_tiles_metadata(
         self,
+        suffix: str = None,
     ):
         name_convention = PointCloudTileNameConvention()
 
         product_name = self.point_cloud_path.stem.split(".")[0].replace("-", "_")
+        
+        if suffix:
+            product_name = f"{product_name}_{suffix}"
+
+
         with CopcReader.open(self.point_cloud_path) as reader:
             min_x, min_y = reader.header.x_min, reader.header.y_min
             max_x, max_y = reader.header.x_max, reader.header.y_max
@@ -118,7 +124,7 @@ class PointCloudTilerizer:
                         x_bound=x_bound,
                         y_bound=y_bound,
                         crs=reader.header.parse_crs(),
-                        output_filename=tile_name,
+                        tile_name=tile_name,
                     )
 
                     tiles_metadata.append(tile_md)

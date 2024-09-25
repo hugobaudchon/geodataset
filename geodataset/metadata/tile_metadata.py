@@ -1,10 +1,13 @@
-from pyproj import CRS as PyProjCRS
 from typing import List, Tuple, Union
-from geodataset.utils.file_name_conventions import PointCloudTileNameConvention
+
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
+from pyproj import CRS as PyProjCRS
 from shapely.geometry import box
-import geopandas as gpd
+
+from geodataset.utils.file_name_conventions import PointCloudTileNameConvention
+
 
 class TileMetadata:
     """
@@ -27,12 +30,12 @@ class TileMetadata:
 
     def __init__(
         self,
-        id: Union[int, str, None],
+        crs: PyProjCRS,
+        id: int,
+        tile_name: str,
         x_bound: Union[Tuple[float, float], None] = None,
         y_bound: Union[Tuple[float, float], None] = None,
         z_bound: Union[Tuple[float, float], None] = None,
-        crs: PyProjCRS = None,
-        output_filename: Union[str, None] = None,
         
         height: int = None,
         width: int = None,
@@ -51,7 +54,7 @@ class TileMetadata:
             "max_z",
             "crs",
             "id",
-            "output_filename",
+            "filename",
             "geometry",
             "height",
             "width",
@@ -62,12 +65,11 @@ class TileMetadata:
         self.min_z, self.max_z = z_bound if z_bound else (None, None)
 
         self.crs = crs
-        #TODO: Add validation for output_filename
-        # assert PointCloudTileNameConvention._validate_name(
-        #     output_filename
-        # ), f"Invalid output_filename: {output_filename}"
+        assert PointCloudTileNameConvention._validate_name(
+            tile_name
+        ), f"Invalid output_filename: {tile_name}"
 
-        self.output_filename = output_filename
+        self.tile_name = tile_name
         self.id = id
 
         self.geometry = self._get_bounding_box()
@@ -92,7 +94,7 @@ class TileMetadata:
             f"(min_y, max_y): ({self.min_y}, {self.max_y})\n"
             f"(min_z, max_z): ({self.min_z}, {self.max_z})\n"
             f"crs: {self.crs.name}\n"
-            f"output_filename: {self.output_filename}\n"
+            f"output_filename: {self.tile_name}\n"
         )
 
     def _bounded(self, bound: Tuple[float, float]) -> bool:
@@ -241,12 +243,12 @@ class TileMetadataCollection:
         min_dim1, max_dim1 = getattr(self, f"min_{dim1}"), getattr(self, f"max_{dim1}")
         min_dim2, max_dim2 = getattr(self, f"min_{dim2}"), getattr(self, f"max_{dim2}")
 
-        palette = {
-            "blue": "#26547C",
-            "red": "#EF476F",
-            "yellow": "#FFD166",
-            "green": "#06D6A0",
-        }
+        # palette = {
+        #     "blue": "#26547C",
+        #     "red": "#EF476F",
+        #     "yellow": "#FFD166",
+        #     "green": "#06D6A0",
+        # }
         fig, ax = plt.subplots()
         bound_rect = plt.Rectangle(
             (min_dim1, min_dim2),
