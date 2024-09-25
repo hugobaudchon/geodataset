@@ -308,7 +308,7 @@ class TileMetadataCollection:
 
         ax.set_xlabel(dim1)
         ax.set_ylabel(dim2)
-        ax.set_title("All tiles with a randomly highlighted tile")
+        ax.set_title("Tiles with train, test, val split (random tile highlighted)")
 
         return fig, ax
     
