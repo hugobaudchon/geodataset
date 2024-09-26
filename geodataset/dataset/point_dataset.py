@@ -3,9 +3,6 @@ from typing import Union, List
 from pathlib import Path
 import albumentations
 import open3d as o3d
-import numpy as np
-from geodataset.utils import coco_rle_segmentation_to_bbox, coco_coordinates_segmentation_to_bbox, coco_rle_segmentation_to_mask
-from shapely import box
 
 
 class SegmentationLabeledPointCloudCocoDataset(BaseLabeledPointCloudCocoDataset):
@@ -94,8 +91,6 @@ class SegmentationLabeledPointCloudCocoDataset(BaseLabeledPointCloudCocoDataset)
 
 
         if self.transform:
-            transformed_positions, transformed_semantic_labels = self.transform((position, semantic_labels))
-            position = transformed_positions
-            semantic_labels = transformed_semantic_labels
+            position, semantic_labels = self.transform((position, semantic_labels))
 
         return position, semantic_labels
