@@ -22,6 +22,7 @@ setup(
         'Pillow==10.2.0',
         'pyarrow>=15.0.1',
         'pycocotools==2.0.7',
+        'python-dotenv==1.0.1',
         'rasterio==1.3.7',
         'shapely==2.0.1',
         'tqdm==4.65.0',
