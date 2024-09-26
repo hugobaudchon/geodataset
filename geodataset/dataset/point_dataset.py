@@ -30,7 +30,6 @@ class SegmentationLabeledPointCloudCocoDataset(BaseLabeledPointCloudCocoDataset)
                  transform: albumentations.core.composition.Compose = None,
                  ):
         
-        print(f"transforms not being used" )
         super().__init__(fold=fold, root_path=root_path)
 
         self.label_type = label_type
