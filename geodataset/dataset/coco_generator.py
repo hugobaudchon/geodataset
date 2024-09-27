@@ -702,6 +702,10 @@ class PointCloudCOCOGenerator:
                 "width": tile_width,
                 "height": tile_height,
                 "file_name": tile_metadata.tile_name,
+                "min_x": tile_metadata.min_x,
+                "max_x": tile_metadata.max_x,
+                "min_y": tile_metadata.min_y,
+                "max_y": tile_metadata.max_y,
             },
             "detections_coco": local_detections_coco
         }

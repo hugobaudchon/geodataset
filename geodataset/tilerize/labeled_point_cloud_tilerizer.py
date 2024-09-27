@@ -65,9 +65,9 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         self.tile_side_length = tile_side_length
 
         self.pc_tiles_folder_path = (
-            self.output_path / f"labelled_pc_tiles_{self.downsample_voxel_size}"
+            self.output_path / f"pc_tiles_{self.downsample_voxel_size}"
             if self.downsample_voxel_size
-            else self.output_path / "labelled_pc_tiles"
+            else self.output_path / "pc_tiles"
         )
         self.annotation_folder_path = self.output_path / "annotations"
 
