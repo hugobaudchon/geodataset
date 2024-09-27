@@ -24,17 +24,34 @@ from geodataset.utils.file_name_conventions import (
 
 class PointCloudTilerizer:
     """
-    A class for tilerizing point cloud data.
+    Class to tilerize point cloud data from a point cloud file and associated AOIs.
 
     Parameters
     ----------
-    point_cloud_path: Path
-        The path to the point cloud data.
-    output_folder_path: Path
-        The path to the output folder.
-    tiles_metadata: List[TileCollectionMetadata]
-        A list of tile collection metadata.
+    point_cloud_path : Path
+        Path to the point cloud file.
+    output_path : Path
+        Path to the output folder where the tiles and annotations will be saved.
+    tiles_metadata : Union[TileMetadataCollection, None], optional
+        Metadata of the tiles, by default None
+    aois_config : Union[AOIFromPackageConfig, None], optional
+        Configuration for AOIs, by default None
+    tile_side_length : float, optional
+        Side length of the tile, by default None
+    keep_dims : List[str], optional
+        List of dimensions to keep, by default None
+    downsample_voxel_size : float, optional
+        Voxel size for downsampling, by default None
+    verbose : bool, optional
+        Verbose mode, by default False
+    tile_overlap : float, optional
+        Overlap between tiles, by default 1.0
+    max_tile : int, optional
+        Maximum number of tiles, by default 5000
+    force : bool, optional
+        Force tilerization, by default False
     """
+
 
     def __init__(
         self,
