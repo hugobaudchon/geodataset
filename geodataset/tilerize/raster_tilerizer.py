@@ -65,6 +65,10 @@ class BaseRasterTilerizer(ABC):
 
         self.raster = self._load_raster()
 
+        if self.aois_config is None:
+            self.aois_config = AOIGeneratorConfig(aois={'all': {'percentage': 1, 'position': 1}}, aoi_type='band')
+            print('No AOIs provided, all tiles will be kept in the "all" AOI.')
+
     def _check_parameters(self):
         assert self.raster_path.exists(), \
             f"Raster file not found at {self.raster_path}."
@@ -281,6 +285,9 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                                     scale_factor=self.scale_factor
                                 ),
                                 tile_coordinate_step=self.tile_coordinate_step)
+
+        [print(f'No tiles found for AOI {aoi}.') for aoi in self.aois_config.aois
+         if aoi not in aois_tiles or len(aois_tiles[aoi]) == 0]
 
         print("Saving tiles...")
         for aoi in aois_tiles:
