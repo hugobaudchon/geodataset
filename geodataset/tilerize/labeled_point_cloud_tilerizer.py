@@ -15,18 +15,62 @@ from geodataset.labels.base_labels import PolygonLabels
 from geodataset.metadata.tile_metadata import TileMetadataCollection
 from geodataset.tilerize.point_cloud_tilerizer import PointCloudTilerizer
 from geodataset.utils.file_name_conventions import PointCloudCocoNameConvention
-
+from pathlib import Path
 
 class LabeledPointCloudTilerizer(PointCloudTilerizer):
     """
-    Tiler for labeled point cloud data
+    Class to tilerize a labeled point cloud dataset with the given AOIs.
+
+    Parameters
+    ----------
+    point_cloud_path : Union[str, Path]
+        Path to the point cloud file.
+    labels_path : Union[str, Path]
+        Path to the labels file.
+    output_path : Union[str, Path]
+        Path to the output folder.
+    tiles_metadata : Union[TileMetadataCollection, None], optional
+        Metadata of the tiles, by default None.
+    coco_categories_list : List[dict], optional
+        List of categories for the COCO dataset, by default None.
+    aois_config : Union[AOIFromPackageConfig, None], optional
+        Configuration for the AOIs, by default None.
+    min_intersection_ratio : float, optional
+        Minimum intersection ratio for the labels, by default 0.9.
+    ignore_tiles_without_labels : bool, optional
+        Whether to ignore tiles without labels, by default False.
+    geopackage_layer_name : str, optional
+        Name of the layer in the geopackage file, by default None.
+    main_label_category_column : str, optional
+        Name of the main label category column, by default None.
+    other_labels_attributes_column : List[str], optional
+        List of other label attributes, by default None.
+    use_rle_for_labels : bool, optional
+        Whether to use RLE for labels, by default True.
+    coco_n_workers : int, optional
+        Number of workers for the COCO dataset, by default 1.
+    tile_side_length : float, optional
+        Side length of the tile, by default None.
+    tile_overlap : float, optional
+        Overlap of the tiles, by default 1.0.
+    max_tile : int, optional
+        Maximum number of tiles, by default 50000.
+    keep_dims : List[str], optional
+        List of dimensions to keep, by default None.
+    downsample_voxel_size : float, optional
+        Voxel size for downsampling, by default None.
+    verbose : bool, optional
+        Whether to print verbose output, by default False.
+    force : bool, optional
+        Whether to force the tilerization, by default False. Useful for job submissions
     """
+
 
     def __init__(
         self,
-        point_cloud_path,
-        labels_path,
-        output_path,
+        point_cloud_path:Union[str,Path],
+        labels_path:Union[str,Path],
+        output_path:Union[str,Path],
         tiles_metadata: Union[TileMetadataCollection, None] = None,
         coco_categories_list: List[dict] = None,
         aois_config: Union[AOIFromPackageConfig, None] = None,
@@ -38,7 +82,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         use_rle_for_labels: bool = True,
         coco_n_workers: int = 1,
         tile_side_length: float = None,
-        tile_overlap: float = 1.0,
+        tile_overlap: float = 0.5,
         max_tile: int = 50000,
         keep_dims: List[str] = None,
         downsample_voxel_size: float = None,
@@ -64,10 +108,12 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         self.force = force
         self.tile_side_length = tile_side_length
 
+        assert self.tile_overlap < 1.0, "Tile overlap should be less than 1.0"
+
         self.pc_tiles_folder_path = (
-            self.output_path / f"labelled_pc_tiles_{self.downsample_voxel_size}"
+            self.output_path / f"pc_tiles_{self.downsample_voxel_size}"
             if self.downsample_voxel_size
-            else self.output_path / "labelled_pc_tiles"
+            else self.output_path / "pc_tiles"
         )
         self.annotation_folder_path = self.output_path / "annotations"
 

@@ -70,7 +70,7 @@ class FileNameConvention(ABC):
 class TileNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^.*pc_tile_((sf|gr)[0-9]+p[0-9]+_)?(ds[0-9]+p[0-9]+_)?[0-9]+_[0-9]+_id_[0-9]+\.(ply|las)$"
+        pattern = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
         if not re.match(pattern, name):
             raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
 
