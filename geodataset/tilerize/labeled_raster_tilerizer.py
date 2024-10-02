@@ -279,7 +279,10 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                 print(f"No tiles found for AOI {aoi}. Skipping...")
                 continue
 
-            tiles_paths = [self.tiles_path / tile.generate_name() for tile in tiles]
+            tiles_path_aoi = self.tiles_path / aoi
+            tiles_path_aoi.mkdir(parents=True, exist_ok=True)
+
+            tiles_paths = [tiles_path_aoi / tile.generate_name() for tile in tiles]
             polygons = [x['geometry'].to_list() for x in labels]
             categories_list = [x[self.labels.main_label_category_column_name].to_list() for x in labels]\
                 if self.labels.main_label_category_column_name else None
@@ -291,7 +294,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
             # Saving the tiles
             for tile in aois_tiles[aoi]:
-                tile.save(output_folder=self.tiles_path)
+                tile.save(output_folder=tiles_path_aoi)
 
             coco_output_file_path = self.output_path / CocoNameConvention.create_name(
                 product_name=self.raster.output_name,

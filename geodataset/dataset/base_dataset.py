@@ -8,7 +8,6 @@ import albumentations
 
 from geodataset.utils import CocoNameConvention, PointCloudCocoNameConvention
 
-from icecream import ic
 
 class BaseDataset(ABC):
     """
