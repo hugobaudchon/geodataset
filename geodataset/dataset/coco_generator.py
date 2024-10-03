@@ -22,9 +22,9 @@ from rasterio.enums import Resampling
 from shapely import Polygon, box, MultiPolygon
 from shapely.ops import transform
 from skimage.measure import find_contours
+from shapely.affinity import translate
 
-
-def polygon_to_coco_coordinates_segmentation(polygon: Polygon or MultiPolygon):
+def polygon_to_coco_coordinates_segmentation(polygon: Union[Polygon, MultiPolygon]):
     """
         Encodes a polygon into a list of coordinates supported by COCO.
 
@@ -50,12 +50,12 @@ def polygon_to_coco_coordinates_segmentation(polygon: Polygon or MultiPolygon):
     return coordinates
 
 
-def polygon_to_mask(polygon: Polygon or MultiPolygon, array_height: int, array_width: int) -> np.ndarray:
+def polygon_to_mask(polygon: Union[Polygon, MultiPolygon], array_height: int, array_width: int) -> np.ndarray:
     """
-    Encodes a Polygon or MultiPolygon object into a binary mask.
+    Encodes a Union[Polygon, MultiPolygon] object into a binary mask.
 
     Parameters
-    polygon: Polygon or MultiPolygon
+    polygon: Union[Polygon, MultiPolygon]
         The polygon to encode.
     array_height: int
         The height of the array to encode the polygon into.
@@ -68,7 +68,7 @@ def polygon_to_mask(polygon: Polygon or MultiPolygon, array_height: int, array_w
         A binary mask of the polygon.
     """
     binary_mask = np.zeros((array_height, array_width), dtype=np.uint8)
-
+    
     # Function to process each polygon
     def process_polygon(p):
         contours = np.array(p.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
@@ -77,23 +77,25 @@ def polygon_to_mask(polygon: Polygon or MultiPolygon, array_height: int, array_w
         cv2.fillPoly(binary_mask, [contours], 1)
 
     if isinstance(polygon, Polygon):
+        ic(binary_mask.sum())
         process_polygon(polygon)
+        ic(binary_mask.sum())
     elif isinstance(polygon, MultiPolygon):
         for polygon in polygon.geoms:
             process_polygon(polygon)
     else:
-        raise TypeError(f"Geometry must be a Polygon or MultiPolygon. Got {type(polygon)}.")
+        raise TypeError(f"Geometry must be a Union[Polygon, MultiPolygon]. Got {type(polygon)}.")
 
     return binary_mask
 
 
-def polygon_to_coco_rle_segmentation(polygon: Polygon or MultiPolygon, tile_height: int, tile_width: int) -> dict:
+def polygon_to_coco_rle_segmentation(polygon: Union[Polygon, MultiPolygon], tile_height: int, tile_width: int) -> dict:
     """
-    Encodes a Polygon or MultiPolygon object into a COCO annotation RLE mask.
+    Encodes a Union[Polygon, MultiPolygon] object into a COCO annotation RLE mask.
 
     Parameters
     ----------
-    polygon: Polygon or MultiPolygon
+    polygon: Union[Polygon, MultiPolygon]
         The polygon to encode.
 
     Returns
@@ -103,11 +105,13 @@ def polygon_to_coco_rle_segmentation(polygon: Polygon or MultiPolygon, tile_heig
     """
     binary_mask = polygon_to_mask(polygon, tile_height, tile_width)
 
+
     binary_mask_fortran = np.asfortranarray(binary_mask)
     rle = mask_utils.encode(binary_mask_fortran)
 
     # Encode the counts to base64 to be able to store it in a json file
     rle['counts'] = base64.b64encode(rle['counts']).decode('utf-8')  # JSON can't save bytes
+
     return rle
 
 
@@ -208,7 +212,7 @@ def mask_to_polygon(mask: np.ndarray, simplify_tolerance: float = 1.0) -> Polygo
 
 def coco_coordinates_segmentation_to_polygon(segmentation: list) -> Polygon:
     """
-    Converts a list of polygon coordinates in COCO format to a shapely Polygon or MultiPolygon.
+    Converts a list of polygon coordinates in COCO format to a shapely Union[Polygon, MultiPolygon].
 
     Parameters
     ----------
@@ -254,7 +258,7 @@ def coco_coordinates_segmentation_to_bbox(segmentation: list) -> box:
 
 def coco_rle_segmentation_to_polygon(segmentation):
     """
-    Decodes a COCO annotation RLE segmentation into a shapely Polygon or MultiPolygon.
+    Decodes a COCO annotation RLE segmentation into a shapely Union[Polygon, MultiPolygon].
 
     Parameters
     ----------
@@ -263,8 +267,8 @@ def coco_rle_segmentation_to_polygon(segmentation):
 
     Returns
     -------
-    Polygon or MultiPolygon
-        A shapely Polygon or MultiPolygon representing the segmentation.
+    Union[Polygon, MultiPolygon]
+        A shapely Union[Polygon, MultiPolygon] representing the segmentation.
     """
     # Decode the RLE
     mask = coco_rle_segmentation_to_mask(segmentation)
@@ -684,10 +688,15 @@ class PointCloudCOCOGenerator:
 
         tile_width, tile_height = tile_metadata.height, tile_metadata.width
         tile_id = tile_metadata.id
+        
+
+        
+
 
         for i in range(len(tile_polygons)):
+            polygon = tile_polygons[i]
             detection = self._generate_label_coco(
-                polygon=tile_polygons[i],
+                polygon=polygon,
                 tile_height=tile_height,
                 tile_width=tile_width,
                 tile_id=tile_id,
@@ -718,6 +727,7 @@ class PointCloudCOCOGenerator:
                              use_rle_for_labels: bool,
                              category_id: int or None,
                              other_attributes_dict: dict or None) -> dict:
+        
         if use_rle_for_labels:
             # Convert the polygon to a COCO RLE mask
             segmentation = polygon_to_coco_rle_segmentation(polygon=polygon,

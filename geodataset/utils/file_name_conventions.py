@@ -271,8 +271,8 @@ class PointCloudTileNameConvention(FileNameConvention):
             return True
 
     @staticmethod
-    def create_name(product_name: str, tile_id:str, scale_factor=None, ground_resolution=None, voxel_size=None, extension='ply', row=None, col=None):
-        assert extension in ["ply", "las"], f"Extension must be either 'ply' or 'las', not {extension}."
+    def create_name(product_name: str, tile_id:str, scale_factor=None, ground_resolution=None, voxel_size=None, extension='pcd', row=None, col=None):
+        assert extension in ["pcd", "ply", "las"], f"Extension must be either 'ply' or 'las', not {extension}."
         specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size)
         tile_name = f"{product_name}_pc_tile_{specifier}_{row}_{col}_id_{tile_id}.{extension}"
         PointCloudTileNameConvention._validate_name(tile_name)

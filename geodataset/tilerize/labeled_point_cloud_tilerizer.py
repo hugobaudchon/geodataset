@@ -17,6 +17,7 @@ from geodataset.tilerize.point_cloud_tilerizer import PointCloudTilerizer
 from geodataset.utils.file_name_conventions import PointCloudCocoNameConvention
 from pathlib import Path
 
+
 class LabeledPointCloudTilerizer(PointCloudTilerizer):
     """
     Class to tilerize a labeled point cloud dataset with the given AOIs.
@@ -49,8 +50,6 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         Whether to use RLE for labels, by default True.
     coco_n_workers : int, optional
         Number of workers for the COCO dataset, by default 1.
-    tile_side_length : float, optional
-        Side length of the tile, by default None.
     tile_overlap : float, optional
         Overlap of the tiles, by default 1.0.
     max_tile : int, optional
@@ -81,13 +80,15 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         other_labels_attributes_column: List[str] = None,
         use_rle_for_labels: bool = True,
         coco_n_workers: int = 1,
-        tile_side_length: float = None,
         tile_overlap: float = 0.5,
         max_tile: int = 50000,
         keep_dims: List[str] = None,
         downsample_voxel_size: float = None,
         verbose: bool = False,
         force: bool = False,
+        tile_side_length: float = None,
+
+
     ) -> None:
         self.point_cloud_path = point_cloud_path
         self.label_path = labels_path
@@ -106,6 +107,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         self.verbose = verbose
         self.max_tile = max_tile
         self.force = force
+
         self.tile_side_length = tile_side_length
 
         assert self.tile_overlap < 1.0, "Tile overlap should be less than 1.0"
@@ -131,6 +133,10 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
             keep_categories=keep_categories,
         )
 
+        if self.use_rle_for_labels:
+            assert self.tiles_metadata is not None, "Tile metadata is required for RLE encoding (image height and width)"
+            assert self.tiles_metadata.height is not None and self.tiles_metadata.width is not None, "Height and width of the tiles are required for RLE encoding"
+
         if self.tiles_metadata is None:
             assert (
                 self.tile_overlap is not None
@@ -142,6 +148,8 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
             len(self.tiles_metadata) < max_tile
         ), f"Number of max possible tiles {len(self.tiles_metadata)} exceeds the maximum number of tiles {max_tile}"
 
+        if self.use_rle_for_labels:
+            assert self.til
         super().create_folder()
 
     def create_category_to_id_map(self):
@@ -198,8 +206,6 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         ]
         significant_polygons_inter.reset_index()
 
-        # No geometry adjustment here, as the labels are already in the same CRS as the tiles
-        # //TODO: Check why it is needed in LabeledRasterTilerizer
         return significant_polygons_inter
 
     def _remove_unlabeled_tiles(self, associated_labels):

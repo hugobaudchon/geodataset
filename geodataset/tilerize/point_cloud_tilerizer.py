@@ -63,7 +63,7 @@ class PointCloudTilerizer:
         keep_dims: List[str] = None,
         downsample_voxel_size: float = None,
         verbose: bool = False,
-        tile_overlap: float = 1.0,
+        tile_overlap: float = 0.5,
         max_tile: int = 5000,
         force: bool = False,
     ):
@@ -192,7 +192,7 @@ class PointCloudTilerizer:
                 pcd = self._keep_unique_points(pcd)
                 new_tile_md_list.append(tile_md)
                 downsampled_tile_path = (
-                    self.pc_tiles_folder_path / f"{tile_md.output_filename}"
+                    self.pc_tiles_folder_path / f"{tile_md.tile_name}"
                 )
                 o3d.t.io.write_point_cloud(str(downsampled_tile_path), pcd)
 
