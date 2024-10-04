@@ -180,7 +180,6 @@ class PointCloudCocoNameConvention(FileNameConvention):
         specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size)
         coco_name = f"{product_name}_pc_coco_{specifier}_{fold}.json"
         PointCloudCocoNameConvention._validate_name(coco_name)
-        print(coco_name)
         return coco_name
 
     @staticmethod
