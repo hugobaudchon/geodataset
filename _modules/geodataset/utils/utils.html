@@ -6,7 +6,7 @@
   <title>geodataset.utils.utils &mdash; GeoDataset  documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
-      <link rel="stylesheet" type="text/css" href="../../../_static/css/custom.css?v=a4895fdd" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/custom.css?v=0ab8baea" />
 
   
   <!--[if lt IE 9]>
@@ -909,7 +909,43 @@
 
 
 <span class="k">def</span> <span class="nf">apply_affine_transform</span><span class="p">(</span><span class="n">geom</span><span class="p">:</span> <span class="n">shapely</span><span class="o">.</span><span class="n">geometry</span><span class="p">,</span> <span class="n">affine</span><span class="p">:</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">Affine</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Apply an affine transformation to a geometry.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    geom: shapely.geometry</span>
+<span class="sd">        The geometry to transform.</span>
+<span class="sd">    affine: rasterio.Affine</span>
+<span class="sd">        The affine transformation to apply.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    shapely.geometry</span>
+<span class="sd">        The transformed geometry.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">transform</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">affine</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="n">geom</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">apply_inverse_transform</span><span class="p">(</span><span class="n">polygons</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Polygon</span><span class="p">],</span> <span class="n">raster_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Apply the inverse transform of a raster to a list of polygons.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    polygons: List[Polygon]</span>
+<span class="sd">        The list of polygons to transform.</span>
+<span class="sd">    raster_path: str or Path</span>
+<span class="sd">        The path to the raster file.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    List[Polygon]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">src</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">raster_path</span><span class="p">)</span>
+    <span class="n">inverse_transform</span> <span class="o">=</span> <span class="o">~</span><span class="n">src</span><span class="o">.</span><span class="n">transform</span>
+    <span class="n">polygons</span> <span class="o">=</span> <span class="p">[</span><span class="n">apply_affine_transform</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="n">inverse_transform</span><span class="p">)</span> <span class="k">for</span> <span class="n">polygon</span> <span class="ow">in</span> <span class="n">polygons</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">polygons</span>
 
 
 <div class="viewcode-block" id="coco_to_geopackage">

@@ -7,7 +7,7 @@
   <title>Aggregator &mdash; GeoDataset  documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
-      <link rel="stylesheet" type="text/css" href="_static/css/custom.css?v=a4895fdd" />
+      <link rel="stylesheet" type="text/css" href="_static/css/custom.css?v=0ab8baea" />
 
   
   <!--[if lt IE 9]>
@@ -52,16 +52,10 @@
 <li class="toctree-l2"><a class="reference internal" href="aoi.html">AOI (Area Of Interest)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dataset.html">Dataset</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Aggregator</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#geodataset.aggregator.DetectorAggregator"><code class="docutils literal notranslate"><span class="pre">DetectorAggregator</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.aggregator.DetectorAggregator.SUPPORTED_NMS_ALGORITHMS"><code class="docutils literal notranslate"><span class="pre">DetectorAggregator.SUPPORTED_NMS_ALGORITHMS</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.aggregator.DetectorAggregator.from_coco"><code class="docutils literal notranslate"><span class="pre">DetectorAggregator.from_coco()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.aggregator.DetectorAggregator.from_polygons"><code class="docutils literal notranslate"><span class="pre">DetectorAggregator.from_polygons()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#geodataset.aggregator.SegmentationAggregator"><code class="docutils literal notranslate"><span class="pre">SegmentationAggregator</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.aggregator.SegmentationAggregator.SUPPORTED_NMS_ALGORITHMS"><code class="docutils literal notranslate"><span class="pre">SegmentationAggregator.SUPPORTED_NMS_ALGORITHMS</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.aggregator.SegmentationAggregator.from_coco"><code class="docutils literal notranslate"><span class="pre">SegmentationAggregator.from_coco()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.aggregator.SegmentationAggregator.from_polygons"><code class="docutils literal notranslate"><span class="pre">SegmentationAggregator.from_polygons()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.aggregator.Aggregator"><code class="docutils literal notranslate"><span class="pre">Aggregator</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.aggregator.Aggregator.SUPPORTED_NMS_ALGORITHMS"><code class="docutils literal notranslate"><span class="pre">Aggregator.SUPPORTED_NMS_ALGORITHMS</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.aggregator.Aggregator.from_coco"><code class="docutils literal notranslate"><span class="pre">Aggregator.from_coco()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.aggregator.Aggregator.from_polygons"><code class="docutils literal notranslate"><span class="pre">Aggregator.from_polygons()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -101,29 +95,29 @@
   <section id="aggregator">
 <h1>Aggregator<a class="headerlink" href="#aggregator" title="Link to this heading"></a></h1>
 <dl class="py class">
-<dt class="sig sig-object py" id="geodataset.aggregator.DetectorAggregator">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.aggregator.</span></span><span class="sig-name descname"><span class="pre">DetectorAggregator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygons_gdf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">classes_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tiles_extent_gdf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_ids_to_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_algorithm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'iou'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/aggregator/aggregator.html#DetectorAggregator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.aggregator.DetectorAggregator" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AggregatorBase</span></code></p>
-<p>Class to aggregate detection polygons from multiple tiles, with different pixel coordinate systems,
+<dt class="sig sig-object py" id="geodataset.aggregator.Aggregator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.aggregator.</span></span><span class="sig-name descname"><span class="pre">Aggregator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygons_gdf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">classes_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tiles_extent_gdf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_ids_to_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_algorithm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'iou'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">best_geom_keep_area_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/aggregator/aggregator.html#Aggregator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.aggregator.Aggregator" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Class to aggregate polygons from multiple tiles, with different pixel coordinate systems,
 into a single GeoDataFrame with a common CRS, applying the Non-Maximum Suppression (NMS) algorithm.</p>
 <p>This class should be instantiated using the ‘from_coco’ or ‘from_polygons’ class methods.</p>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="geodataset.aggregator.DetectorAggregator.SUPPORTED_NMS_ALGORITHMS">
-<span class="sig-name descname"><span class="pre">SUPPORTED_NMS_ALGORITHMS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['iou']</span></em><a class="headerlink" href="#geodataset.aggregator.DetectorAggregator.SUPPORTED_NMS_ALGORITHMS" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="geodataset.aggregator.Aggregator.SUPPORTED_NMS_ALGORITHMS">
+<span class="sig-name descname"><span class="pre">SUPPORTED_NMS_ALGORITHMS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['iou',</span> <span class="pre">'ioa-disambiguate']</span></em><a class="headerlink" href="#geodataset.aggregator.Aggregator.SUPPORTED_NMS_ALGORITHMS" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="geodataset.aggregator.DetectorAggregator.from_coco">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_coco</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tiles_folder_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coco_json_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">classes_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_algorithm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'iou'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/aggregator/aggregator.html#DetectorAggregator.from_coco"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.aggregator.DetectorAggregator.from_coco" title="Link to this definition"></a></dt>
-<dd><p>Instanciate and run a DetectorAggregator from a COCO JSON file.
+<dt class="sig sig-object py" id="geodataset.aggregator.Aggregator.from_coco">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_coco</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tiles_folder_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coco_json_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">classes_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_algorithm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'iou'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">best_geom_keep_area_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/aggregator/aggregator.html#Aggregator.from_coco"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.aggregator.Aggregator.from_coco" title="Link to this definition"></a></dt>
+<dd><p>Instanciate and run an Aggregator from a COCO JSON file.
 The polygons will be read from the coco_json_path, and the tiles will be read from the tiles_folder_path.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>output_path</strong> (<em>str</em><em> or </em><em>Path</em>) – The filename where to save the aggregated polygons.
 ‘.gpkg’, ‘.geojson’ are supported, as well as ‘.json’ for COCO format.</p></li>
-<li><p><strong>tiles_folder_path</strong> (<em>Path</em>) – The folder where the tiles are stored.</p></li>
-<li><p><strong>coco_json_path</strong> (<em>Path</em>) – The path to the COCO JSON file.</p></li>
+<li><p><strong>tiles_folder_path</strong> (<em>str</em><em> or </em><em>Path</em>) – The folder where the tiles are stored.</p></li>
+<li><p><strong>coco_json_path</strong> (<em>str</em><em> or </em><em>Path</em>) – The path to the COCO JSON file.</p></li>
 <li><p><strong>scores_names</strong> (<em>List</em><em>[</em><em>str</em><em>]</em>) – <p>The names of the attributes in the COCO file annotations which should be used as scores.
 The code will look directly in the COCO annotations for these keys,
 and will also look in the ‘other_attributes’ key if the key is not found directly in the annotation.</p>
@@ -160,27 +154,54 @@ There should be as many weights as there are scores_names.</p>
 </pre></div>
 </div>
 </p></li>
-<li><p><strong>score_threshold</strong> (<em>float</em>) – The threshold under which polygons will be removed.</p></li>
-<li><p><strong>nms_threshold</strong> (<em>float</em>) – The threshold for the Non-Maximum Suppression algorithm.</p></li>
-<li><p><strong>nms_algorithm</strong> (<em>str</em>) – The NMS algorithm to use. Only ‘iou’ is currently supported.</p></li>
+<li><p><strong>score_threshold</strong> (<em>float</em>) – The score threshold under which polygons will be removed, before applying the NMS algorithm.</p></li>
+<li><p><strong>nms_threshold</strong> (<em>float</em>) – <p>The threshold for the Non-Maximum Suppression algorithm. It serves different purposes depending on the
+‘nms_algorithm’ chosen:</p>
+<blockquote>
+<div><ul>
+<li><p>’iou’: The threshold is used as the regular Intersection Over Union (IoU) threshold.
+If 2 polygons have an IoU above this threshold, the one with the lowest score will be removed.</p></li>
+<li><p>’ioa-disambiguate’: This is the threshold used to determine if a lesser-scored polygon should be</p></li>
+</ul>
+<p>discarded (entirely removed), or cut to remove its portion that overlaps with another higher-scored
+polygon. The equation is a bit different than IoU: it’s the area of the intersection divided by
+the area of the lesser-scored polygon (Intersection / Area_lower_scored_polygon).</p>
+</div></blockquote>
+</p></li>
+<li><p><strong>nms_algorithm</strong> (<em>str</em>) – <p>The Non-Maximum Suppression algorithm to use. Supported values are [‘iou’ and ‘ioa-disambiguate’].</p>
+<blockquote>
+<div><ul>
+<li><p>’iou’: This algorithm uses the Intersection Over Union (IoU) to suppress overlapping polygons.</p></li>
+<li><p>’ioa-disambiguate’: Shouldn’t be used for detection bounding boxes,
+it was designed for instance segmentations.
+In addition to using IoU, this algorithm attempts to disambiguate overlapping polygons by
+cutting the intersecting parts and keeping only the largest resulting geometry, as long as it meets the
+<cite>best_geom_keep_area_ratio</cite> threshold.</p></li>
+</ul>
+</div></blockquote>
+</p></li>
+<li><p><strong>best_geom_keep_area_ratio</strong> (<em>float</em>) – Only used when nms_algorithm is set to ‘ioa-disambiguate’. When removing part of a polygon due to
+the intersection with another one, that polygon may end-up being cut into multiple smaller and disconnected
+geometries. The algorithm will only consider keeping the largest of those geometries, and only keep it if
+it makes up at least ‘best_geom_keep_area_ratio’ percent of the original polygon (in terms of area).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference internal" href="#geodataset.aggregator.DetectorAggregator" title="geodataset.aggregator.DetectorAggregator">DetectorAggregator</a></p>
+<dd class="field-even"><p><a class="reference internal" href="#geodataset.aggregator.Aggregator" title="geodataset.aggregator.Aggregator">Aggregator</a></p>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="geodataset.aggregator.DetectorAggregator.from_polygons">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_polygons</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tiles_paths</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygons</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">classes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_algorithm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'iou'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#geodataset.aggregator.DetectorAggregator.from_polygons" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="geodataset.aggregator.Aggregator.from_polygons">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_polygons</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tiles_paths</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygons</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">classes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_algorithm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'iou'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">best_geom_keep_area_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/aggregator/aggregator.html#Aggregator.from_polygons"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.aggregator.Aggregator.from_polygons" title="Link to this definition"></a></dt>
 <dd><p>Instanciate and run an Aggregator from a list of polygons for each tile.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>output_path</strong> (<em>str</em><em> or </em><em>Path</em>) – The filename where to save the aggregated polygons.
 ‘.gpkg’, ‘.geojson’ are supported, as well as ‘.json’ for COCO format.</p></li>
-<li><p><strong>tiles_paths</strong> (<em>List</em><em>[</em><em>Path</em><em>]</em>) – The list of paths to the tiles.</p></li>
+<li><p><strong>tiles_paths</strong> (<em>List</em><em>[</em><em>str</em><em> or </em><em>Path</em><em>]</em>) – The list of paths to the tiles.</p></li>
 <li><p><strong>polygons</strong> (<em>List</em><em>[</em><em>List</em><em>[</em><em>Polygon</em><em>]</em><em>]</em>) – A list of lists of polygons, where each list of polygons corresponds to a tile.</p></li>
 <li><p><strong>scores</strong> (<em>List</em><em>[</em><em>List</em><em>[</em><em>float</em><em>]</em><em>] or </em><em>Dict</em><em>[</em><em>str</em><em>, </em><em>List</em><em>[</em><em>List</em><em>[</em><em>float</em><em>]</em><em>]</em><em>]</em>) – <p>It can be a list of lists of floats if only 1 set of scores is passed, where each list of floats corresponds
 to a tile.</p>
@@ -203,128 +224,40 @@ There keys of the dict should be the same as the keys of the ‘scores’ dict.<
 </pre></div>
 </div>
 </p></li>
-<li><p><strong>score_threshold</strong> (<em>float</em>) – The threshold under which polygons will be removed.</p></li>
-<li><p><strong>nms_threshold</strong> (<em>float</em>) – The threshold for the Non-Maximum Suppression algorithm.</p></li>
-<li><p><strong>nms_algorithm</strong> (<em>str</em>) – The Non-Maximum Suppression algorithm to use. Supported values are [‘iou’].</p></li>
+<li><p><strong>score_threshold</strong> (<em>float</em>) – The score threshold under which polygons will be removed, before applying the NMS algorithm.</p></li>
+<li><p><strong>nms_threshold</strong> (<em>float</em>) – <p>The threshold for the Non-Maximum Suppression algorithm. It serves different purposes depending on the
+‘nms_algorithm’ chosen:</p>
+<blockquote>
+<div><ul>
+<li><p>’iou’: The threshold is used as the regular Intersection Over Union (IoU) threshold.
+If 2 polygons have an IoU above this threshold, the one with the lowest score will be removed.</p></li>
+<li><p>’ioa-disambiguate’: This is the threshold used to determine if a lesser-scored polygon should be</p></li>
+</ul>
+<p>discarded (entirely removed), or cut to remove its portion that overlaps with another higher-scored
+polygon. The equation is a bit different than IoU: it’s the area of the intersection divided by
+the area of the lesser-scored polygon (Intersection / Area_lower_scored_polygon).</p>
+</div></blockquote>
+</p></li>
+<li><p><strong>nms_algorithm</strong> (<em>str</em>) – <p>The Non-Maximum Suppression algorithm to use. Supported values are [‘iou’ and ‘ioa-disambiguate’].</p>
+<blockquote>
+<div><ul>
+<li><p>’iou’: This algorithm uses the Intersection Over Union (IoU) to suppress overlapping polygons.</p></li>
+<li><p>’ioa-disambiguate’: Shouldn’t be used for detection bounding boxes,
+it was designed for instance segmentations.
+In addition to using IoU, this algorithm attempts to disambiguate overlapping polygons by
+cutting the intersecting parts and keeping only the largest resulting geometry, as long as it meets the
+<cite>best_geom_keep_area_ratio</cite> threshold.</p></li>
+</ul>
+</div></blockquote>
+</p></li>
+<li><p><strong>best_geom_keep_area_ratio</strong> (<em>float</em>) – Only used when nms_algorithm is set to ‘ioa-disambiguate’. When removing part of a polygon due to
+the intersection with another one, that polygon may end-up being cut into multiple smaller and disconnected
+geometries. The algorithm will only consider keeping the largest of those geometries, and only keep it if
+it makes up at least ‘best_geom_keep_area_ratio’ percent of the original polygon (in terms of area).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>AggregatorBase instance (<a class="reference internal" href="#geodataset.aggregator.DetectorAggregator" title="geodataset.aggregator.DetectorAggregator">DetectorAggregator</a> or <a class="reference internal" href="#geodataset.aggregator.SegmentationAggregator" title="geodataset.aggregator.SegmentationAggregator">SegmentationAggregator</a>…)</p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="geodataset.aggregator.SegmentationAggregator">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.aggregator.</span></span><span class="sig-name descname"><span class="pre">SegmentationAggregator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygons_gdf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">classes_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tiles_extent_gdf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_ids_to_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_algorithm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'iou'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">best_geom_keep_area_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/aggregator/aggregator.html#SegmentationAggregator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.aggregator.SegmentationAggregator" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AggregatorBase</span></code></p>
-<p>Class to aggregate segmentation polygons from multiple tiles, with different pixel coordinate systems,
-into a single GeoDataFrame with a common CRS, applying the Non-Maximum Suppression (NMS) algorithm.</p>
-<p>This class should be instantiated using the ‘from_coco’ or ‘from_polygons’ class methods.</p>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="geodataset.aggregator.SegmentationAggregator.SUPPORTED_NMS_ALGORITHMS">
-<span class="sig-name descname"><span class="pre">SUPPORTED_NMS_ALGORITHMS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['iou']</span></em><a class="headerlink" href="#geodataset.aggregator.SegmentationAggregator.SUPPORTED_NMS_ALGORITHMS" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="geodataset.aggregator.SegmentationAggregator.from_coco">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_coco</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tiles_folder_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coco_json_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">classes_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_algorithm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'iou'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/aggregator/aggregator.html#SegmentationAggregator.from_coco"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.aggregator.SegmentationAggregator.from_coco" title="Link to this definition"></a></dt>
-<dd><p>Instanciate and run a SegmentationAggregator from a COCO JSON file.
-The polygons will be read from the coco_json_path, and the tiles will be read from the tiles_folder_path.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>output_path</strong> (<em>str</em><em> or </em><em>Path</em>) – The filename where to save the aggregated polygons.
-‘.gpkg’, ‘.geojson’ are supported, as well as ‘.json’ for COCO format.</p></li>
-<li><p><strong>tiles_folder_path</strong> (<em>Path</em>) – The folder where the tiles are stored.</p></li>
-<li><p><strong>coco_json_path</strong> (<em>Path</em>) – The path to the COCO JSON file.</p></li>
-<li><p><strong>scores_names</strong> (<em>List</em><em>[</em><em>str</em><em>]</em>) – <p>The names of the attributes in the COCO file annotations which should be used as scores.
-The code will look directly in the COCO annotations for these keys,
-and will also look in the ‘other_attributes’ key if the key is not found directly in the annotation.</p>
-<p>For example, if score_names = [‘segmentation_score’], the ‘segmentation_score’ attribute can be in 2
-different places in each COCO annotation:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="s2">&quot;annotations&quot;</span><span class="p">:</span> <span class="p">[</span>
-    <span class="p">{</span>
-        <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
-        <span class="s2">&quot;image_id&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
-        <span class="s2">&quot;category_id&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
-        <span class="s2">&quot;segmentation&quot;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s2">&quot;counts&quot;</span><span class="p">:</span> <span class="s2">&quot;eNpjYBBgUD8rgjQmInZMmB0A&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;size&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">224</span><span class="p">,</span> <span class="mi">224</span><span class="p">]</span>
-        <span class="p">},</span>
-        <span class="s2">&quot;area&quot;</span><span class="p">:</span> <span class="mf">10000.0</span><span class="p">,</span>
-        <span class="s2">&quot;bbox&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">100.0</span><span class="p">,</span> <span class="mf">100.0</span><span class="p">,</span> <span class="mf">100.0</span><span class="p">,</span> <span class="mf">100.0</span><span class="p">],</span>
-        <span class="s2">&quot;iscrowd&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
-        <span class="s2">&quot;segmentation_score&quot;</span><span class="p">:</span> <span class="mf">0.8</span>      <span class="c1"># &lt;- directly in the annotation</span>
-        <span class="s2">&quot;other_attributes&quot;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s2">&quot;segmentation_score&quot;</span><span class="p">:</span> <span class="mf">0.8</span>  <span class="c1"># &lt;- in the &#39;other_attributes&#39; key</span>
-        <span class="p">}</span>
-    <span class="p">},</span>
-    <span class="o">...</span>
-<span class="p">]</span>
-</pre></div>
-</div>
-</p></li>
-<li><p><strong>classes_names</strong> (<em>List</em><em>[</em><em>str</em><em>]</em>) – The names of the attributes in the COCO file annotations which should be used as classes.
-Same structure than “scores_names”.</p></li>
-<li><p><strong>scores_weights</strong> (<em>List</em><em>[</em><em>float</em><em>]</em>) – <p>The weights to apply to each score column in the polygons_gdf. Weights are exponents.
-There should be as many weights as there are scores_names.
-This is only useful if there are more than 1 set of scores.</p>
-<p>The equation is:</p>
-<p>score = (score1 ** weight1) * (score2 ** weight2) * …</p>
-</p></li>
-<li><p><strong>score_threshold</strong> (<em>float</em>) – The threshold under which polygons will be removed.</p></li>
-<li><p><strong>nms_threshold</strong> (<em>float</em>) – The threshold for the Non-Maximum Suppression algorithm.</p></li>
-<li><p><strong>nms_algorithm</strong> (<em>str</em>) – The NMS algorithm to use. Only ‘iou’ is currently supported.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference internal" href="#geodataset.aggregator.SegmentationAggregator" title="geodataset.aggregator.SegmentationAggregator">SegmentationAggregator</a></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="geodataset.aggregator.SegmentationAggregator.from_polygons">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_polygons</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tiles_paths</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygons</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">classes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scores_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nms_algorithm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'iou'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#geodataset.aggregator.SegmentationAggregator.from_polygons" title="Link to this definition"></a></dt>
-<dd><p>Instanciate and run an Aggregator from a list of polygons for each tile.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>output_path</strong> (<em>str</em><em> or </em><em>Path</em>) – The filename where to save the aggregated polygons.
-‘.gpkg’, ‘.geojson’ are supported, as well as ‘.json’ for COCO format.</p></li>
-<li><p><strong>tiles_paths</strong> (<em>List</em><em>[</em><em>Path</em><em>]</em>) – The list of paths to the tiles.</p></li>
-<li><p><strong>polygons</strong> (<em>List</em><em>[</em><em>List</em><em>[</em><em>Polygon</em><em>]</em><em>]</em>) – A list of lists of polygons, where each list of polygons corresponds to a tile.</p></li>
-<li><p><strong>scores</strong> (<em>List</em><em>[</em><em>List</em><em>[</em><em>float</em><em>]</em><em>] or </em><em>Dict</em><em>[</em><em>str</em><em>, </em><em>List</em><em>[</em><em>List</em><em>[</em><em>float</em><em>]</em><em>]</em><em>]</em>) – <p>It can be a list of lists of floats if only 1 set of scores is passed, where each list of floats corresponds
-to a tile.</p>
-<p>It can also be a dictionary of lists of lists of floats if multiple types of scores are passed, example:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-    <span class="s1">&#39;detection_score&#39;</span><span class="p">:</span> <span class="p">[[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="o">...</span><span class="p">],</span>
-    <span class="s1">&#39;segmentation_score&#39;</span><span class="p">:</span> <span class="p">[[</span><span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.8</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p>This is useful if you have multiple scores for each polygon, such as detection confidence score and
-segmentation confidence score.</p>
-</p></li>
-<li><p><strong>classes</strong> (<em>List</em><em>[</em><em>List</em><em>[</em><em>float</em><em>]</em><em>] or </em><em>Dict</em><em>[</em><em>str</em><em>, </em><em>List</em><em>[</em><em>List</em><em>[</em><em>float</em><em>]</em><em>]</em><em>]</em>) – Classes predicted from the detector. Structure is similar to “scores”</p></li>
-<li><p><strong>scores_weights</strong> (<em>Dict</em><em>[</em><em>str</em><em>, </em><em>float</em><em>]</em>) – <p>The weights to apply to each score column in the polygons_gdf. Weights are exponents.
-Only used if ‘scores’ is a dict and has more than 1 key (more than 1 set of scores).
-There keys of the dict should be the same as the keys of the ‘scores’ dict.</p>
-<p>The equation is:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">score</span> <span class="o">=</span> <span class="p">(</span><span class="n">score1</span> <span class="o">**</span> <span class="n">weight1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">score2</span> <span class="o">**</span> <span class="n">weight2</span><span class="p">)</span> <span class="o">*</span> <span class="o">...</span>
-</pre></div>
-</div>
-</p></li>
-<li><p><strong>score_threshold</strong> (<em>float</em>) – The threshold under which polygons will be removed.</p></li>
-<li><p><strong>nms_threshold</strong> (<em>float</em>) – The threshold for the Non-Maximum Suppression algorithm.</p></li>
-<li><p><strong>nms_algorithm</strong> (<em>str</em>) – The Non-Maximum Suppression algorithm to use. Supported values are [‘iou’].</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>AggregatorBase instance (<a class="reference internal" href="#geodataset.aggregator.DetectorAggregator" title="geodataset.aggregator.DetectorAggregator">DetectorAggregator</a> or <a class="reference internal" href="#geodataset.aggregator.SegmentationAggregator" title="geodataset.aggregator.SegmentationAggregator">SegmentationAggregator</a>…)</p>
+<dd class="field-even"><p><a class="reference internal" href="#geodataset.aggregator.Aggregator" title="geodataset.aggregator.Aggregator">Aggregator</a></p>
 </dd>
 </dl>
 </dd></dl>
