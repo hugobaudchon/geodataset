@@ -50,8 +50,10 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         Whether to use RLE for labels, by default True.
     coco_n_workers : int, optional
         Number of workers for the COCO dataset, by default 1.
+    tile_side_length : float, optional
+        Side length of the tile, by default None.
     tile_overlap : float, optional
-        Overlap of the tiles, by default 1.0.
+        Overlap of the tiles, by default 0.5.
     max_tile : int, optional
         Maximum number of tiles, by default 50000.
     keep_dims : List[str], optional

@@ -27,34 +27,6 @@ class BaseDataset(ABC):
         pass
 
 
-# class BasePointCloudCocoDataset(BaseDataset, ABC):
-#     def __init__(self, fold: str, root_path: Union[str, List[str], Path, List[Path]]):
-                 
-#         self.fold = fold
-#         self.root_path = root_path
-#         self.tiles = {}
-#         self.tiles_path_to_id_mapping = {}
-#         self.cocos_detected = []
-
-#         if isinstance(self.root_path, (str, Path)):
-#             self.root_path = [self.root_path]
-
-#         self.root_path = [Path(x) for x in self.root_path]
-
-#         self._load_coco_datasets(directories=self.root_path)
-#         self._find_tiles_paths(directories=self.root_path)
-#         self._remove_tiles_not_found()
-
-#         if len(self.cocos_detected) == 0:
-#             raise Exception(f"No COCO datasets for fold '{self.fold}' were found in the specified root folder.")
-#         elif len(self.cocos_detected) > 0 and len(self.tiles) == 0:
-#             raise Exception(f"Could not find find any tiles associated with the COCO files found."
-#                             f" COCO files found: {self.cocos_detected}.")
-
-#         print(f"Found {len(self.tiles)} tiles and {sum([len(self.tiles[x]['labels']) for x in self.tiles])} labels"
-#               f" for fold {self.fold}.")
-    
-
 class BaseLabeledPointCloudCocoDataset(BaseDataset, ABC):
     def __init__(self,
                  fold: str,
