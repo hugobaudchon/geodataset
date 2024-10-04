@@ -54,10 +54,14 @@ class AOIFromPackageForTiles(AOIBaseForTiles, AOIBaseFromPackage):
 
         intersections = gpd.overlay(tiles_gdf, aois_gdf, how='intersection')
         intersections['intersection_area'] = intersections.geometry.area
-        max_intersection_per_tile = intersections.loc[intersections.groupby('tile_id')['intersection_area'].idxmax()]
-        aois_tiles = max_intersection_per_tile.groupby('aoi')['tile'].apply(list).to_dict()
+        aois_tiles = intersections.groupby('aoi')['tile'].apply(list).to_dict()
 
-        tiles_gdf = gpd.GeoDataFrame(tiles_gdf.merge(max_intersection_per_tile[['tile_id', 'aoi']], on='tile_id', how='left'))
+        # adding aoi data info to each Tile, duplicating each Tile object that is in multiple aoi into multiple Tile objects (one per aoi)
+        for aoi in aois_tiles:
+            for i in range(len(aois_tiles[aoi])):
+                aois_tiles[aoi][i] = aois_tiles[aoi][i].copy_with_aoi(aoi)      # doing it like this to avoid duplicating all tiles in memory, which could lead to OOM issues
+
+        tiles_gdf = gpd.GeoDataFrame(tiles_gdf.merge(intersections[['tile_id', 'aoi']], on='tile_id', how='left'))
         tiles_gdf = tiles_gdf.dropna(subset=['aoi'])
 
         aoi_disambiguator = AOIDisambiguator(

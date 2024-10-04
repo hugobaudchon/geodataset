@@ -49,13 +49,15 @@ class Tile:
                  scale_factor: float,
                  row: int,
                  col: int,
-                 tile_id: int):
+                 tile_id: int,
+                 aoi: str = None):
         self.data = data
         self.metadata = metadata
         self.output_name = output_name
         self.row = row
         self.col = col
         self.tile_id = tile_id
+        self.aoi = aoi
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
                                                           " Please only specify one.")
@@ -83,7 +85,7 @@ class Tile:
 
         path = Path(path)
 
-        data, metadata, product_name, ground_resolution, scale_factor, row, col = Tile._load_tile(path)
+        data, metadata, product_name, ground_resolution, scale_factor, row, col, aoi = Tile._load_tile(path)
 
         tile = cls(data=data,
                    metadata=metadata,
@@ -92,7 +94,8 @@ class Tile:
                    scale_factor=scale_factor,
                    row=row,
                    col=col,
-                   tile_id=tile_id)
+                   tile_id=tile_id,
+                   aoi=aoi)
 
         return tile
 
@@ -106,9 +109,9 @@ class Tile:
             data = src.read()
             metadata = src.profile
 
-        product_name, ground_resolution, scale_factor, row, col = TileNameConvention.parse_name(path.name)
+        product_name, ground_resolution, scale_factor, row, col, aoi = TileNameConvention.parse_name(path.name)
 
-        return data, metadata, product_name, ground_resolution, scale_factor, row, col
+        return data, metadata, product_name, ground_resolution, scale_factor, row, col, aoi
 
     def save(self, output_folder: str or Path):
         """
@@ -144,7 +147,8 @@ class Tile:
                                               ground_resolution=self.ground_resolution,
                                               scale_factor=self.scale_factor,
                                               row=self.row,
-                                              col=self.col)
+                                              col=self.col,
+                                              aoi=self.aoi)
 
     def get_bbox(self):
         """
@@ -160,6 +164,30 @@ class Tile:
         miny = self.row
         maxy = self.row + self.metadata['height']
         return box(minx, miny, maxx, maxy)
+
+    def copy_with_aoi(self, new_aoi: str):
+        """
+        Create a copy of the tile with a new AOI.
+
+        Parameters
+        ----------
+        new_aoi: str
+            The new AOI to assign to the tile.
+
+        Returns
+        -------
+        Tile
+            The new tile with the new AOI.
+        """
+        return Tile(data=self.data,
+                    metadata=self.metadata,
+                    output_name=self.output_name,
+                    ground_resolution=self.ground_resolution,
+                    scale_factor=self.scale_factor,
+                    row=self.row,
+                    col=self.col,
+                    tile_id=self.tile_id,
+                    aoi=new_aoi)
 
 
 class PolygonTile:

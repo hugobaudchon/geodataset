@@ -8,6 +8,7 @@ import albumentations
 
 from geodataset.utils import CocoNameConvention, PointCloudCocoNameConvention
 
+
 class BaseDataset(ABC):
     """
     Abstract class for a dataset. Requires the implementation of methods needed for use with PyTorch's DataLoader:

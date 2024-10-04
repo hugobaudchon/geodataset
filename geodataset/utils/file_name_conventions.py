@@ -68,32 +68,49 @@ class FileNameConvention(ABC):
 
 
 class TileNameConvention(FileNameConvention):
-    @staticmethod
-    def _validate_name(name):
-        pattern = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
-        if not re.match(pattern, name):
-            raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
+    pattern_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_[a-zA-Z]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
+    pattern_no_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
 
     @staticmethod
-    def create_name(product_name: str, col: int, row: int, scale_factor=None, ground_resolution=None):
+    def _validate_name(name):
+        if re.match(TileNameConvention.pattern_aoi, name):
+            return 'pattern_aoi'
+        elif re.match(TileNameConvention.pattern_no_aoi, name):
+            return 'pattern_no_aoi'
+        else:
+            raise ValueError(f"tile_name {name} does not match any of the supported patterns.")
+
+
+    @staticmethod
+    def create_name(product_name: str, col: int, row: int, scale_factor=None, ground_resolution=None, aoi=None):
         specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
-        tile_name = f"{product_name}_tile_{specifier}_{col}_{row}.tif"
+        tile_name = f"{product_name}_tile_{aoi if aoi else 'noaoi'}_{specifier}_{col}_{row}.tif"
         TileNameConvention._validate_name(tile_name)
         return tile_name
 
     @staticmethod
     def parse_name(tile_name: str):
-        TileNameConvention._validate_name(tile_name)
+        pattern_name = TileNameConvention._validate_name(tile_name)
 
         parts = tile_name.split("_")
-        product_name = "_".join(parts[:-4])
+        row = int(parts[-1].replace('.tif', ''))
+        col = int(parts[-2])
         specifier = parts[-3]
-        col = parts[-2]
-        row = parts[-1].replace('.tif', '')
-
         scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
 
-        return product_name, scale_factor, ground_resolution, col, row
+        if pattern_name == 'pattern_aoi':
+            aoi = parts[-4]
+            if aoi == 'noaoi':
+                aoi = None
+            product_name = "_".join(parts[:-5])
+        elif pattern_name == 'pattern_no_aoi':
+            aoi = None
+            product_name = "_".join(parts[:-4])
+        else:
+            raise ValueError(f"pattern_name {pattern_name} is not supported.")
+
+        return product_name, scale_factor, ground_resolution, col, row, aoi
+
 
 
 class PolygonTileNameConvention(FileNameConvention):
