@@ -1,14 +1,7 @@
 Aggregator
 ==========
 
-.. autoclass:: geodataset.aggregator.DetectorAggregator
-    :members:
-    :undoc-members:
-    :show-inheritance:
-    :inherited-members:
-
-
-.. autoclass:: geodataset.aggregator.SegmentationAggregator
+.. autoclass:: geodataset.aggregator.Aggregator
     :members:
     :undoc-members:
     :show-inheritance:

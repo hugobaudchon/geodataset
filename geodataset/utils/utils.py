@@ -796,7 +796,43 @@ class COCOGenerator:
 
 
 def apply_affine_transform(geom: shapely.geometry, affine: rasterio.Affine):
+    """
+    Apply an affine transformation to a geometry.
+
+    Parameters
+    ----------
+    geom: shapely.geometry
+        The geometry to transform.
+    affine: rasterio.Affine
+        The affine transformation to apply.
+
+    Returns
+    -------
+    shapely.geometry
+        The transformed geometry.
+    """
     return transform(lambda x, y: affine * (x, y), geom)
+
+
+def apply_inverse_transform(polygons: List[Polygon], raster_path: str or Path):
+    """
+    Apply the inverse transform of a raster to a list of polygons.
+
+    Parameters
+    ----------
+    polygons: List[Polygon]
+        The list of polygons to transform.
+    raster_path: str or Path
+        The path to the raster file.
+
+    Returns
+    -------
+    List[Polygon]
+    """
+    src = rasterio.open(raster_path)
+    inverse_transform = ~src.transform
+    polygons = [apply_affine_transform(polygon, inverse_transform) for polygon in polygons]
+    return polygons
 
 
 def coco_to_geopackage(coco_json_path: str,

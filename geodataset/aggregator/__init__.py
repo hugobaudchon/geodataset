@@ -1,1 +1,1 @@
-from .aggregator import DetectorAggregator, SegmentationAggregator
+from .aggregator import Aggregator, DetectorAggregator, SegmentationAggregator
