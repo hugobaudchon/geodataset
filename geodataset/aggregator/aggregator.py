@@ -77,9 +77,9 @@ class Aggregator:
 
     @classmethod
     def from_coco(cls,
-                  output_path: Path,
-                  tiles_folder_path: Path,
-                  coco_json_path: Path,
+                  output_path: str or Path,
+                  tiles_folder_path: str or Path,
+                  coco_json_path: str or Path,
                   scores_names: List[str] = None,
                   classes_names: List[str] = None,
                   scores_weights: List[float] = None,
@@ -97,9 +97,9 @@ class Aggregator:
         output_path: str or Path
             The filename where to save the aggregated polygons.
             '.gpkg', '.geojson' are supported, as well as '.json' for COCO format.
-        tiles_folder_path: Path
+        tiles_folder_path: str or Path
             The folder where the tiles are stored.
-        coco_json_path: Path
+        coco_json_path: str or Path
             The path to the COCO JSON file.
         scores_names: List[str]
             The names of the attributes in the COCO file annotations which should be used as scores.
@@ -204,8 +204,8 @@ class Aggregator:
 
     @classmethod
     def from_polygons(cls,
-                      output_path: Path,
-                      tiles_paths: List[Path],
+                      output_path: str or Path,
+                      tiles_paths: List[str or Path],
                       polygons: List[List[Polygon]],
                       scores: List[List[float]] or Dict[str, List[List[float]]],
                       classes: List[List[float]] or Dict[str, List[List[float]]],
@@ -223,7 +223,7 @@ class Aggregator:
         output_path: str or Path
             The filename where to save the aggregated polygons.
             '.gpkg', '.geojson' are supported, as well as '.json' for COCO format.
-        tiles_paths: List[Path]
+        tiles_paths: List[str or Path]
             The list of paths to the tiles.
         polygons: List[List[Polygon]]
             A list of lists of polygons, where each list of polygons corresponds to a tile.
@@ -338,8 +338,8 @@ class Aggregator:
                    best_geom_keep_area_ratio=best_geom_keep_area_ratio)
 
     @staticmethod
-    def _from_coco(tiles_folder_path: Path,
-                   coco_json_path: Path,
+    def _from_coco(tiles_folder_path: str or Path,
+                   coco_json_path: str or Path,
                    scores_names: List[str],
                    classes_names: List[str]):
 
@@ -401,6 +401,7 @@ class Aggregator:
                 tile_ids_to_scores[image_id] = {score_name: [scores[score_name]] for score_name in scores.keys()}
                 tile_ids_to_classes[image_id] = {class_name: [classes[class_name]] for class_name in classes.keys()}
 
+        tiles_folder_path = Path(tiles_folder_path)
         tile_ids_to_path = {}
         for image in coco_data['images']:
             image_path = tiles_folder_path / image['file_name']
