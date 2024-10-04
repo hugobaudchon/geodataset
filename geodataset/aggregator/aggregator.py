@@ -771,26 +771,26 @@ class Aggregator:
 
 
 class DetectorAggregator:
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         raise Exception('This class is now deprecated (since v0.1.4). Please use the Aggregator class instead.')
 
     @classmethod
-    def from_coco(cls, *args):
-        return cls(*args)
+    def from_coco(cls, *args, **kwargs):
+        return cls(*args, **kwargs)
 
     @classmethod
-    def from_polygons(cls, *args):
-        return cls(*args)
+    def from_polygons(cls, *args, **kwargs):
+        return cls(*args, **kwargs)
 
 
 class SegmentationAggregator:
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         raise Exception('This class is now deprecated (since v0.1.4). Please use the Aggregator class instead.')
 
     @classmethod
-    def from_coco(cls, *args):
-        return cls(*args)
+    def from_coco(cls, *args, **kwargs):
+        return cls(*args, **kwargs)
 
     @classmethod
-    def from_polygons(cls, *args):
-        return cls(*args)
+    def from_polygons(cls, *args, **kwargs):
+        return cls(*args, **kwargs)
