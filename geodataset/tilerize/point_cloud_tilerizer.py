@@ -17,7 +17,7 @@ from geodataset.aoi.aoi_base import AOIBaseFromGeoFile
 from geodataset.dataset.coco_generator import PointCloudCOCOGenerator
 from geodataset.metadata.tile_metadata import TileMetadata, TileMetadataCollection
 from geodataset.utils.file_name_conventions import (
-    CocoNameConvention,
+    PointCloudCocoNameConvention,
     PointCloudTileNameConvention,
 )
 
@@ -63,7 +63,7 @@ class PointCloudTilerizer:
         keep_dims: List[str] = None,
         downsample_voxel_size: float = None,
         verbose: bool = False,
-        tile_overlap: float = 1.0,
+        tile_overlap: float = 0.5,
         max_tile: int = 5000,
         force: bool = False,
     ):
@@ -192,7 +192,7 @@ class PointCloudTilerizer:
                 pcd = self._keep_unique_points(pcd)
                 new_tile_md_list.append(tile_md)
                 downsampled_tile_path = (
-                    self.pc_tiles_folder_path / f"{tile_md.output_filename}"
+                    self.pc_tiles_folder_path / f"{tile_md.tile_name}"
                 )
                 o3d.t.io.write_point_cloud(str(downsampled_tile_path), pcd)
 
@@ -234,10 +234,11 @@ class PointCloudTilerizer:
             print(self.tiles_metadata.product_name)
             coco_output_file_path = (
                 self.annotation_folder_path
-                / CocoNameConvention.create_name(
+                / PointCloudCocoNameConvention.create_name(
                     product_name=self.tiles_metadata.product_name,
                     ground_resolution=None,
                     scale_factor=None,
+                    voxel_size=self.downsample_voxel_size,
                     fold=aoi,
                 )
             )

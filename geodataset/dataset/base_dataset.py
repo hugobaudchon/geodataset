@@ -26,6 +26,7 @@ class BaseDataset(ABC):
     def __iter__(self):
         pass
 
+
 class BaseLabeledPointCloudCocoDataset(BaseDataset, ABC):
     def __init__(self,
                  fold: str,
@@ -63,7 +64,7 @@ class BaseLabeledPointCloudCocoDataset(BaseDataset, ABC):
         """
         for directory in directories:
             for path in directory.iterdir():
-                if path.is_file() and path.name.endswith(f".json") and "point_cloud_coco" in path.name:
+                if path.is_file() and path.name.endswith(f".json") and "pc_coco" in path.name:
                         product_name, scale_factor, ground_resolution, voxel_size, fold  = PointCloudCocoNameConvention.parse_name(path.name)
                         if fold == self.fold:
                             self._load_coco_json(json_path=path)
@@ -102,7 +103,11 @@ class BaseLabeledPointCloudCocoDataset(BaseDataset, ABC):
                     'name': tile_name,
                     'height': image['height'],
                     'width': image['width'],
-                    'labels': []
+                    'labels': [],
+                    "min_x": image['min_x'],
+                    "max_x": image['max_x'],
+                    "min_y": image['min_y'],
+                    "max_y": image['max_y'],
                 }
 
             # Keeping track of the original tile id from the COCO dataset to the tile name
