@@ -171,14 +171,14 @@ class CocoNameConvention(FileNameConvention):
 class PointCloudCocoNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r'^.*pc_coco_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[a-zA-Z0-9]+\.json$'
+        pattern = r'^.*pccoco_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[a-zA-Z0-9]+\.json$'
         if not re.match(pattern, name):
             raise ValueError(f"coco_name {name} does not match the expected format {pattern}.")
 
     @staticmethod
     def create_name(product_name: str, fold: str, scale_factor=None, ground_resolution=None, voxel_size=None):
         specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size)
-        coco_name = f"{product_name}_pc_coco_{specifier}_{fold}.json"
+        coco_name = f"{product_name}_pccoco_{specifier}_{fold}.json"
         PointCloudCocoNameConvention._validate_name(coco_name)
         return coco_name
 
@@ -186,7 +186,7 @@ class PointCloudCocoNameConvention(FileNameConvention):
     def parse_name(coco_name: str):
         PointCloudCocoNameConvention._validate_name(coco_name)
 
-        parts = coco_name.split("pc_coco_")
+        parts = coco_name.split("pccoco_")
         product_name = parts[0]
         specifier, fold_extension = parts[1].rsplit("_", 1)
         fold, extension = fold_extension.split(".")
@@ -281,7 +281,7 @@ class AoiTilesImageConvention(FileNameConvention):
 class PointCloudTileNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^.*pc_tile_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+_id_[0-9]+\.(ply|las|pcd)$"
+        pattern = r"^.*pctile_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+_id_[0-9]+\.(ply|las|pcd)$"
         if not re.match(pattern, name):
             raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
         else:
@@ -291,7 +291,7 @@ class PointCloudTileNameConvention(FileNameConvention):
     def create_name(product_name: str, tile_id:str, scale_factor=None, ground_resolution=None, voxel_size=None, extension='pcd', row=None, col=None):
         assert extension in ["pcd", "ply", "las"], f"Extension must be either 'ply' or 'las', not {extension}."
         specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size)
-        tile_name = f"{product_name}_pc_tile_{specifier}_{row}_{col}_id_{tile_id}.{extension}"
+        tile_name = f"{product_name}_pctile_{specifier}_{row}_{col}_id_{tile_id}.{extension}"
         PointCloudTileNameConvention._validate_name(tile_name)
         return tile_name
 
@@ -299,7 +299,7 @@ class PointCloudTileNameConvention(FileNameConvention):
     def parse_name(tile_name: str):
         PointCloudTileNameConvention._validate_name(tile_name)
 
-        parts = tile_name.split("_pc_tile_")
+        parts = tile_name.split("_pctile_")
         product_name = parts[0]
         specifier, col, row, _, tile_id_extension = parts[1].rsplit("_", 4)
         tile_id, extension = tile_id_extension.split(".")
