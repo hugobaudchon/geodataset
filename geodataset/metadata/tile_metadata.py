@@ -183,8 +183,12 @@ class TileMetadataCollection:
         )
 
         assert all([True if i.crs == self.tile_metadata_list[0].crs else False for i in self.tile_metadata_list]), "All tiles must have the same CRS"
-
         self.crs = self.tile_metadata_list[0].crs
+        assert all([True if i.height == self.tile_metadata_list[0].height else False for i in self.tile_metadata_list]), "All tiles must have the same height"
+        self.height = self.tile_metadata_list[0].height
+        assert all([True if i.width == self.tile_metadata_list[0].width else False for i in self.tile_metadata_list]), "All tiles must have the same width"
+        self.width = self.tile_metadata_list[0].width
+        
         self.gdf = self._create_gdf()
         self.tile_id_to_idx = {tile_id: idx for idx, tile_id in enumerate([tile.id for tile in self.tile_metadata_list])}
 
