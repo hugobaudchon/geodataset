@@ -180,6 +180,7 @@ class PointCloudCocoNameConvention(FileNameConvention):
         specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size)
         coco_name = f"{product_name}_pc_coco_{specifier}_{fold}.json"
         PointCloudCocoNameConvention._validate_name(coco_name)
+        print(coco_name)
         return coco_name
 
     @staticmethod
@@ -281,7 +282,7 @@ class AoiTilesImageConvention(FileNameConvention):
 class PointCloudTileNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^.*pc_tile_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+_id_[0-9]+\.(ply|las)$"
+        pattern = r"^.*pc_tile_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+_id_[0-9]+\.(ply|las|pcd)$"
         if not re.match(pattern, name):
             raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
         else:
