@@ -17,7 +17,7 @@ from geodataset.aoi.aoi_base import AOIBaseFromGeoFile
 from geodataset.dataset.coco_generator import PointCloudCOCOGenerator
 from geodataset.metadata.tile_metadata import TileMetadata, TileMetadataCollection
 from geodataset.utils.file_name_conventions import (
-    CocoNameConvention,
+    PointCloudCocoNameConvention,
     PointCloudTileNameConvention,
 )
 
@@ -234,10 +234,11 @@ class PointCloudTilerizer:
             print(self.tiles_metadata.product_name)
             coco_output_file_path = (
                 self.annotation_folder_path
-                / CocoNameConvention.create_name(
+                / PointCloudCocoNameConvention.create_name(
                     product_name=self.tiles_metadata.product_name,
                     ground_resolution=None,
                     scale_factor=None,
+                    voxel_size=self.downsample_voxel_size,
                     fold=aoi,
                 )
             )

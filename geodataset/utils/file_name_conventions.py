@@ -154,14 +154,14 @@ class CocoNameConvention(FileNameConvention):
 class PointCloudCocoNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r'^.*point_cloud_coco_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[a-zA-Z0-9]+\.json$'
+        pattern = r'^.*pc_coco_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[a-zA-Z0-9]+\.json$'
         if not re.match(pattern, name):
             raise ValueError(f"coco_name {name} does not match the expected format {pattern}.")
 
     @staticmethod
     def create_name(product_name: str, fold: str, scale_factor=None, ground_resolution=None, voxel_size=None):
         specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size)
-        coco_name = f"{product_name}_point_cloud_coco_{specifier}_{fold}.json"
+        coco_name = f"{product_name}_pc_coco_{specifier}_{fold}.json"
         PointCloudCocoNameConvention._validate_name(coco_name)
         return coco_name
 
@@ -169,7 +169,7 @@ class PointCloudCocoNameConvention(FileNameConvention):
     def parse_name(coco_name: str):
         PointCloudCocoNameConvention._validate_name(coco_name)
 
-        parts = coco_name.split("point_cloud_coco_")
+        parts = coco_name.split("pc_coco_")
         product_name = parts[0]
         specifier, fold_extension = parts[1].rsplit("_", 1)
         fold, extension = fold_extension.split(".")
