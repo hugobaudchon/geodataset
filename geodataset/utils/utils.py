@@ -987,5 +987,3 @@ def tiles_polygons_gdf_to_crs_gdf(dataframe: gpd.GeoDataFrame):
     all_tiles_gdf.crs = common_crs
 
     return all_tiles_gdf
-
-
