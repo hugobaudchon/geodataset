@@ -401,6 +401,8 @@ class UnlabeledRasterDataset(BaseDataset):
 
         self._find_tiles_paths(directories=self.root_path)
 
+        print(f"Found {len(self.tile_paths)} tiles for fold {self.fold}.")
+
     def _find_tiles_paths(self, directories: List[Path]):
         """
         Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
