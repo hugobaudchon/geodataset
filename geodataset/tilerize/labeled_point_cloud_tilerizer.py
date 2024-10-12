@@ -9,12 +9,12 @@ from shapely.geometry import Point
 from tqdm import tqdm
 
 from geodataset.aoi import AOIFromPackageConfig
-from geodataset.aoi.aoi_base import AOIBaseFromGeoFile
-from geodataset.dataset.coco_generator import PointCloudCOCOGenerator
+from geodataset.aoi.aoi_base import AOIBaseFromGeoFileInCRS
+from geodataset.utils import PointCloudCOCOGenerator, strip_all_extensions_and_path
 from geodataset.labels.base_labels import PolygonLabels
-from geodataset.metadata.tile_metadata import TileMetadataCollection
+from geodataset.geodata.point_cloud_tile import PointCloudTileMetadataCollection
 from geodataset.tilerize.point_cloud_tilerizer import PointCloudTilerizer
-from geodataset.utils.file_name_conventions import PointCloudCocoNameConvention
+from geodataset.utils.file_name_conventions import PointCloudCocoNameConvention, validate_and_convert_product_name
 from pathlib import Path
 
 
@@ -42,9 +42,9 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         Whether to ignore tiles without labels, by default False.
     geopackage_layer_name : str, optional
         Name of the layer in the geopackage file, by default None.
-    main_label_category_column : str, optional
+    main_label_category_column_name : str, optional
         Name of the main label category column, by default None.
-    other_labels_attributes_column : List[str], optional
+    other_labels_attributes_column_names : List[str], optional
         List of other label attributes, by default None.
     use_rle_for_labels : bool, optional
         Whether to use RLE for labels, by default True.
@@ -72,14 +72,14 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         point_cloud_path:Union[str,Path],
         labels_path:Union[str,Path],
         output_path:Union[str,Path],
-        tiles_metadata: Union[TileMetadataCollection, None] = None,
+        tiles_metadata: Union[PointCloudTileMetadataCollection, None] = None,
         coco_categories_list: List[dict] = None,
         aois_config: Union[AOIFromPackageConfig, None] = None,
         min_intersection_ratio: float = 0.9,
         ignore_tiles_without_labels: bool = False,
         geopackage_layer_name: str = None,
-        main_label_category_column: str = None,
-        other_labels_attributes_column: List[str] = None,
+        main_label_category_column_name: str = "Label",
+        other_labels_attributes_column_names: List[str] = None,
         use_rle_for_labels: bool = True,
         coco_n_workers: int = 1,
         tile_overlap: float = 0.5,
@@ -89,21 +89,21 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         verbose: bool = False,
         force: bool = False,
         tile_side_length: float = None,
-
-
     ) -> None:
-        self.point_cloud_path = point_cloud_path
+        self.point_cloud_path = Path(point_cloud_path)
+        self.product_name = validate_and_convert_product_name(strip_all_extensions_and_path(self.point_cloud_path))
         self.label_path = labels_path
-        self.output_path = output_path
+        self.output_path = Path(output_path)
         self.tiles_metadata = tiles_metadata
         self.min_intersection_ratio = min_intersection_ratio
         self.ignore_tiles_without_labels = ignore_tiles_without_labels
-        self.aoi_engine = AOIBaseFromGeoFile(aois_config)
+        self.main_label_category_column_name = main_label_category_column_name
+        self.other_labels_attributes_column_names = other_labels_attributes_column_names
+        self.aois_config = aois_config
         self.use_rle_for_labels = use_rle_for_labels
         self.coco_n_workers = coco_n_workers
         self.coco_categories_list = coco_categories_list
         self.downsample_voxel_size = downsample_voxel_size
-        self.tile_overlap = tile_overlap
         self.tile_overlap = tile_overlap
         self.keep_dims = keep_dims if keep_dims is not None else "ALL"
         self.verbose = verbose
@@ -119,7 +119,6 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
             if self.downsample_voxel_size
             else self.output_path / "pc_tiles"
         )
-        self.annotation_folder_path = self.output_path / "annotations"
 
         self.aoi_tiles = None
         self.aoi_labels = None
@@ -130,14 +129,10 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         # PolygonLabel class
         self.labels = self.load_labels(
             geopackage_layer=geopackage_layer_name,
-            main_label_category=main_label_category_column,
-            other_labels_attributes=other_labels_attributes_column,
+            main_label_category_column_name=main_label_category_column_name,
+            other_labels_attributes_column_names=other_labels_attributes_column_names,
             keep_categories=keep_categories,
         )
-
-        if self.use_rle_for_labels:
-            assert self.tiles_metadata is not None, "Tile metadata is required for RLE encoding (image height and width)"
-            assert self.tiles_metadata.height is not None and self.tiles_metadata.width is not None, "Height and width of the tiles are required for RLE encoding"
 
         if self.tiles_metadata is None:
             assert (
@@ -146,35 +141,46 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
             self.populate_tiles_metadata()
 
+        if self.use_rle_for_labels:
+            assert self.tiles_metadata is not None, "Tile metadata is required for RLE encoding (image height and width)"
+            assert self.tiles_metadata.height is not None and self.tiles_metadata.width is not None, "Height and width of the tiles are required for RLE encoding"
+
         assert (
             len(self.tiles_metadata) < max_tile
         ), f"Number of max possible tiles {len(self.tiles_metadata)} exceeds the maximum number of tiles {max_tile}"
 
-        if self.use_rle_for_labels:
-            assert self.til
-        super().create_folder()
+        # if self.use_rle_for_labels:
+        #     assert self.til #??
+        # Processing AOIs
+        if self.aois_config is None:
+            raise Exception("Please provide an aoi_config. Currently don't support 'None'.")
+        self.aoi_engine = AOIBaseFromGeoFileInCRS(aois_config)
+        self.aois_in_both = self._check_aois_in_both_tiles_and_config()
+
+        self.create_folder()
 
     def create_category_to_id_map(self):
         category_id_map = {}
-        for category_dict in self.coco_categories_list:
-            category_id_map[category_dict["name"]] = category_dict["id"]
-            for name in category_dict["other_names"]:
-                category_id_map[name] = category_dict["id"]
+        if self.coco_categories_list:
+            for category_dict in self.coco_categories_list:
+                category_id_map[category_dict["name"]] = category_dict["id"]
+                for name in category_dict["other_names"]:
+                    category_id_map[name] = category_dict["id"]
 
         return category_id_map
 
     def load_labels(
         self,
         geopackage_layer=None,
-        main_label_category="labels",
-        other_labels_attributes=None,
+        main_label_category_column_name="labels",
+        other_labels_attributes_column_names=None,
         keep_categories=None,
-    ) -> None:
+    ) -> PolygonLabels:
         labels = PolygonLabels(
             path=self.label_path,
             geopackage_layer_name=geopackage_layer,
-            main_label_category_column=main_label_category,
-            other_labels_attributes_column=other_labels_attributes,
+            main_label_category_column_name=main_label_category_column_name,
+            other_labels_attributes_column_names=other_labels_attributes_column_names,
             keep_categories=keep_categories,
         )
         return labels
@@ -182,7 +188,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
     def _find_tiles_associated_labels(self):
         print("Finding the labels associate to each tile...")
 
-        tile_ids = [tile.id for tile in self.tiles_metadata]
+        tile_ids = [tile.tile_id for tile in self.tiles_metadata]
         geometry = [tile.geometry.values[0][0] for tile in self.tiles_metadata]
 
         tiles_gdf = gpd.GeoDataFrame(
@@ -218,7 +224,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         labeled_tiles = []
         for tile in self.tiles_metadata:
             individual_associated_labels = associated_labels[
-                associated_labels["tile_id"] == tile.id
+                associated_labels["tile_id"] == tile.tile_id
             ]
             if (
                 self.ignore_tiles_without_labels
@@ -233,7 +239,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         tiles_removed = len(self.tiles_metadata) - len(labeled_tiles)
         if tiles_removed > 0:
             warnings.warn(f"Removed {tiles_removed} tiles without labels")
-            self.tiles_metadata = TileMetadataCollection(
+            self.tiles_metadata = PointCloudTileMetadataCollection(
                 labeled_tiles, product_name=self.tiles_metadata.product_name
             )
 
@@ -249,15 +255,22 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         tiles_gdf = self.tiles_metadata.gdf
         aois_gdf = aois_gdf.to_crs(tiles_gdf.crs)
 
-        # To generate aois_tiles, we need to find the tiles that intersect with the AOIs
-        intersections = gpd.overlay(tiles_gdf, aois_gdf, how="intersection")
-        intersections["intersection_area"] = intersections.geometry.area
-        max_intersection_per_tile = intersections.loc[
-            intersections.groupby("tile_id")["intersection_area"].idxmax()
-        ]
-        aois_tiles = (
-            max_intersection_per_tile.groupby("aoi")["tile_id"].apply(list).to_dict()
-        )
+        if 'aoi' not in tiles_gdf or ('aoi' in tiles_gdf and tiles_gdf['aoi'].isnull().all()):
+            # only keeping 'aoi' column from aois_gdf, ignoring the one from tiles_gdf as it is same info if set
+            tiles_gdf = tiles_gdf.drop(columns=['aoi'])
+
+            aois_gdf.crs = tiles_gdf.crs
+            intersections = gpd.overlay(tiles_gdf, aois_gdf, how="intersection")
+            intersections["intersection_area"] = intersections.geometry.area
+            max_intersection_per_tile = intersections.loc[
+                intersections.groupby("tile_id")["intersection_area"].idxmax()
+            ]
+            aois_tiles = (
+                max_intersection_per_tile.groupby("aoi")["tile_id"].apply(list).to_dict()
+            )
+        else:
+            # just use tiles_gdf, no need to overlay
+            aois_tiles = tiles_gdf.groupby("aoi")["tile_id"].apply(list).to_dict()
 
         tile_associated_labels["instance_id"] = tile_associated_labels.index
 
@@ -339,14 +352,14 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
                 if len(data) == 0:
                     continue
-                pcd = super()._laspy_to_o3d(data, self.keep_dims.copy())
+                pcd = super()._laspy_to_o3d(data, self.keep_dims.copy() if type(self.keep_dims) is not str else self.keep_dims)
 
                 if self.downsample_voxel_size:
                     pcd = super()._downsample_tile(pcd, self.downsample_voxel_size)
 
                 pcd = super()._keep_unique_points(pcd)
                 tile_labels = self._get_tile_labels(
-                    tile_md.id, self.aoi_tiles.copy(), self.aoi_labels.copy()
+                    tile_md.tile_id, self.aoi_tiles.copy(), self.aoi_labels.copy()
                 )
                 pcd = self._add_labels(pcd, tile_labels)
                 new_tile_md_list.append(tile_md)
@@ -356,7 +369,8 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                 )
                 o3d.t.io.write_point_cloud(str(downsampled_tile_path), pcd)
 
-        self.tiles_metadata = TileMetadataCollection(
+        print(f"Finished tilerizing. Number of tiles generated: {len(new_tile_md_list)}.")
+        self.tiles_metadata = PointCloudTileMetadataCollection(
             new_tile_md_list, product_name=self.tiles_metadata.product_name
         )
 
@@ -381,16 +395,13 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
             labels = self.aoi_labels[aoi]
 
             if len(labels) == 0:
-                print(f"No tiles found for AOI {aoi}, skipping...")
-                continue
-
-            if len(labels) == 0:
                 print(f"No tiles found for AOI {aoi}. Skipping...")
                 continue
 
-            tiles_metadata = TileMetadataCollection(
-                [tile for tile in self.tiles_metadata if tile.id in self.aoi_tiles[aoi]]
+            aoi_tiles_metadata = PointCloudTileMetadataCollection(
+                [tile for tile in self.tiles_metadata if tile.tile_id in self.aoi_tiles[aoi]]
             )
+
             polygons = [x["geometry"].to_list() for x in labels]
             categories_list = (
                 [
@@ -426,7 +437,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
             # Saving the tiles
 
             coco_output_file_path = (
-                self.annotation_folder_path
+                self.output_path
                 / PointCloudCocoNameConvention.create_name(
                     product_name=self.tiles_metadata.product_name,
                     ground_resolution=None,
@@ -438,7 +449,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
             coco_generator = PointCloudCOCOGenerator(
                 description="Dataset for the product XYZ",
-                tiles_metadata=tiles_metadata,
+                tiles_metadata=aoi_tiles_metadata,
                 polygons=polygons,
                 scores=None,
                 categories=categories_list,
@@ -475,6 +486,14 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         if tile_labels.empty is False:
             geopoints.crs = tile_labels.crs
 
+            print(tile_labels)
+            print(geopoints)
+
+            print(tile_labels.columns)
+            print(geopoints.columns)
+
+            tile_labels.drop(columns=['level_0'], errors='ignore', inplace=True)
+
             joined_label = tile_labels.sjoin(
                 geopoints, how="right", predicate="contains"
             )
@@ -493,9 +512,9 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                 positions, points
             ), f"The points are not in the same order for {tile_labels['tile_id']}"
 
-            joined_label["Label"] = joined_label["Label"].apply(category_to_id)
+            joined_label[self.other_labels_attributes_column_names] = joined_label[self.other_labels_attributes_column_names].apply(category_to_id)
 
-            semantic_labels = joined_label["Label"].values.reshape((-1, 1))
+            semantic_labels = joined_label[self.other_labels_attributes_column_names].values.reshape((-1, 1))
             instance_labels = joined_label["instance_id"].values.reshape((-1, 1))
 
         else:

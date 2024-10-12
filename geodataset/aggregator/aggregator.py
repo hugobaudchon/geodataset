@@ -1,15 +1,13 @@
 import json
 import warnings
-from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List, Dict
 from warnings import warn
 
-import numpy as np
 import pandas as pd
 import rasterio
 import shapely
-from shapely import box, Polygon, MultiPolygon
+from shapely import Polygon, MultiPolygon
 import geopandas as gpd
 from tqdm import tqdm
 

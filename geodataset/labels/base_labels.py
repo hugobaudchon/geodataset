@@ -24,20 +24,22 @@ class PolygonLabels(BaseLabels):
     def __init__(self,
                  path: Union[str, Path],
                  geopackage_layer_name: str = None,
-                 main_label_category_column: str = None,
-                 other_labels_attributes_column: List[str] = None,
+                 main_label_category_column_name: str = None,
+                 other_labels_attributes_column_names: List[str] = None,
                  keep_categories: List[str] = None):
 
         self.path = Path(path)
         self.ext = self.path.suffix
         self.geopackage_layer_name = geopackage_layer_name
-        self.main_label_category_column_name = main_label_category_column
-        self.other_labels_attributes_column_names = other_labels_attributes_column
-        self.main_label_category_column_name = main_label_category_column
+        self.main_label_category_column_name = main_label_category_column_name
+        self.other_labels_attributes_column_names = other_labels_attributes_column_names
 
-        gdf = self._load_labels()
-        
-        self.geometries_gdf = gdf[gdf.Label.isin(keep_categories)]
+        self.geometries_gdf = self._load_labels()
+
+        if keep_categories and main_label_category_column_name:
+            self.geometries_gdf = self.geometries_gdf[self.geometries_gdf[main_label_category_column_name].isin(keep_categories)]
+        elif keep_categories:
+            raise ValueError("You need to specify the 'main_label_category_column_name' to filter the categories in 'keep_categories'.")
 
     def _load_labels(self):
         # Loading the labels into a GeoDataFrame
@@ -50,7 +52,7 @@ class PolygonLabels(BaseLabels):
         labels_gdf = self._check_valid_polygons(labels_gdf)
 
         return labels_gdf
-    
+
     def _load_gdf_labels(self):
         if self.ext.lower() == '.xml':
             labels_gdf = self._load_xml_labels()
@@ -62,9 +64,8 @@ class PolygonLabels(BaseLabels):
             raise Exception(f'Annotation format {self.ext} is not yet supported.')
         return labels_gdf
 
-        
-
-    def _check_valid_polygons(self, labels_gdf):
+    @staticmethod
+    def _check_valid_polygons(labels_gdf):
         n_labels = len(labels_gdf)
         labels_gdf = labels_gdf.dropna(subset=['geometry'])
         if n_labels != len(labels_gdf):
@@ -76,8 +77,9 @@ class PolygonLabels(BaseLabels):
             warnings.warn(f"Removed {n_labels - len(labels_gdf)} out of {n_labels} labels as they have an area of 0.")
 
         return labels_gdf
-    
-    def _check_multipolygons(self, labels_gdf):
+
+    @staticmethod
+    def _check_multipolygons(labels_gdf):
         if (labels_gdf['geometry'].type == 'MultiPolygon').any():
             labels_gdf['geometry'] = labels_gdf['geometry'].astype(object).apply(try_cast_multipolygon_to_polygon)
             n_poly_before = len(labels_gdf)
@@ -85,7 +87,7 @@ class PolygonLabels(BaseLabels):
             warnings.warn(f"Removed {n_poly_before - len(labels_gdf)} out of {n_poly_before} labels as they are MultiPolygons"
                           f" that can't be cast to Polygons.")
         return labels_gdf
-    
+
     def _load_geopandas_labels(self):
         # Load polygons
 
@@ -212,20 +214,19 @@ class PolygonLabels(BaseLabels):
 
         return labels_gdf
 
-
-    def _remove_overlapping_polygons(self, labels_gdf):
+    @staticmethod
+    def _remove_overlapping_polygons(labels_gdf):
 
         labels_gdf['id'] = labels_gdf.index
 
         overlap_polygons = labels_gdf.sjoin(labels_gdf, how='inner', predicate="overlaps")
-        
+
         ind = overlap_polygons.id_left.values
         labels_gdf = labels_gdf[~(labels_gdf.id.isin(ind))]
         print(f"Removing {ind.shape[0]} overlapping polygons")
 
-
         overlay = gpd.overlay(labels_gdf, labels_gdf, how='intersection')
-        
+
         overlap_set = set()
         for ind, each in overlay.iterrows():
             if(each.id_1 != each.id_2):

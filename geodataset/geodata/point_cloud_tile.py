@@ -1,21 +1,26 @@
-from typing import List, Tuple, Union
+from pathlib import Path
+from typing import Union, Tuple, List
 
 import geopandas as gpd
-import matplotlib.pyplot as plt
 import numpy as np
+import rasterio
+from matplotlib import pyplot as plt
 from pyproj import CRS as PyProjCRS
-from shapely.geometry import box
+from shapely import box
 
-from geodataset.utils.file_name_conventions import PointCloudTileNameConvention
+from geodataset.utils import find_tiles_paths, TileNameConvention, strip_all_extensions_and_path
+from geodataset.utils.file_name_conventions import PointCloudTileNameConvention, validate_and_convert_product_name
 
 
-class TileMetadata:
+class PointCloudTileMetadata:
     """
     Represents metadata for a tile, Generally used for PointCloudTile.
     The tiles are supposed to be rectangular.
 
     Parameters
     ----------
+    tile_id: int
+        The unique id of the tile.
     x_bound: Tuple[float, float], optional
         The x-axis bounds of the tile.
     y_bound: Tuple[float, float], optional
@@ -31,15 +36,15 @@ class TileMetadata:
     def __init__(
         self,
         crs: PyProjCRS,
-        id: int,
+        tile_id: int,
         tile_name: str,
         x_bound: Union[Tuple[float, float], None] = None,
         y_bound: Union[Tuple[float, float], None] = None,
         z_bound: Union[Tuple[float, float], None] = None,
-        
+
         height: int = None,
         width: int = None,
-
+        aoi: str = None
     ) -> None:
         """
         Initializes a TileMetadata object.
@@ -70,18 +75,18 @@ class TileMetadata:
         ), f"Invalid output_filename: {tile_name}"
 
         self.tile_name = tile_name
-        self.id = id
+        self.tile_id = tile_id
 
         self.geometry = self._get_bounding_box()
-        
+
         # Height and width are important to generate coco dataset
         # NOTE: This is important for generating bounding boxes for the tiles
-         
+
         self.height = height
         self.width = width
+        self.aoi = aoi
 
-        
-    
+
     def __repr__(self) -> str:
         return self.info()
 
@@ -120,24 +125,23 @@ class TileMetadata:
         Returns whether the z-axis is bounded.
         """
         return self._bounded((self.min_z, self.max_z))
-    
+
     def _get_bounding_box(self,):
         bounding_box = box(self.min_x, self.min_y, self.max_x, self.max_y )
         return gpd.GeoDataFrame(index=[0], crs= self.crs, geometry=[bounding_box])
 
 
-
-class TileMetadataCollection:
+class PointCloudTileMetadataCollection:
     """
     Represents metadata for a collection of point cloud tiles.
 
     Parameters
     ----------
-    tile_metadata_list: List[TileMetadata]
+    tile_metadata_list: List[geodataset.geodata.point_cloud_tile.PointCloudTileMetadata]
         A list of tile metadata.
     """
 
-    def __init__(self, tile_metadata_list: List[TileMetadata], product_name=Union[str, None]):
+    def __init__(self, tile_metadata_list: List[PointCloudTileMetadata], product_name=Union[str, None]):
         self.product_name = product_name
         self.tile_metadata_list = tile_metadata_list
         self.min_x, self.max_x, self.min_y, self.max_y, self.min_z, self.max_z = (
@@ -188,14 +192,60 @@ class TileMetadataCollection:
         self.height = self.tile_metadata_list[0].height
         assert all([True if i.width == self.tile_metadata_list[0].width else False for i in self.tile_metadata_list]), "All tiles must have the same width"
         self.width = self.tile_metadata_list[0].width
-        
+
         self.gdf = self._create_gdf()
-        self.tile_id_to_idx = {tile_id: idx for idx, tile_id in enumerate([tile.id for tile in self.tile_metadata_list])}
+        self.aois = self.gdf.aoi.unique()
+        self.tile_id_to_idx = {tile_id: idx for idx, tile_id in enumerate([tile.tile_id for tile in self.tile_metadata_list])}
+
+    @classmethod
+    def from_tiles_folder(cls,
+                          root_tiles_folder: Union[str, Path],
+                          point_cloud_path: Union[str, Path],
+                          downsample_voxel_size: float):
+        tiles_folder = Path(root_tiles_folder)
+        point_cloud_path = Path(point_cloud_path)
+        tiles_paths = find_tiles_paths([tiles_folder], extensions=['tif'])
+
+        pc_product_name = validate_and_convert_product_name(strip_all_extensions_and_path(point_cloud_path))
+
+        tiles_metadata = []
+        tile_id = 0
+        for tile_name in tiles_paths.keys():
+            tile_path = tiles_paths[tile_name]
+            if ".tif" in str(tile_path):
+                (tile_product_name, scale_factor, ground_resolution,
+                 col, row, aoi) = TileNameConvention.parse_name(tile_path.name)
+
+                tile_name = PointCloudTileNameConvention.create_name(
+                    product_name=pc_product_name, row=row, col=col, aoi=aoi, voxel_size=downsample_voxel_size
+                )
+                data = rasterio.open(tile_path)
+                x_bound = (data.bounds[0], data.bounds[2])
+                y_bound = (data.bounds[1], data.bounds[3])
+                crs = PyProjCRS.from_user_input(data.crs)
+                tile_md = PointCloudTileMetadata(
+                    x_bound=x_bound,
+                    y_bound=y_bound,
+                    crs=crs,
+                    tile_name=tile_name,
+                    tile_id=tile_id,
+                    width=data.width,
+                    height=data.height,
+                    aoi=aoi
+                )
+
+                tiles_metadata.append(tile_md)
+                tile_id += 1
+
+        return cls(tiles_metadata, product_name=pc_product_name)
 
     def _create_gdf(self,):
-        return gpd.GeoDataFrame(data={"tile_id":[tile.id for tile in self.tile_metadata_list]}, geometry=[tile.geometry.values[0][0] for tile in self.tile_metadata_list], crs=self.crs)
-    
-    def __getitem__(self, idx: int) -> TileMetadata:
+        return gpd.GeoDataFrame(data={"tile_id":[tile.tile_id for tile in self.tile_metadata_list],
+                                      "aoi": [tile.aoi for tile in self.tile_metadata_list]},
+                                geometry=[tile.geometry.values[0][0] for tile in self.tile_metadata_list],
+                                crs=self.crs)
+
+    def __getitem__(self, idx: int) -> PointCloudTileMetadata:
         return self.tile_metadata_list[idx]
 
     def __len__(self) -> int:
@@ -274,9 +324,9 @@ class TileMetadataCollection:
         )
 
         for tile in self.tile_metadata_list:
-           
+
             color = "white"
-            
+
 
             tile_min_dim1, tile_max_dim1 = getattr(tile, f"min_{dim1}"), getattr(
                 tile, f"max_{dim1}"
@@ -317,13 +367,13 @@ class TileMetadataCollection:
         ax.set_title("Tiles with train, test, val split (random tile highlighted)")
 
         return fig, ax
-    
-    def get_tile_by_id(self, id: int) -> Tuple[float, float, float, float]:
+
+    def get_tile_by_id(self, tile_id: str) -> PointCloudTileMetadata:
         """
         Returns the tile with the given id.
         """
 
-        idx = self.tile_id_to_idx[id]
+        idx = self.tile_id_to_idx[tile_id]
 
         return self.tile_metadata_list[idx]
 
@@ -346,5 +396,3 @@ class TileMetadataCollection:
             f"num_unique_xz_bounds: {len(self.unique_xz_bounds)}\n"
             f"num_unique_yz_bounds: {len(self.unique_yz_bounds)}\n"
         )
-
-        

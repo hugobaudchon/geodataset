@@ -10,8 +10,9 @@ from tqdm import tqdm
 
 from geodataset.aoi import AOIGeneratorForTiles, AOIFromPackageForTiles
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
-from geodataset.geodata import Raster, Tile
+from geodataset.geodata import Raster, RasterTile
 from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention
+from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
 
 
 class BaseRasterTilerizer(ABC):
@@ -86,7 +87,7 @@ class BaseRasterTilerizer(ABC):
                         scale_factor=self.scale_factor)
         return raster
 
-    def _create_tiles(self) -> List[Tile]:
+    def _create_tiles(self) -> List[RasterTile]:
         width = self.raster.metadata['width']
         height = self.raster.metadata['height']
 
@@ -109,7 +110,7 @@ class BaseRasterTilerizer(ABC):
 
         return tiles
 
-    def _get_tiles_per_aoi(self, tiles: List[Tile]):
+    def _get_tiles_per_aoi(self, tiles: List[RasterTile]):
         print('Assigning the tiles to the aois...')
 
         if self.aois_config is not None:
@@ -218,6 +219,26 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
         self.output_path = Path(output_path) / self.raster.output_name
         self.tiles_path = self.output_path / 'tiles'
         self.tiles_path.mkdir(parents=True, exist_ok=True)
+
+    def _get_tiles_per_aoi(self, tiles: List[RasterTile]):
+        aois_tiles, aois_gdf = super()._get_tiles_per_aoi(tiles=tiles)
+
+        # Saving the AOIs to disk
+        for aoi in aois_gdf['aoi'].unique():
+            if aoi in aois_tiles and len(aois_tiles[aoi]) > 0:
+                aoi_gdf = aois_gdf[aois_gdf['aoi'] == aoi]
+                aoi_gdf = self.raster.revert_polygons_pixels_coordinates_to_crs(aoi_gdf)
+                aoi_file_name = AoiGeoPackageConvention.create_name(
+                    product_name=self.raster.output_name,
+                    aoi=aoi,
+                    ground_resolution=self.ground_resolution,
+                    scale_factor=self.scale_factor
+                )
+                aoi_gdf.drop(columns=['id'], inplace=True, errors='ignore')
+                aoi_gdf.to_file(self.output_path / aoi_file_name, driver='GPKG')
+                print(f"Final AOI '{aoi}' saved to {self.output_path / aoi_file_name}.")
+
+        return aois_tiles, aois_gdf
 
 
 class RasterTilerizer(BaseDiskRasterTilerizer):

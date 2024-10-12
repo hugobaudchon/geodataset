@@ -4,6 +4,7 @@ from typing import List, Union
 
 import geopandas as gpd
 import laspy
+from arcgis.auth.tools.verifycontext import warnings
 from laspy import CopcReader
 
 import matplotlib.pyplot as plt
@@ -13,12 +14,12 @@ from shapely import Polygon
 from tqdm import tqdm
 
 from geodataset.aoi import AOIFromPackageConfig
-from geodataset.aoi.aoi_base import AOIBaseFromGeoFile
-from geodataset.dataset.coco_generator import PointCloudCOCOGenerator
-from geodataset.metadata.tile_metadata import TileMetadata, TileMetadataCollection
+from geodataset.aoi.aoi_base import AOIBaseFromGeoFileInCRS
+from geodataset.utils import PointCloudCOCOGenerator, strip_all_extensions_and_path
+from geodataset.geodata.point_cloud_tile import PointCloudTileMetadata, PointCloudTileMetadataCollection
 from geodataset.utils.file_name_conventions import (
     PointCloudCocoNameConvention,
-    PointCloudTileNameConvention,
+    PointCloudTileNameConvention, validate_and_convert_product_name,
 )
 
 
@@ -28,15 +29,15 @@ class PointCloudTilerizer:
 
     Parameters
     ----------
-    point_cloud_path : Path
+    point_cloud_path : Union[str, Path]
         Path to the point cloud file.
-    output_path : Path
+    output_path : Union[str, Path]
         Path to the output folder where the tiles and annotations will be saved.
     tiles_metadata : Union[TileMetadataCollection, None], optional
         Metadata of the tiles, by default None
     aois_config : Union[AOIFromPackageConfig, None], optional
         Configuration for AOIs, by default None
-    tile_side_length : float, optional
+    tile_side_length: float, optional
         Side length of the tile, by default None
     keep_dims : List[str], optional
         List of dimensions to keep, by default None
@@ -55,28 +56,29 @@ class PointCloudTilerizer:
 
     def __init__(
         self,
-        point_cloud_path: Path,
-        output_path: Path,
-        tiles_metadata: Union[TileMetadataCollection, None] = None,
+        point_cloud_path: Union[str, Path],
+        output_path: Union[str, Path],
+        tiles_metadata: Union[PointCloudTileMetadataCollection, None] = None,
         aois_config: Union[AOIFromPackageConfig, None] = None,
         tile_side_length: float = None,
         keep_dims: List[str] = None,
         downsample_voxel_size: float = None,
         verbose: bool = False,
-        tile_overlap: float = 0.5,
+        tile_overlap: float = None,
         max_tile: int = 5000,
         force: bool = False,
     ):
         assert not (
             tile_side_length and tiles_metadata
-        ), "Only one of tile resolution or tile metadata should be provided"
+        ), "Only one of tile_side_length or tiles_metadata should be provided"
         if tile_overlap and tiles_metadata:
             print("Tile overlap will be ignored, as tile metadata is also provided")
 
-        self.point_cloud_path = point_cloud_path
+        self.point_cloud_path = Path(point_cloud_path)
+        self.product_name = validate_and_convert_product_name(strip_all_extensions_and_path(self.point_cloud_path))
         self.tiles_metadata = tiles_metadata
         self.output_path = Path(output_path)
-        self.aoi_engine = AOIBaseFromGeoFile(aois_config)
+        self.aois_config = aois_config
         self.tile_side_length = tile_side_length
         self.tile_overlap = tile_overlap
         self.keep_dims = keep_dims if keep_dims is not None else "ALL"
@@ -101,28 +103,36 @@ class PointCloudTilerizer:
             if self.downsample_voxel_size
             else self.output_path / "pc_tiles"
         )
-        self.annotation_folder_path = self.output_path / "annotations"
+
+        # Processing AOIs
+        if self.aois_config is None:
+            raise Exception("Please provide an aoi_config. Currently don't support 'None'.")
+        self.aoi_engine = AOIBaseFromGeoFileInCRS(aois_config)
+        self.aois_in_both = self._check_aois_in_both_tiles_and_config()
 
         self.create_folder()
 
-    def populate_tiles_metadata(
-        self,
-        suffix: str = None,
-    ):
+    def _check_aois_in_both_tiles_and_config(self):
+        aois_in_both = set(self.tiles_metadata.aois) and set(self.aoi_engine.loaded_aois.keys())
+
+        if set(self.tiles_metadata.aois) != set(self.aoi_engine.loaded_aois.keys()):
+            warnings.warn(f"AOIs in the AOI engine and the tiles metadata do not match, got"
+                          f" {set(self.tiles_metadata.aois)} from tiles_metadata and"
+                          f" {set(self.aoi_engine.loaded_aois.keys())} from aoi_config."
+                          f" Will only save tiles for the AOIs present in both: "
+                          f"{aois_in_both}.")
+
+        return aois_in_both
+
+    def populate_tiles_metadata(self):
         name_convention = PointCloudTileNameConvention()
-
-        product_name = self.point_cloud_path.stem.split(".")[0].replace("-", "_")
         
-        if suffix:
-            product_name = f"{product_name}_{suffix}"
-
-
         with CopcReader.open(self.point_cloud_path) as reader:
             min_x, min_y = reader.header.x_min, reader.header.y_min
             max_x, max_y = reader.header.x_max, reader.header.y_max
 
             tiles_metadata = []
-            counter = 0
+            tile_id = 0
             for i, x in enumerate(
                 np.arange(min_x, max_x, self.tile_side_length * self.tile_overlap)
             ):
@@ -133,22 +143,22 @@ class PointCloudTilerizer:
                     y_bound = [y, y + self.tile_side_length]
 
                     tile_name = name_convention.create_name(
-                        product_name=product_name, tile_id=f"{counter}", row=i, col=j
+                        product_name=self.product_name, row=i, col=j
                     )
 
-                    tile_md = TileMetadata(
-                        id=f"{counter}",
+                    tile_md = PointCloudTileMetadata(
                         x_bound=x_bound,
                         y_bound=y_bound,
                         crs=reader.header.parse_crs(),
                         tile_name=tile_name,
+                        tile_id=tile_id,
                     )
 
                     tiles_metadata.append(tile_md)
-                    counter += 1
+                    tile_id += 1
 
-            self.tiles_metadata = TileMetadataCollection(
-                tiles_metadata, product_name=product_name
+            self.tiles_metadata = PointCloudTileMetadataCollection(
+                tiles_metadata, product_name=self.product_name
             )
 
         print(f"Number of tiles generated: {len(self.tiles_metadata)}")
@@ -165,7 +175,8 @@ class PointCloudTilerizer:
 
     def create_folder(self):
         self.pc_tiles_folder_path.mkdir(parents=True, exist_ok=True)
-        self.annotation_folder_path.mkdir(parents=True, exist_ok=True)
+        for aoi in self.aois_in_both:
+            (self.pc_tiles_folder_path / aoi).mkdir(parents=True, exist_ok=True)
 
     def query_tile(self, tile_md, reader):
         mins = np.array([tile_md.min_x, tile_md.min_y])
@@ -186,17 +197,18 @@ class PointCloudTilerizer:
                 if len(data) == 0:
                     continue
 
-                pcd = self._laspy_to_o3d(data, self.keep_dims.copy())
+                pcd = self._laspy_to_o3d(data, self.keep_dims.copy() if type(self.keep_dims) is not str else self.keep_dims)
                 if self.downsample_voxel_size:
                     pcd = self._downsample_tile(pcd, self.downsample_voxel_size)
                 pcd = self._keep_unique_points(pcd)
                 new_tile_md_list.append(tile_md)
                 downsampled_tile_path = (
-                    self.pc_tiles_folder_path / f"{tile_md.tile_name}"
+                    self.pc_tiles_folder_path / f"{tile_md.aoi}/{tile_md.tile_name}"
                 )
                 o3d.t.io.write_point_cloud(str(downsampled_tile_path), pcd)
 
-        self.tiles_metadata = TileMetadataCollection(new_tile_md_list)
+        print(f"Finished tilerizing. Number of tiles generated: {len(new_tile_md_list)}.")
+        self.tiles_metadata = PointCloudTileMetadataCollection(new_tile_md_list)
 
     def tilerize(
         self,
@@ -208,17 +220,24 @@ class PointCloudTilerizer:
     def _get_aoi_tiles(self):
         aois_gdf = self.aoi_engine.get_aoi_gdf()
         # //NOTE -  Cannot check for color as data is not provided here and only metadata is provided.
-
         tiles_gdf = self.tiles_metadata.gdf
-        aois_gdf.crs = tiles_gdf.crs
-        intersections = gpd.overlay(tiles_gdf, aois_gdf, how="intersection")
-        intersections["intersection_area"] = intersections.geometry.area
-        max_intersection_per_tile = intersections.loc[
-            intersections.groupby("tile_id")["intersection_area"].idxmax()
-        ]
-        aois_tiles = (
-            max_intersection_per_tile.groupby("aoi")["tile_id"].apply(list).to_dict()
-        )
+
+        if 'aoi' not in tiles_gdf or ('aoi' in tiles_gdf and tiles_gdf['aoi'].isnull().all()):
+            # only keeping 'aoi' column from aois_gdf, ignoring the one from tiles_gdf as it is same info if set
+            tiles_gdf = tiles_gdf.drop(columns=['aoi'])
+
+            aois_gdf.crs = tiles_gdf.crs
+            intersections = gpd.overlay(tiles_gdf, aois_gdf, how="intersection")
+            intersections["intersection_area"] = intersections.geometry.area
+            max_intersection_per_tile = intersections.loc[
+                intersections.groupby("tile_id")["intersection_area"].idxmax()
+            ]
+            aois_tiles = (
+                max_intersection_per_tile.groupby("aoi")["tile_id"].apply(list).to_dict()
+            )
+        else:
+            # just use tiles_gdf, no need to overlay
+            aois_tiles = tiles_gdf.groupby("aoi")["tile_id"].apply(list).to_dict()
 
         return aois_tiles
 
@@ -227,13 +246,12 @@ class PointCloudTilerizer:
         coco_paths = {}
 
         for aoi in aoi_tiles:
-            tiles_metadata = TileMetadataCollection(
-                [tile for tile in self.tiles_metadata if tile.id in aoi_tiles[aoi]]
+            tiles_metadata = PointCloudTileMetadataCollection(
+                [tile for tile in self.tiles_metadata if tile.tile_id in aoi_tiles[aoi]]
             )
 
-            print(self.tiles_metadata.product_name)
             coco_output_file_path = (
-                self.annotation_folder_path
+                self.output_path
                 / PointCloudCocoNameConvention.create_name(
                     product_name=self.tiles_metadata.product_name,
                     ground_resolution=None,

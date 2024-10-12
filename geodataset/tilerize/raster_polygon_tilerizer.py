@@ -8,12 +8,13 @@ from tqdm import tqdm
 from geodataset.aoi import AOIFromPackageConfig, AOIGeneratorConfig
 from geodataset.aoi.aoi_from_package import AOIFromPackageForPolygons
 from geodataset.geodata import Raster
-from geodataset.geodata.tile import TileSaver, PolygonTile
+from geodataset.geodata.raster_tile import RasterTileSaver, RasterPolygonTile
 from geodataset.labels import RasterPolygonLabels
 from geodataset.utils import CocoNameConvention, COCOGenerator
+from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
 
 
-class PolygonTilerizer:
+class RasterPolygonTilerizer:
     def __init__(self,
                  raster_path: Path,
                  labels_path: Path,
@@ -114,6 +115,20 @@ class PolygonTilerizer:
         else:
             raise Exception("No AOI configuration provided.")
 
+        # Saving the AOIs to disk
+        for aoi in aois_gdf['aoi'].unique():
+            if aoi in aois_polygons and len(aois_polygons[aoi]) > 0:
+                aoi_gdf = aois_gdf[aois_gdf['aoi'] == aoi]
+                aoi_gdf = self.raster.revert_polygons_pixels_coordinates_to_crs(aoi_gdf)
+                aoi_file_name = AoiGeoPackageConvention.create_name(
+                    product_name=self.raster.output_name,
+                    aoi=aoi,
+                    ground_resolution=self.ground_resolution,
+                    scale_factor=self.scale_factor
+                )
+                aoi_gdf.to_file(self.output_path / aoi_file_name, driver='GPKG')
+                print(f"Final AOI '{aoi}' saved to {self.output_path / aoi_file_name}.")
+
         return aois_polygons, aois_gdf
 
     def _generate_aois_tiles_and_polygons(self):
@@ -156,9 +171,9 @@ class PolygonTilerizer:
 
         return final_aois_tiles_paths, final_aois_polygons
 
-    def _save_tiles_batch(self, tiles: List[PolygonTile]):
+    def _save_tiles_batch(self, tiles: List[RasterPolygonTile]):
         tiles_paths = [self.tiles_folder_path / tile.generate_name() for tile in tiles]
-        tile_saver = TileSaver(tiles_path=self.tiles_folder_path, n_workers=self.coco_n_workers)
+        tile_saver = RasterTileSaver(tiles_path=self.tiles_folder_path, n_workers=self.coco_n_workers)
         tile_saver.save_all_tiles(tiles)
 
         return tiles_paths

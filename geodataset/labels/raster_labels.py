@@ -172,7 +172,7 @@ class RasterPolygonLabels:
         labels_gdf = gpd.GeoDataFrame(geometry=labels_bboxes)
         # Adding main categories and other attributes in labels_gdf
         if self.main_label_category_column_name:
-            labels_gdf['main_category'] = pd.Series(labels_main_categories)
+            labels_gdf[self.main_label_category_column_name] = pd.Series(labels_main_categories)
         if self.other_labels_attributes_column_names:
             for attribute, values in labels_other_attributes.items():
                 labels_gdf[attribute] = pd.Series(values)

@@ -6,12 +6,12 @@ import geopandas as gpd
 import pandas as pd
 
 from .aoi_config import AOIFromPackageConfig, AOIGeneratorConfig
-from geodataset.geodata import Tile, Raster
+from geodataset.geodata import RasterTile, Raster
 from ..labels import RasterPolygonLabels
 
 class AOIBaseForTiles(ABC):
     def __init__(self,
-                 tiles: List[Tile],
+                 tiles: List[RasterTile],
                  tile_coordinate_step: int):
         """
         :param tiles: A list of instanced Tile.
@@ -86,7 +86,7 @@ class AOIBaseFromPackage(ABC):
 
         return loaded_aois
 
-class AOIBaseFromGeoFile:
+class AOIBaseFromGeoFileInCRS:
     def __init__(self, aois_config: AOIFromPackageConfig):
         
         self.aois_config = aois_config

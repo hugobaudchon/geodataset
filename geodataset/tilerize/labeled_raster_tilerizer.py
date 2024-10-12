@@ -7,7 +7,7 @@ from shapely import box, Polygon
 from shapely.affinity import translate
 
 from geodataset.aoi import AOIConfig
-from geodataset.geodata.tile import Tile
+from geodataset.geodata.raster_tile import RasterTile
 from geodataset.labels.raster_labels import RasterPolygonLabels
 
 
@@ -161,6 +161,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
     def _get_tiles_and_labels_per_aoi(self):
         tiles = self._create_tiles()
+
         (intersecting_labels_raster_coords,
          intersecting_labels_tiles_coords) = self._find_associated_labels(tiles=tiles)
 
@@ -175,6 +176,10 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
         # Assigning the tiles to AOIs
         aois_tiles, aois_gdf = self._get_tiles_per_aoi(tiles=labeled_tiles)
+
+        # As some tiles may have been duplicated/removed, we have to re-compute the associated labels
+        (intersecting_labels_raster_coords,
+         intersecting_labels_tiles_coords) = self._find_associated_labels(tiles=[tile for tiles in aois_tiles.values() for tile in tiles])
 
         # Intersect the labels with the aois, to make sure for a given tile, we only get labels inside its assigned AOI.
         intersecting_labels_raster_coords['label_id'] = intersecting_labels_raster_coords.index
@@ -233,7 +238,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         significant_polygons_inter = inter_polygons[inter_polygons['intersection_ratio'] > self.min_intersection_ratio]
         significant_polygons_inter.reset_index()
 
-        def adjust_geometry(polygon: Polygon, tile: Tile):
+        def adjust_geometry(polygon: Polygon, tile: RasterTile):
             return translate(polygon, xoff=-tile.col, yoff=-tile.row)
 
         intersecting_labels_tiles_coords = significant_polygons_inter.copy()

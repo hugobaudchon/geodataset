@@ -97,7 +97,6 @@ class TileNameConvention(FileNameConvention):
         col = int(parts[-2])
         specifier = parts[-3]
         scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
-
         if pattern_name == 'pattern_aoi':
             aoi = parts[-4]
             if aoi == 'noaoi':
@@ -278,20 +277,48 @@ class AoiTilesImageConvention(FileNameConvention):
         return product_name, scale_factor, ground_resolution
 
 
+class AoiGeoPackageConvention(FileNameConvention):
+    @staticmethod
+    def _validate_name(name):
+        pattern = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_aoi_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[a-zA-Z0-9]+\.gpkg"
+        if not re.match(pattern, name):
+            raise ValueError(f"coco_name {name} does not match the expected format {pattern}.")
+
+    @staticmethod
+    def create_name(product_name: str, aoi: str, scale_factor=None, ground_resolution=None):
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
+        aoi_name = f"{product_name}_aoi_{specifier}_{aoi}.gpkg"
+        AoiGeoPackageConvention._validate_name(aoi_name)
+        return aoi_name
+
+    @staticmethod
+    def parse_name(aoi_name: str):
+        AoiGeoPackageConvention._validate_name(aoi_name)
+
+        parts = aoi_name.split("_")
+        product_name = "_".join(parts[:-3])
+        specifier = parts[-2]
+        aoi = parts[-1].replace(".gpkg", "")
+
+        scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
+
+        return product_name, scale_factor, ground_resolution, aoi
+
+
 class PointCloudTileNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^.*pctile_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+_id_[0-9]+\.(ply|las|pcd)$"
+        pattern = r"^.*pctile_[a-zA-Z]+_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+\.(ply|las|pcd)$"
         if not re.match(pattern, name):
             raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
         else:
             return True
 
     @staticmethod
-    def create_name(product_name: str, tile_id:str, scale_factor=None, ground_resolution=None, voxel_size=None, extension='pcd', row=None, col=None):
-        assert extension in ["pcd", "ply", "las"], f"Extension must be either 'ply' or 'las', not {extension}."
+    def create_name(product_name: str, scale_factor=None, ground_resolution=None, voxel_size=None, extension='pcd', row=None, col=None, aoi=None):
+        assert extension in ["pcd", "ply", "las"], f"Extension must be either 'pcd', 'ply' or 'las', not {extension}."
         specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size)
-        tile_name = f"{product_name}_pctile_{specifier}_{row}_{col}_id_{tile_id}.{extension}"
+        tile_name = f"{product_name}_pctile_{aoi if aoi else 'noaoi'}_{specifier}_{col}_{row}.{extension}"
         PointCloudTileNameConvention._validate_name(tile_name)
         return tile_name
 
@@ -301,10 +328,12 @@ class PointCloudTileNameConvention(FileNameConvention):
 
         parts = tile_name.split("_pctile_")
         product_name = parts[0]
-        specifier, col, row, _, tile_id_extension = parts[1].rsplit("_", 4)
+        aoi, specifier, col, row, _, tile_id_extension = parts[1].rsplit("_", 4)
         tile_id, extension = tile_id_extension.split(".")
 
-        scale_factor, ground_resolution, voxel_size = FileNameConvention.parse_specifier(specifier)
+        if aoi == 'noaoi':
+            aoi = None
 
-        return product_name, scale_factor, ground_resolution, voxel_size, int(col), int(row), int(tile_id)
+        scale_factor, ground_resolution, voxel_size = FileNameConvention.parse_specifier(specifier)
+        return product_name, scale_factor, ground_resolution, voxel_size, int(col), int(row), int(tile_id), aoi
     
