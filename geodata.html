@@ -58,19 +58,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Raster.adjust_geometries_to_raster_pixel_coordinates"><code class="docutils literal notranslate"><span class="pre">Raster.adjust_geometries_to_raster_pixel_coordinates()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Raster.get_polygon_tile"><code class="docutils literal notranslate"><span class="pre">Raster.get_polygon_tile()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Raster.get_tile"><code class="docutils literal notranslate"><span class="pre">Raster.get_tile()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#geodataset.geodata.Tile"><code class="docutils literal notranslate"><span class="pre">Tile</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Tile.from_path"><code class="docutils literal notranslate"><span class="pre">Tile.from_path()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Tile.generate_name"><code class="docutils literal notranslate"><span class="pre">Tile.generate_name()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Tile.get_bbox"><code class="docutils literal notranslate"><span class="pre">Tile.get_bbox()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Tile.save"><code class="docutils literal notranslate"><span class="pre">Tile.save()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#geodataset.geodata.PolygonTile"><code class="docutils literal notranslate"><span class="pre">PolygonTile</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.PolygonTile.from_path"><code class="docutils literal notranslate"><span class="pre">PolygonTile.from_path()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.PolygonTile.generate_name"><code class="docutils literal notranslate"><span class="pre">PolygonTile.generate_name()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.PolygonTile.save"><code class="docutils literal notranslate"><span class="pre">PolygonTile.save()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Raster.revert_polygons_pixels_coordinates_to_crs"><code class="docutils literal notranslate"><span class="pre">Raster.revert_polygons_pixels_coordinates_to_crs()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -183,7 +171,7 @@ Only used when use_variable_tile_size is set to ‘True’.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>Tuple[<a class="reference internal" href="#geodataset.geodata.PolygonTile" title="geodataset.geodata.PolygonTile">PolygonTile</a>, Polygon]</p>
+<dd class="field-even"><p>Tuple[RasterPolygonTile, Polygon]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -196,165 +184,27 @@ Only used when use_variable_tile_size is set to ‘True’.</p></li>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>window</strong> (<em>rasterio.windows.Window</em>) – The window to generate the Tile from.</p></li>
-<li><p><strong>tile_id</strong> (<em>int</em><em> or </em><em>None</em>) – The id of the tile. Used in the tile name, and should be unique across a dataset.</p></li>
+<li><p><strong>tile_id</strong> (<em>int</em>) – The id of the tile.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference internal" href="#geodataset.geodata.Tile" title="geodataset.geodata.Tile">Tile</a></p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="geodataset.geodata.Tile">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.geodata.</span></span><span class="sig-name descname"><span class="pre">Tile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ground_resolution</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale_factor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">row</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">col</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_id</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/tile.html#Tile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.Tile" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>Class to represent a tile of a raster image. Generally generated by a <a class="reference internal" href="#geodataset.geodata.Raster" title="geodataset.geodata.raster.Raster"><code class="xref py py-class docutils literal notranslate"><span class="pre">Raster</span></code></a>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>data</strong> (<em>np.ndarray</em>) – The pixel data of the tile (image).</p></li>
-<li><p><strong>metadata</strong> (<em>dict</em>) – The metadata of the raster image. Should be compatible with rasterio.open(…) function.
-Examples of such metadata keys are ‘crs’, ‘transform’, ‘width’, ‘height’…</p></li>
-<li><p><strong>output_name</strong> (<em>str</em>) – The name of the output product. Usually the same as the Raster name.
-Used as the prefix for the final .tif file name when saving the tile.</p></li>
-<li><p><strong>ground_resolution</strong> (<em>float</em><em>, </em><em>optional</em>) – The ground resolution in meter per pixel desired when loading the raster.
-Only one of ground_resolution and scale_factor can be set at the same time.
-Used for naming the .tif file when saving the tile.</p></li>
-<li><p><strong>scale_factor</strong> (<em>float</em><em>, </em><em>optional</em>) – Scale factor for rescaling the data (change pixel resolution).
-Only one of ground_resolution and scale_factor can be set at the same time.
-Used for naming the .tif file when saving the tile</p></li>
-<li><p><strong>row</strong> (<em>int</em>) – The row index of the tile in the raster (the top left pixel row).
-Used for naming the .tif file when saving the tile.</p></li>
-<li><p><strong>col</strong> (<em>int</em>) – The column index of the tile in the raster (the top left pixel row).
-Used for naming the .tif file when saving the tile.</p></li>
-<li><p><strong>tile_id</strong> (<em>int</em>) – The unique identifier of the tile.</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="geodataset.geodata.Tile.from_path">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_id</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/tile.html#Tile.from_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.Tile.from_path" title="Link to this definition"></a></dt>
-<dd><p>Class method to load a tile from a .tif file.
-The .tif name should follow the naming convention of the <code class="xref py py-class docutils literal notranslate"><span class="pre">TileNameConvention</span></code>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>path</strong> (<em>str</em><em> or </em><em>pathlib.Path</em>) – The path to the .tif file.</p></li>
-<li><p><strong>tile_id</strong> (<em>int</em>) – The unique identifier that should be assigned to the tile.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The loaded Tile.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference internal" href="#geodataset.geodata.Tile" title="geodataset.geodata.Tile">Tile</a></p>
+<dd class="field-even"><p>RasterTile</p>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="geodataset.geodata.Tile.generate_name">
-<span class="sig-name descname"><span class="pre">generate_name</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/tile.html#Tile.generate_name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.Tile.generate_name" title="Link to this definition"></a></dt>
-<dd><p>Generate the name of the tile based on its metadata.</p>
+<dt class="sig sig-object py" id="geodataset.geodata.Raster.revert_polygons_pixels_coordinates_to_crs">
+<span class="sig-name descname"><span class="pre">revert_polygons_pixels_coordinates_to_crs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gdf</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/raster.html#Raster.revert_polygons_pixels_coordinates_to_crs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.Raster.revert_polygons_pixels_coordinates_to_crs" title="Link to this definition"></a></dt>
+<dd><p>Reverts the geometries in a GeoDataFrame from pixel coordinates to the CRS of the Raster.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The name of the tile.</p>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>gdf</strong> (<em>gpd.GeoDataFrame</em>) – The GeoDataFrame containing the geometries to revert.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>str</p>
+<dd class="field-even"><p>gpd.GeoDataFrame</p>
 </dd>
 </dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="geodataset.geodata.Tile.get_bbox">
-<span class="sig-name descname"><span class="pre">get_bbox</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/tile.html#Tile.get_bbox"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.Tile.get_bbox" title="Link to this definition"></a></dt>
-<dd><p>Get the bounding box of the tile in its original Raster coordinates.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The bounding box of the tile.</p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>shapely.geometry.box</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="geodataset.geodata.Tile.save">
-<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_folder</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/tile.html#Tile.save"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.Tile.save" title="Link to this definition"></a></dt>
-<dd><p>Save the tile as a .tif file in the output_folder.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>output_folder</strong> (<em>str</em><em> or </em><em>pathlib.Path</em>) – The path to the output folder where the tile should be saved.</p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="geodataset.geodata.PolygonTile">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.geodata.</span></span><span class="sig-name descname"><span class="pre">PolygonTile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ground_resolution</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale_factor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_id</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/tile.html#PolygonTile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.PolygonTile" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>Class to represent a single polygon label tile of a raster image. Generally generated by a <a class="reference internal" href="#geodataset.geodata.Raster" title="geodataset.geodata.raster.Raster"><code class="xref py py-class docutils literal notranslate"><span class="pre">Raster</span></code></a>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>data</strong> (<em>np.ndarray</em>) – The pixel data of the tile (image).</p></li>
-<li><p><strong>metadata</strong> (<em>dict</em>) – The metadata of the raster image. Should be compatible with rasterio.open(…) function.
-Examples of such metadata keys are ‘crs’, ‘transform’, ‘width’, ‘height’…</p></li>
-<li><p><strong>output_name</strong> (<em>str</em>) – The name of the output product. Usually the same as the Raster name.
-Used as the prefix for the final .tif file name when saving the tile.</p></li>
-<li><p><strong>ground_resolution</strong> (<em>float</em><em>, </em><em>optional</em>) – The ground resolution in meter per pixel desired when loading the raster.
-Only one of ground_resolution and scale_factor can be set at the same time.
-Used for naming the .tif file when saving the tile.</p></li>
-<li><p><strong>scale_factor</strong> (<em>float</em><em>, </em><em>optional</em>) – Scale factor for rescaling the data (change pixel resolution).
-Only one of ground_resolution and scale_factor can be set at the same time.
-Used for naming the .tif file when saving the tile.</p></li>
-<li><p><strong>polygon_id</strong> (<em>int</em>) – The unique identifier of the polygon.</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="geodataset.geodata.PolygonTile.from_path">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/tile.html#PolygonTile.from_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.PolygonTile.from_path" title="Link to this definition"></a></dt>
-<dd><p>Class method to load a tile from a .tif file.
-The .tif name should follow the naming convention of the <code class="xref py py-class docutils literal notranslate"><span class="pre">PolygonTileNameConvention</span></code>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>path</strong> (<em>str</em><em> or </em><em>pathlib.Path</em>) – The path to the .tif file.</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The loaded PolygonTile.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference internal" href="#geodataset.geodata.PolygonTile" title="geodataset.geodata.PolygonTile">PolygonTile</a></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="geodataset.geodata.PolygonTile.generate_name">
-<span class="sig-name descname"><span class="pre">generate_name</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/tile.html#PolygonTile.generate_name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.PolygonTile.generate_name" title="Link to this definition"></a></dt>
-<dd><p>Generate the name of the tile based on its metadata.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The name of the tile.</p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>str</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="geodataset.geodata.PolygonTile.save">
-<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_folder</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/tile.html#PolygonTile.save"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.PolygonTile.save" title="Link to this definition"></a></dt>
-<dd><p>Save the tile as a .tif file in the output_folder.</p>
 </dd></dl>
 
 </dd></dl>

@@ -84,8 +84,9 @@
 
 <span class="kn">from</span> <span class="nn">geodataset.aoi</span> <span class="kn">import</span> <span class="n">AOIGeneratorForTiles</span><span class="p">,</span> <span class="n">AOIFromPackageForTiles</span>
 <span class="kn">from</span> <span class="nn">geodataset.aoi</span> <span class="kn">import</span> <span class="n">AOIConfig</span><span class="p">,</span> <span class="n">AOIGeneratorConfig</span><span class="p">,</span> <span class="n">AOIFromPackageConfig</span>
-<span class="kn">from</span> <span class="nn">geodataset.geodata</span> <span class="kn">import</span> <span class="n">Raster</span><span class="p">,</span> <span class="n">Tile</span>
+<span class="kn">from</span> <span class="nn">geodataset.geodata</span> <span class="kn">import</span> <span class="n">Raster</span><span class="p">,</span> <span class="n">RasterTile</span>
 <span class="kn">from</span> <span class="nn">geodataset.utils</span> <span class="kn">import</span> <span class="n">save_aois_tiles_picture</span><span class="p">,</span> <span class="n">AoiTilesImageConvention</span>
+<span class="kn">from</span> <span class="nn">geodataset.utils.file_name_conventions</span> <span class="kn">import</span> <span class="n">AoiGeoPackageConvention</span>
 
 
 <span class="k">class</span> <span class="nc">BaseRasterTilerizer</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
@@ -139,6 +140,10 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">raster</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_raster</span><span class="p">()</span>
 
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span> <span class="o">=</span> <span class="n">AOIGeneratorConfig</span><span class="p">(</span><span class="n">aois</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;percentage&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;position&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}},</span> <span class="n">aoi_type</span><span class="o">=</span><span class="s1">&#39;band&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No AOIs provided, all tiles will be kept in the &quot;all&quot; AOI.&#39;</span><span class="p">)</span>
+
     <span class="k">def</span> <span class="nf">_check_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster_path</span><span class="o">.</span><span class="n">exists</span><span class="p">(),</span> \
             <span class="sa">f</span><span class="s2">&quot;Raster file not found at </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">raster_path</span><span class="si">}</span><span class="s2">.&quot;</span>
@@ -156,7 +161,7 @@
                         <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">raster</span>
 
-    <span class="k">def</span> <span class="nf">_create_tiles</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Tile</span><span class="p">]:</span>
+    <span class="k">def</span> <span class="nf">_create_tiles</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">RasterTile</span><span class="p">]:</span>
         <span class="n">width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">]</span>
         <span class="n">height</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">]</span>
 
@@ -179,7 +184,7 @@
 
         <span class="k">return</span> <span class="n">tiles</span>
 
-    <span class="k">def</span> <span class="nf">_get_tiles_per_aoi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tiles</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Tile</span><span class="p">]):</span>
+    <span class="k">def</span> <span class="nf">_get_tiles_per_aoi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tiles</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">RasterTile</span><span class="p">]):</span>
         <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Assigning the tiles to the aois...&#39;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -289,6 +294,26 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">tiles_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">/</span> <span class="s1">&#39;tiles&#39;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tiles_path</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
+    <span class="k">def</span> <span class="nf">_get_tiles_per_aoi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tiles</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">RasterTile</span><span class="p">]):</span>
+        <span class="n">aois_tiles</span><span class="p">,</span> <span class="n">aois_gdf</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_get_tiles_per_aoi</span><span class="p">(</span><span class="n">tiles</span><span class="o">=</span><span class="n">tiles</span><span class="p">)</span>
+
+        <span class="c1"># Saving the AOIs to disk</span>
+        <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="n">aois_gdf</span><span class="p">[</span><span class="s1">&#39;aoi&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="n">aois_tiles</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">aoi_gdf</span> <span class="o">=</span> <span class="n">aois_gdf</span><span class="p">[</span><span class="n">aois_gdf</span><span class="p">[</span><span class="s1">&#39;aoi&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">aoi</span><span class="p">]</span>
+                <span class="n">aoi_gdf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">revert_polygons_pixels_coordinates_to_crs</span><span class="p">(</span><span class="n">aoi_gdf</span><span class="p">)</span>
+                <span class="n">aoi_file_name</span> <span class="o">=</span> <span class="n">AoiGeoPackageConvention</span><span class="o">.</span><span class="n">create_name</span><span class="p">(</span>
+                    <span class="n">product_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>
+                    <span class="n">aoi</span><span class="o">=</span><span class="n">aoi</span><span class="p">,</span>
+                    <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span>
+                    <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span>
+                <span class="p">)</span>
+                <span class="n">aoi_gdf</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span>
+                <span class="n">aoi_gdf</span><span class="o">.</span><span class="n">to_file</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">/</span> <span class="n">aoi_file_name</span><span class="p">,</span> <span class="n">driver</span><span class="o">=</span><span class="s1">&#39;GPKG&#39;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Final AOI &#39;</span><span class="si">{</span><span class="n">aoi</span><span class="si">}</span><span class="s2">&#39; saved to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">output_path</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">aoi_file_name</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">aois_tiles</span><span class="p">,</span> <span class="n">aois_gdf</span>
+
 
 <div class="viewcode-block" id="RasterTilerizer">
 <a class="viewcode-back" href="../../../tilerize.html#geodataset.tilerize.RasterTilerizer">[docs]</a>
@@ -359,6 +384,9 @@
                                     <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span>
                                 <span class="p">),</span>
                                 <span class="n">tile_coordinate_step</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">)</span>
+
+        <span class="p">[</span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No tiles found for AOI </span><span class="si">{</span><span class="n">aoi</span><span class="si">}</span><span class="s1">.&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span><span class="o">.</span><span class="n">aois</span>
+         <span class="k">if</span> <span class="n">aoi</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">aois_tiles</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span>
 
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Saving tiles...&quot;</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="n">aois_tiles</span><span class="p">:</span>

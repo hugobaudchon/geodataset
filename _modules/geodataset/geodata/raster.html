@@ -85,9 +85,9 @@
 <span class="kn">from</span> <span class="nn">shapely.geometry</span> <span class="kn">import</span> <span class="n">Polygon</span>
 
 <span class="kn">from</span> <span class="nn">geodataset.geodata.base_geodata</span> <span class="kn">import</span> <span class="n">BaseGeoData</span>
-<span class="kn">from</span> <span class="nn">geodataset.geodata.tile</span> <span class="kn">import</span> <span class="n">Tile</span><span class="p">,</span> <span class="n">PolygonTile</span>
+<span class="kn">from</span> <span class="nn">geodataset.geodata.raster_tile</span> <span class="kn">import</span> <span class="n">RasterTile</span><span class="p">,</span> <span class="n">RasterPolygonTile</span>
 <span class="kn">from</span> <span class="nn">geodataset.utils</span> <span class="kn">import</span> <span class="n">read_raster</span><span class="p">,</span> <span class="n">apply_affine_transform</span><span class="p">,</span> <span class="n">validate_and_convert_product_name</span><span class="p">,</span> \
-    <span class="n">strip_all_extensions</span>
+    <span class="n">strip_all_extensions_and_path</span>
 
 
 <div class="viewcode-block" id="Raster">
@@ -120,7 +120,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ext</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">suffix</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">product_name</span> <span class="o">=</span> <span class="n">validate_and_convert_product_name</span><span class="p">(</span><span class="n">strip_all_extensions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">product_name</span> <span class="o">=</span> <span class="n">validate_and_convert_product_name</span><span class="p">(</span><span class="n">strip_all_extensions_and_path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">output_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">product_name</span> <span class="o">+</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;_</span><span class="si">{</span><span class="n">output_name_suffix</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">output_name_suffix</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
 
         <span class="k">assert</span> <span class="ow">not</span> <span class="p">(</span><span class="n">ground_resolution</span> <span class="ow">and</span> <span class="n">scale_factor</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;Both a ground_resolution and a scale_factor were provided.&quot;</span>
@@ -154,9 +154,7 @@
 
 <div class="viewcode-block" id="Raster.get_tile">
 <a class="viewcode-back" href="../../../geodata.html#geodataset.geodata.Raster.get_tile">[docs]</a>
-    <span class="k">def</span> <span class="nf">get_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
-                 <span class="n">window</span><span class="p">:</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">windows</span><span class="o">.</span><span class="n">Window</span><span class="p">,</span>
-                 <span class="n">tile_id</span><span class="p">:</span> <span class="nb">int</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tile</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">get_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">window</span><span class="p">:</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">windows</span><span class="o">.</span><span class="n">Window</span><span class="p">,</span> <span class="n">tile_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RasterTile</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">:</span>
 
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generates and returns a Tile from a window of the Raster.</span>
@@ -165,12 +163,13 @@
 <span class="sd">        ----------</span>
 <span class="sd">        window: rasterio.windows.Window</span>
 <span class="sd">            The window to generate the Tile from.</span>
-<span class="sd">        tile_id: int or None</span>
-<span class="sd">            The id of the tile. Used in the tile name, and should be unique across a dataset.</span>
+
+<span class="sd">        tile_id: int</span>
+<span class="sd">            The id of the tile.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        Tile</span>
+<span class="sd">        RasterTile</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">tile_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span>
@@ -197,9 +196,9 @@
             <span class="s1">&#39;transform&#39;</span><span class="p">:</span> <span class="n">window_transform</span>
         <span class="p">}</span>
 
-        <span class="n">tile</span> <span class="o">=</span> <span class="n">Tile</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">tile_data</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">tile_metadata</span><span class="p">,</span> <span class="n">output_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>
-                    <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span> <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span>
-                    <span class="n">row</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">row_off</span><span class="p">,</span> <span class="n">col</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">col_off</span><span class="p">,</span> <span class="n">tile_id</span><span class="o">=</span><span class="n">tile_id</span><span class="p">)</span>
+        <span class="n">tile</span> <span class="o">=</span> <span class="n">RasterTile</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">tile_data</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">tile_metadata</span><span class="p">,</span> <span class="n">output_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>
+                          <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span> <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span>
+                          <span class="n">row</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">row_off</span><span class="p">,</span> <span class="n">col</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">col_off</span><span class="p">,</span> <span class="n">tile_id</span><span class="o">=</span><span class="n">tile_id</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">tile</span></div>
 
@@ -211,7 +210,7 @@
                          <span class="n">polygon_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
                          <span class="n">tile_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
                          <span class="n">use_variable_tile_size</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
-                         <span class="n">variable_tile_size_pixel_buffer</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">PolygonTile</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">]:</span>
+                         <span class="n">variable_tile_size_pixel_buffer</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">RasterPolygonTile</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">]:</span>
 
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generates and returns a PolygonTile from a Polygon geometry, along with the possibly cropped original Polygon.</span>
@@ -242,7 +241,7 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        Tuple[PolygonTile, Polygon]</span>
+<span class="sd">        Tuple[RasterPolygonTile, Polygon]</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">centroid</span><span class="o">.</span><span class="n">coords</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
@@ -344,7 +343,7 @@
             <span class="s1">&#39;transform&#39;</span><span class="p">:</span> <span class="n">window_transform</span>
         <span class="p">}</span>
 
-        <span class="n">polygon_tile</span> <span class="o">=</span> <span class="n">PolygonTile</span><span class="p">(</span>
+        <span class="n">polygon_tile</span> <span class="o">=</span> <span class="n">RasterPolygonTile</span><span class="p">(</span>
             <span class="n">data</span><span class="o">=</span><span class="n">masked_data</span><span class="p">,</span>
             <span class="n">metadata</span><span class="o">=</span><span class="n">tile_metadata</span><span class="p">,</span>
             <span class="n">output_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>
@@ -421,6 +420,36 @@
             <span class="p">)</span>
 
         <span class="k">return</span> <span class="n">gdf</span></div>
+
+
+<div class="viewcode-block" id="Raster.revert_polygons_pixels_coordinates_to_crs">
+<a class="viewcode-back" href="../../../geodata.html#geodataset.geodata.Raster.revert_polygons_pixels_coordinates_to_crs">[docs]</a>
+    <span class="k">def</span> <span class="nf">revert_polygons_pixels_coordinates_to_crs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reverts the geometries in a GeoDataFrame from pixel coordinates to the CRS of the Raster.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        gdf: gpd.GeoDataFrame</span>
+<span class="sd">            The GeoDataFrame containing the geometries to revert.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        gpd.GeoDataFrame</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">reverted_gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="k">assert</span> <span class="n">reverted_gdf</span><span class="o">.</span><span class="n">crs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;The geometries should be in pixel coordinates to revert them to a CRS,&quot;</span>
+                                 <span class="s2">&quot; and so the input CRS should be None.&quot;</span><span class="p">)</span>
+
+        <span class="n">reverted_gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">reverted_gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">geom</span><span class="p">:</span> <span class="n">apply_affine_transform</span><span class="p">(</span><span class="n">geom</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">])</span>
+        <span class="p">)</span>
+
+        <span class="n">reverted_gdf</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">reverted_gdf</span></div>
 </div>
 
 
