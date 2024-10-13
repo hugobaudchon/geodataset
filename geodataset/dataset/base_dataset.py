@@ -154,12 +154,11 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
         """
         for directory in directories:
-            tiles_paths = find_tiles_paths([directory], extensions=['tif'])
+            tiles_names_to_paths = find_tiles_paths([directory], extensions=['tif'])
 
-            for tile_path in tiles_paths:
-                tile_path = Path(tile_path)
-                if tile_path.name in self.tiles_path_to_id_mapping:
-                    tile_id = self.tiles_path_to_id_mapping[tile_path.name]
+            for tile_name, tile_path in tiles_names_to_paths.items():
+                if tile_name in self.tiles_path_to_id_mapping:
+                    tile_id = self.tiles_path_to_id_mapping[tile_name]
                     if 'path' in self.tiles[tile_id] and self.tiles[tile_id]['path'] != tile_path:
                         raise Exception(
                             f"At least two tiles under the root directories {self.root_path} have the same"
