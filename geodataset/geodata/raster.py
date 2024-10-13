@@ -127,6 +127,7 @@ class Raster(BaseGeoData):
     def get_polygon_tile(self,
                          polygon: Polygon,
                          polygon_id: int,
+                         polygon_aoi: str,
                          tile_size: int,
                          use_variable_tile_size: bool,
                          variable_tile_size_pixel_buffer: int) -> Tuple[RasterPolygonTile, Polygon]:
@@ -143,6 +144,8 @@ class Raster(BaseGeoData):
             The Polygon geometry to generate the PolygonTile from.
         polygon_id: int
             The id of the polygon. Used in the tile name, and should be unique across a dataset.
+        polygon_aoi: str
+            The Area of Interest (AOI) the polygon belongs to. Used in the tile name.
         tile_size: int
             The size of the tile in pixels. If the polygon extent is larger than this value,
             then the returned Polygon will be cropped to the tile extent.
@@ -268,7 +271,8 @@ class Raster(BaseGeoData):
             output_name=self.output_name,
             ground_resolution=self.ground_resolution,
             scale_factor=self.scale_factor,
-            polygon_id=polygon_id
+            polygon_id=polygon_id,
+            aoi=polygon_aoi
         )
 
         return polygon_tile, translated_polygon_intersection
