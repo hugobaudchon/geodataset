@@ -6,7 +6,7 @@ from warnings import warn
 
 import albumentations
 
-from geodataset.utils import CocoNameConvention, PointCloudCocoNameConvention
+from geodataset.utils import CocoNameConvention, PointCloudCocoNameConvention, find_tiles_paths
 
 
 class BaseDataset(ABC):
@@ -154,21 +154,18 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
         """
         for directory in directories:
-            if directory.is_dir() and directory.name == 'tiles':
-                for tile_path in directory.iterdir():
-                    if tile_path.name in self.tiles_path_to_id_mapping:
-                        tile_id = self.tiles_path_to_id_mapping[tile_path.name]
-                        if 'path' in self.tiles[tile_id] and self.tiles[tile_id]['path'] != tile_path:
-                            raise Exception(
-                                f"At least two tiles under the root directories {self.root_path} have the same"
-                                f" name, which is ambiguous. Make sure all tiles have unique names. The 2"
-                                f" ambiguous tiles are {tile_path} and {self.tiles[tile_id]['path']}.")
-                        self.tiles[tile_id]['path'] = tile_path
+            tiles_paths = find_tiles_paths([directory], extensions=['tif'])
 
-            if directory.is_dir():
-                for path in directory.iterdir():
-                    if path.is_dir():
-                        self._find_tiles_paths(directories=[path])
+            for tile_path in tiles_paths:
+                tile_path = Path(tile_path)
+                if tile_path.name in self.tiles_path_to_id_mapping:
+                    tile_id = self.tiles_path_to_id_mapping[tile_path.name]
+                    if 'path' in self.tiles[tile_id] and self.tiles[tile_id]['path'] != tile_path:
+                        raise Exception(
+                            f"At least two tiles under the root directories {self.root_path} have the same"
+                            f" name, which is ambiguous. Make sure all tiles have unique names. The 2"
+                            f" ambiguous tiles are {tile_path} and {self.tiles[tile_id]['path']}.")
+                    self.tiles[tile_id]['path'] = tile_path
 
     def _remove_tiles_not_found(self):
         original_tiles_number = len(self.tiles)
