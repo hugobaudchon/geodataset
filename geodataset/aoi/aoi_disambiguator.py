@@ -6,14 +6,14 @@ from shapely import Polygon
 from shapely.affinity import translate
 
 from .aoi_config import AOIGeneratorConfig
-from geodataset.geodata import Tile
+from geodataset.geodata import RasterTile
 from ..utils import polygon_to_mask
 
 
 class AOIDisambiguator:
     def __init__(self,
                  tiles_gdf: gpd.GeoDataFrame,
-                 aois_tiles: Dict[str, List[Tile]],
+                 aois_tiles: Dict[str, List[RasterTile]],
                  aois_gdf: gpd.GeoDataFrame):
         self.tiles_gdf = tiles_gdf
         self.aois_tiles = aois_tiles

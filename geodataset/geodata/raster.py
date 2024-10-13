@@ -11,9 +11,9 @@ from shapely.affinity import translate
 from shapely.geometry import Polygon
 
 from geodataset.geodata.base_geodata import BaseGeoData
-from geodataset.geodata.tile import Tile, PolygonTile
+from geodataset.geodata.raster_tile import RasterTile, RasterPolygonTile
 from geodataset.utils import read_raster, apply_affine_transform, validate_and_convert_product_name, \
-    strip_all_extensions
+    strip_all_extensions_and_path
 
 
 class Raster(BaseGeoData):
@@ -44,7 +44,7 @@ class Raster(BaseGeoData):
         self.path = Path(path)
         self.name = path.name
         self.ext = path.suffix
-        self.product_name = validate_and_convert_product_name(strip_all_extensions(self.path))
+        self.product_name = validate_and_convert_product_name(strip_all_extensions_and_path(self.path))
         self.output_name = self.product_name + (f"_{output_name_suffix}" if output_name_suffix else "")
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
@@ -76,9 +76,7 @@ class Raster(BaseGeoData):
 
         return data, metadata, x_scale_factor, y_scale_factor
 
-    def get_tile(self,
-                 window: rasterio.windows.Window,
-                 tile_id: int or None) -> Tile or None:
+    def get_tile(self, window: rasterio.windows.Window, tile_id: int) -> RasterTile or None:
 
         """
         Generates and returns a Tile from a window of the Raster.
@@ -87,12 +85,13 @@ class Raster(BaseGeoData):
         ----------
         window: rasterio.windows.Window
             The window to generate the Tile from.
-        tile_id: int or None
-            The id of the tile. Used in the tile name, and should be unique across a dataset.
+
+        tile_id: int
+            The id of the tile.
 
         Returns
         -------
-        Tile
+        RasterTile
         """
 
         tile_data = self.data[
@@ -119,9 +118,9 @@ class Raster(BaseGeoData):
             'transform': window_transform
         }
 
-        tile = Tile(data=tile_data, metadata=tile_metadata, output_name=self.output_name,
-                    ground_resolution=self.ground_resolution, scale_factor=self.scale_factor,
-                    row=window.row_off, col=window.col_off, tile_id=tile_id)
+        tile = RasterTile(data=tile_data, metadata=tile_metadata, output_name=self.output_name,
+                          ground_resolution=self.ground_resolution, scale_factor=self.scale_factor,
+                          row=window.row_off, col=window.col_off, tile_id=tile_id)
 
         return tile
 
@@ -130,7 +129,7 @@ class Raster(BaseGeoData):
                          polygon_id: int,
                          tile_size: int,
                          use_variable_tile_size: bool,
-                         variable_tile_size_pixel_buffer: int) -> Tuple[PolygonTile, Polygon]:
+                         variable_tile_size_pixel_buffer: int) -> Tuple[RasterPolygonTile, Polygon]:
 
         """
         Generates and returns a PolygonTile from a Polygon geometry, along with the possibly cropped original Polygon.
@@ -161,7 +160,7 @@ class Raster(BaseGeoData):
 
         Returns
         -------
-        Tuple[PolygonTile, Polygon]
+        Tuple[RasterPolygonTile, Polygon]
         """
 
         x, y = polygon.centroid.coords[0]
@@ -263,7 +262,7 @@ class Raster(BaseGeoData):
             'transform': window_transform
         }
 
-        polygon_tile = PolygonTile(
+        polygon_tile = RasterPolygonTile(
             data=masked_data,
             metadata=tile_metadata,
             output_name=self.output_name,
@@ -334,4 +333,31 @@ class Raster(BaseGeoData):
             )
 
         return gdf
+
+    def revert_polygons_pixels_coordinates_to_crs(self, gdf: gpd.GeoDataFrame):
+        """
+        Reverts the geometries in a GeoDataFrame from pixel coordinates to the CRS of the Raster.
+
+        Parameters
+        ----------
+        gdf: gpd.GeoDataFrame
+            The GeoDataFrame containing the geometries to revert.
+
+        Returns
+        -------
+        gpd.GeoDataFrame
+        """
+
+        reverted_gdf = gdf.copy()
+
+        assert reverted_gdf.crs is None, ("The geometries should be in pixel coordinates to revert them to a CRS,"
+                                 " and so the input CRS should be None.")
+
+        reverted_gdf['geometry'] = reverted_gdf['geometry'].astype(object).apply(
+            lambda geom: apply_affine_transform(geom, self.metadata['transform'])
+        )
+
+        reverted_gdf.crs = self.metadata['crs']
+
+        return reverted_gdf
 
