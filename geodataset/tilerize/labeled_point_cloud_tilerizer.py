@@ -365,7 +365,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                 new_tile_md_list.append(tile_md)
 
                 downsampled_tile_path = (
-                    self.pc_tiles_folder_path / f"{tile_md.tile_name}"
+                    self.pc_tiles_folder_path / f"{tile_md.aoi}/{tile_md.tile_name}"
                 )
                 o3d.t.io.write_point_cloud(str(downsampled_tile_path), pcd)
 
@@ -486,12 +486,6 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         if tile_labels.empty is False:
             geopoints.crs = tile_labels.crs
 
-            print(tile_labels)
-            print(geopoints)
-
-            print(tile_labels.columns)
-            print(geopoints.columns)
-
             tile_labels.drop(columns=['level_0'], errors='ignore', inplace=True)
 
             joined_label = tile_labels.sjoin(
@@ -512,9 +506,9 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                 positions, points
             ), f"The points are not in the same order for {tile_labels['tile_id']}"
 
-            joined_label[self.other_labels_attributes_column_names] = joined_label[self.other_labels_attributes_column_names].apply(category_to_id)
+            joined_label[self.main_label_category_column_name] = joined_label[self.main_label_category_column_name].apply(category_to_id)
 
-            semantic_labels = joined_label[self.other_labels_attributes_column_names].values.reshape((-1, 1))
+            semantic_labels = joined_label[self.main_label_category_column_name].values.reshape((-1, 1))
             instance_labels = joined_label["instance_id"].values.reshape((-1, 1))
 
         else:
