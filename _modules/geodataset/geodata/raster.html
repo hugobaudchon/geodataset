@@ -208,6 +208,7 @@
     <span class="k">def</span> <span class="nf">get_polygon_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                          <span class="n">polygon</span><span class="p">:</span> <span class="n">Polygon</span><span class="p">,</span>
                          <span class="n">polygon_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                         <span class="n">polygon_aoi</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
                          <span class="n">tile_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
                          <span class="n">use_variable_tile_size</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
                          <span class="n">variable_tile_size_pixel_buffer</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">RasterPolygonTile</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">]:</span>
@@ -224,6 +225,8 @@
 <span class="sd">            The Polygon geometry to generate the PolygonTile from.</span>
 <span class="sd">        polygon_id: int</span>
 <span class="sd">            The id of the polygon. Used in the tile name, and should be unique across a dataset.</span>
+<span class="sd">        polygon_aoi: str</span>
+<span class="sd">            The Area of Interest (AOI) the polygon belongs to. Used in the tile name.</span>
 <span class="sd">        tile_size: int</span>
 <span class="sd">            The size of the tile in pixels. If the polygon extent is larger than this value,</span>
 <span class="sd">            then the returned Polygon will be cropped to the tile extent.</span>
@@ -349,7 +352,8 @@
             <span class="n">output_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>
             <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span>
             <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span>
-            <span class="n">polygon_id</span><span class="o">=</span><span class="n">polygon_id</span>
+            <span class="n">polygon_id</span><span class="o">=</span><span class="n">polygon_id</span><span class="p">,</span>
+            <span class="n">aoi</span><span class="o">=</span><span class="n">polygon_aoi</span>
         <span class="p">)</span>
 
         <span class="k">return</span> <span class="n">polygon_tile</span><span class="p">,</span> <span class="n">translated_polygon_intersection</span></div>
