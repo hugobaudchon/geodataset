@@ -7,7 +7,8 @@ import rasterio
 from shapely import box
 
 from geodataset.dataset.base_dataset import BaseDataset, BaseLabeledRasterCocoDataset
-from geodataset.utils import coco_rle_segmentation_to_bbox, coco_coordinates_segmentation_to_bbox, coco_rle_segmentation_to_mask
+from geodataset.utils import coco_rle_segmentation_to_bbox, coco_coordinates_segmentation_to_bbox, \
+    coco_rle_segmentation_to_mask, find_tiles_paths
 
 
 class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):

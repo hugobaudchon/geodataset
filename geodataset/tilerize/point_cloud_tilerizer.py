@@ -2,23 +2,23 @@ import sys
 from pathlib import Path
 from typing import List, Union
 
-import geopandas as gpd
 import laspy
-from arcgis.auth.tools.verifycontext import warnings
+import warnings
 from laspy import CopcReader
 
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import open3d as o3d
-from shapely import Polygon
+from shapely import box
+from shapely.geometry import Point
 from tqdm import tqdm
 
 from geodataset.aoi import AOIFromPackageConfig
 from geodataset.aoi.aoi_base import AOIBaseFromGeoFileInCRS
-from geodataset.utils import PointCloudCOCOGenerator, strip_all_extensions_and_path
+from geodataset.utils import strip_all_extensions_and_path
 from geodataset.geodata.point_cloud_tile import PointCloudTileMetadata, PointCloudTileMetadataCollection
 from geodataset.utils.file_name_conventions import (
-    PointCloudCocoNameConvention,
     PointCloudTileNameConvention, validate_and_convert_product_name,
 )
 
@@ -179,8 +179,25 @@ class PointCloudTilerizer:
             (self.pc_tiles_folder_path / aoi).mkdir(parents=True, exist_ok=True)
 
     def query_tile(self, tile_md, reader):
-        mins = np.array([tile_md.min_x, tile_md.min_y])
-        maxs = np.array([tile_md.max_x, tile_md.max_y])
+        reader_crs = reader.header.parse_crs()
+
+        tile_md_epsg = tile_md.crs.to_epsg()
+        reader_crs_epsg = reader_crs.to_epsg()
+        if tile_md_epsg != reader_crs_epsg:
+            min_max_gdf = gpd.GeoDataFrame(
+                geometry=[box(tile_md.min_x, tile_md.min_y, tile_md.max_x, tile_md.max_y)],
+                crs=tile_md.crs
+            )
+
+            min_max_gdf = min_max_gdf.to_crs(reader_crs)
+
+            bounds = min_max_gdf.geometry[0].bounds
+            mins = np.array([bounds[0], bounds[1]])
+            maxs = np.array([bounds[2], bounds[3]])
+        else:
+            mins = np.array([tile_md.min_x, tile_md.min_y])
+            maxs = np.array([tile_md.max_x, tile_md.max_y])
+
         b = laspy.copc.Bounds(mins=mins, maxs=maxs)
         data = reader.query(b)
 
@@ -201,6 +218,7 @@ class PointCloudTilerizer:
                 if self.downsample_voxel_size:
                     pcd = self._downsample_tile(pcd, self.downsample_voxel_size)
                 pcd = self._keep_unique_points(pcd)
+                pcd = self._remove_points_outside_aoi(pcd, tile_md, reader.header.parse_crs())
                 new_tile_md_list.append(tile_md)
                 downsampled_tile_path = (
                     self.pc_tiles_folder_path / f"{tile_md.aoi}/{tile_md.tile_name}"
@@ -213,75 +231,8 @@ class PointCloudTilerizer:
     def tilerize(
         self,
     ):
-        self._generate_labels()
         self._tilerize()
         self.plot_aois()
-
-    def _get_aoi_tiles(self):
-        aois_gdf = self.aoi_engine.get_aoi_gdf()
-        # //NOTE -  Cannot check for color as data is not provided here and only metadata is provided.
-        tiles_gdf = self.tiles_metadata.gdf
-
-        if 'aoi' not in tiles_gdf or ('aoi' in tiles_gdf and tiles_gdf['aoi'].isnull().all()):
-            # only keeping 'aoi' column from aois_gdf, ignoring the one from tiles_gdf as it is same info if set
-            tiles_gdf = tiles_gdf.drop(columns=['aoi'])
-
-            aois_gdf.crs = tiles_gdf.crs
-            intersections = gpd.overlay(tiles_gdf, aois_gdf, how="intersection")
-            intersections["intersection_area"] = intersections.geometry.area
-            max_intersection_per_tile = intersections.loc[
-                intersections.groupby("tile_id")["intersection_area"].idxmax()
-            ]
-            aois_tiles = (
-                max_intersection_per_tile.groupby("aoi")["tile_id"].apply(list).to_dict()
-            )
-        else:
-            # just use tiles_gdf, no need to overlay
-            aois_tiles = tiles_gdf.groupby("aoi")["tile_id"].apply(list).to_dict()
-
-        return aois_tiles
-
-    def _generate_labels(self):
-        aoi_tiles = self._get_aoi_tiles()
-        coco_paths = {}
-
-        for aoi in aoi_tiles:
-            tiles_metadata = PointCloudTileMetadataCollection(
-                [tile for tile in self.tiles_metadata if tile.tile_id in aoi_tiles[aoi]]
-            )
-
-            coco_output_file_path = (
-                self.output_path
-                / PointCloudCocoNameConvention.create_name(
-                    product_name=self.tiles_metadata.product_name,
-                    ground_resolution=None,
-                    scale_factor=None,
-                    voxel_size=self.downsample_voxel_size,
-                    fold=aoi,
-                )
-            )
-
-            polygons = [
-                [Polygon()] for _ in tiles_metadata
-            ]  # Passing empty polygons as we are not interested in the polygons for now.
-
-            coco_generator = PointCloudCOCOGenerator(
-                description="Dataset for the product XYZ",
-                tiles_metadata=tiles_metadata,
-                polygons=polygons,
-                output_path=coco_output_file_path,
-                scores=None,
-                categories=None,
-                other_attributes=None,
-                use_rle_for_labels=False,
-                n_workers=1,
-                coco_categories_list=None,
-            )
-
-            coco_generator.generate_coco()
-            coco_paths[aoi] = coco_output_file_path
-
-        return coco_paths
 
     def plot_aois(self) -> None:
         fig, ax = self.tiles_metadata.plot()
@@ -385,6 +336,44 @@ class PointCloudTilerizer:
             n_removed = positions.shape[0] - unique_pc.shape[0]
             percentage_removed = (n_removed / positions.shape[0]) * 100
             print(f"Removed {n_removed} duplicate points ({percentage_removed:.2f}%)")
+        return o3d.t.geometry.PointCloud(map_to_tensors)
+
+    def _remove_points_outside_aoi(self, pcd, tile_md, reader_crs):
+        aoi_gdf = self.aoi_engine.loaded_aois[tile_md.aoi]
+        aoi_gdf = aoi_gdf.to_crs(reader_crs)
+        aoi_bounds = aoi_gdf.total_bounds
+
+        positions = pcd.point.positions.numpy()
+
+        points_min_bound = np.min(positions, axis=0)
+        points_max_bound = np.max(positions, axis=0)
+
+        # Check if point cloud bounds are completely within the tile bounds
+        if (points_min_bound[0] >= aoi_bounds[0] and points_max_bound[0] <= aoi_bounds[2] and
+                points_min_bound[1] >= aoi_bounds[1] and points_max_bound[1] <= aoi_bounds[3]):
+            # If all points are within the AOI bounds, return the original point cloud
+            return pcd
+
+        geopoints = gpd.GeoDataFrame(positions)
+        geopoints = gpd.GeoDataFrame(geopoints.apply(lambda x: Point(x), axis=1))
+        geopoints.columns = ["points"]
+        geopoints = geopoints.set_geometry("points")
+
+        geopoints.crs = reader_crs
+
+        points_in_aoi = gpd.sjoin(geopoints, aoi_gdf, predicate="within")
+
+        positions_in_aoi = points_in_aoi["points"].apply(lambda x: [x.x, x.y, x.z]).values
+        positions_in_aoi = np.array(positions_in_aoi.tolist())
+
+        indices_in_aoi = points_in_aoi.index.values
+
+        map_to_tensors = {"positions": positions_in_aoi}
+
+        for attr in pcd.point:
+            if attr != "positions":
+                map_to_tensors[attr] = getattr(pcd.point, attr)[indices_in_aoi]
+
         return o3d.t.geometry.PointCloud(map_to_tensors)
 
     def _downsample_tile(self, pcd, voxel_size) -> None:

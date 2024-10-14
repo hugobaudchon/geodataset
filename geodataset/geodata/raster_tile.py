@@ -220,12 +220,14 @@ class RasterPolygonTile:
                  output_name: str,
                  ground_resolution: float,
                  scale_factor: float,
-                 polygon_id: int):
+                 polygon_id: int,
+                 aoi: str = None):
 
         self.data = data
         self.metadata = metadata
         self.output_name = output_name
         self.polygon_id = polygon_id
+        self.aoi = aoi
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
                                                           " Please only specify one.")
@@ -250,14 +252,15 @@ class RasterPolygonTile:
         """
 
         path = Path(path)
-        data, metadata, product_name, ground_resolution, scale_factor, polygon_id = RasterPolygonTile._load_tile(path)
+        data, metadata, product_name, ground_resolution, scale_factor, polygon_id, aoi = RasterPolygonTile._load_tile(path)
 
         tile = cls(data=data,
                    metadata=metadata,
                    output_name=product_name,
                    ground_resolution=ground_resolution,
                    scale_factor=scale_factor,
-                   polygon_id=polygon_id)
+                   polygon_id=polygon_id,
+                   aoi=aoi)
 
         return tile
 
@@ -271,9 +274,9 @@ class RasterPolygonTile:
             data = src.read()
             metadata = src.profile
 
-        product_name, ground_resolution, scale_factor, polygon_id = PolygonTileNameConvention.parse_name(path.name)
+        product_name, ground_resolution, scale_factor, polygon_id, aoi = PolygonTileNameConvention.parse_name(path.name)
 
-        return data, metadata, product_name, ground_resolution, scale_factor, polygon_id
+        return data, metadata, product_name, ground_resolution, scale_factor, polygon_id, aoi
 
     def save(self, output_folder: Path):
         """
@@ -302,7 +305,8 @@ class RasterPolygonTile:
             product_name=self.output_name,
             ground_resolution=self.ground_resolution,
             scale_factor=self.scale_factor,
-            polygon_id=self.polygon_id
+            polygon_id=self.polygon_id,
+            aoi=self.aoi
         )
 
 
