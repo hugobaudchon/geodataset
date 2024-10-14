@@ -243,15 +243,9 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                 labeled_tiles, product_name=self.tiles_metadata.product_name
             )
 
-    def _get_aoi_labels(self):
-        tile_associated_labels = self._find_tiles_associated_labels()
-
-        if self.ignore_tiles_without_labels:
-            self._remove_unlabeled_tiles(tile_associated_labels)
-
+    def _get_aoi_tiles(self):
         aois_gdf = self.aoi_engine.get_aoi_gdf()
         # //NOTE -  Cannot check for color as data is not provided here and only metadata is provided.
-
         tiles_gdf = self.tiles_metadata.gdf
         aois_gdf = aois_gdf.to_crs(tiles_gdf.crs)
 
@@ -271,6 +265,16 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         else:
             # just use tiles_gdf, no need to overlay
             aois_tiles = tiles_gdf.groupby("aoi")["tile_id"].apply(list).to_dict()
+
+        return aois_tiles, aois_gdf
+
+    def _get_aoi_labels(self):
+        tile_associated_labels = self._find_tiles_associated_labels()
+
+        if self.ignore_tiles_without_labels:
+            self._remove_unlabeled_tiles(tile_associated_labels)
+
+        aois_tiles, aois_gdf = self._get_aoi_tiles()
 
         tile_associated_labels["instance_id"] = tile_associated_labels.index
 
@@ -347,6 +351,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
     def _tilerize(self):
         new_tile_md_list = []
         with CopcReader.open(self.point_cloud_path) as reader:
+            reader_crs = reader.header.parse_crs()
             for tile_md in tqdm(self.tiles_metadata):
                 data = super().query_tile(tile_md, reader)
 
@@ -356,12 +361,13 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
                 if self.downsample_voxel_size:
                     pcd = super()._downsample_tile(pcd, self.downsample_voxel_size)
-
-                pcd = super()._keep_unique_points(pcd)
+                pcd = self._keep_unique_points(pcd)
+                pcd = self._remove_points_outside_aoi(pcd, tile_md, reader_crs)
                 tile_labels = self._get_tile_labels(
                     tile_md.tile_id, self.aoi_tiles.copy(), self.aoi_labels.copy()
                 )
-                pcd = self._add_labels(pcd, tile_labels)
+                tile_labels = tile_labels.to_crs(reader_crs)
+                pcd = self._add_labels(pcd, tile_labels, reader_crs)
                 new_tile_md_list.append(tile_md)
 
                 downsampled_tile_path = (
@@ -468,7 +474,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
         return coco_paths, categories_coco, category_to_id_map
 
-    def _add_labels(self, pcd, tile_labels):
+    def _add_labels(self, pcd, tile_labels, reader_crs):
         # Create a geodataframe for all the points
 
         positions = pcd.point.positions.numpy()
@@ -476,6 +482,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         geopoints = gpd.GeoDataFrame(geopoints.apply(lambda x: Point(x), axis=1))
         geopoints.columns = ["points"]
         geopoints = geopoints.set_geometry("points")
+        geopoints.crs = reader_crs
 
         def category_to_id(x):
             if x in self.category_to_id_map:
@@ -484,8 +491,6 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                 return np.nan
 
         if tile_labels.empty is False:
-            geopoints.crs = tile_labels.crs
-
             tile_labels.drop(columns=['level_0'], errors='ignore', inplace=True)
 
             joined_label = tile_labels.sjoin(
