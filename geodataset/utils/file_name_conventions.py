@@ -113,31 +113,47 @@ class TileNameConvention(FileNameConvention):
 
 
 class PolygonTileNameConvention(FileNameConvention):
-    @staticmethod
-    def _validate_name(name):
-        pattern = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_polygontile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+\.tif$"
-        if not re.match(pattern, name):
-            raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
+    pattern_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_polygontile_[a-zA-Z]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+\.tif$"
+    pattern_no_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_polygontile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+\.tif$"
 
     @staticmethod
-    def create_name(product_name: str, polygon_id: int, scale_factor=None, ground_resolution=None):
+    def _validate_name(name):
+        if re.match(PolygonTileNameConvention.pattern_aoi, name):
+            return 'pattern_aoi'
+        elif re.match(PolygonTileNameConvention.pattern_no_aoi, name):
+            return 'pattern_no_aoi'
+        else:
+            raise ValueError(f"tile_name {name} does not match any of the supported patterns.")
+
+    @staticmethod
+    def create_name(product_name: str, polygon_id: int, scale_factor=None, ground_resolution=None, aoi=None):
         specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
-        tile_name = f"{product_name}_polygontile_{specifier}_{polygon_id}.tif"
+        tile_name = f"{product_name}_polygontile_{aoi if aoi else 'noaoi'}_{specifier}_{polygon_id}.tif"
         PolygonTileNameConvention._validate_name(tile_name)
         return tile_name
 
     @staticmethod
     def parse_name(tile_name: str):
-        PolygonTileNameConvention._validate_name(tile_name)
+        pattern_name = PolygonTileNameConvention._validate_name(tile_name)
 
         parts = tile_name.split("_")
-        product_name = "_".join(parts[:-3])
-        specifier = parts[-2]
         polygon_id = parts[-1].replace('.tif', '')
+        specifier = parts[-2]
+
+        if pattern_name == 'pattern_aoi':
+            aoi = parts[-3]
+            if aoi == 'noaoi':
+                aoi = None
+            product_name = "_".join(parts[:-4])
+        elif pattern_name == 'pattern_no_aoi':
+            aoi = None
+            product_name = "_".join(parts[:-3])
+        else:
+            raise ValueError(f"pattern_name {pattern_name} is not supported.")
 
         scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
 
-        return product_name, scale_factor, ground_resolution, polygon_id
+        return product_name, scale_factor, ground_resolution, polygon_id, aoi
 
 
 class CocoNameConvention(FileNameConvention):
