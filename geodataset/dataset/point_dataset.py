@@ -3,7 +3,7 @@ from typing import Union, List
 from pathlib import Path
 import albumentations
 import open3d as o3d
-
+from geodataset.dataset.base_dataset import BaseDataset
 
 class SegmentationLabeledPointCloudCocoDataset(BaseLabeledPointCloudCocoDataset):
     """
@@ -93,3 +93,97 @@ class SegmentationLabeledPointCloudCocoDataset(BaseLabeledPointCloudCocoDataset)
             position, semantic_labels = self.transform((position, semantic_labels))
 
         return position, semantic_labels
+
+class BasePointDataset(BaseDataset):
+    """
+    A dataset class for loading unlabeled raster tiles.
+    It will recursively search for all '.tif' files in the specified root and its sub-folders.
+
+    It can directly be used with a torch.utils.data.DataLoader.
+
+    Parameters
+    ----------
+    fold: str
+        The dataset fold to load (e.g., 'train', 'valid', 'test'...).
+        **This parameter is not used in this class, but is kept for consistency with the other dataset classes.**
+    root_path: str or List[str] or pathlib.Path or List[pathlib.Path]
+        The root directory of the dataset.
+    transform: albumentations.core.composition.Compose
+        A composition of transformations to apply to the tiles and their associated annotations
+        (applied in __getitem__).
+    """
+    def __init__(self,
+                 root_path: Union[str, List[str], Path, List[Path]],
+                 fold: str = None, 
+                 extension: str = '.pcd'):
+        
+        self.fold = fold
+        self.root_path = root_path
+        self.tile_paths = []
+        self.extension = extension
+
+        if isinstance(self.root_path, (str, Path)):
+            self.root_path = [self.root_path]
+
+        self.root_path = [Path(x) for x in self.root_path]
+
+        self._find_tiles_paths(directories=self.root_path)
+
+    def _find_tiles_paths(self, directories: List[Path]):
+        """
+        Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
+        """
+
+        for directory in directories:
+            if directory.is_dir() and directory.name == 'tiles':
+                fold_directory = (directory / self.fold)
+                # Datasets may not contain all splits
+                if fold_directory.exists():
+                    for path in fold_directory.iterdir():
+                        # Iterate within the corresponding split folder
+                        if path.suffix == self.extension:
+                            self.tile_paths.append(path)
+
+            if directory.is_dir():
+                for path in directory.iterdir():
+                    if path.is_dir():
+                        self._find_tiles_paths(directories=[path])
+
+    def __getitem__(self, idx: int):
+        """
+        Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,
+        if any. It also normalizes the tile data between 0 and 1.
+
+        Parameters
+        ----------
+        idx: int
+            The index of the tile to retrieve
+
+        Returns
+        -------
+        numpy.ndarray
+            The transformed tile (image) data, normalized between 0 and 1.
+        """
+        tile_path = self.tile_paths[idx]
+
+        pcd =  o3d.t.io.read_point_cloud(tile_path) 
+        
+        return pcd
+
+    def __len__(self):
+        """
+        Returns the total number of tiles in the dataset.
+
+        Returns
+        -------
+        int
+            The number of tiles in the dataset.
+        """
+        return len(self.tile_paths)
+
+    def __iter__(self):
+        """
+        Iterates over the tiles in the dataset.
+        """
+        for i in range(len(self)):
+            yield self[i]

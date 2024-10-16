@@ -201,7 +201,7 @@ class PointCloudTilerizer:
         b = laspy.copc.Bounds(mins=mins, maxs=maxs)
         data = reader.query(b)
 
-        return data
+        return data, mins, maxs
 
     def _tilerize(
         self,
@@ -214,7 +214,7 @@ class PointCloudTilerizer:
                 if len(data) == 0:
                     continue
 
-                pcd = self._laspy_to_o3d(data, self.keep_dims.copy() if type(self.keep_dims) is not str else self.keep_dims)
+                pcd, mins, maxs = self._laspy_to_o3d(data, self.keep_dims.copy() if type(self.keep_dims) is not str else self.keep_dims)
                 if self.downsample_voxel_size:
                     pcd = self._downsample_tile(pcd, self.downsample_voxel_size)
                 pcd = self._keep_unique_points(pcd)
