@@ -158,7 +158,7 @@ class PointCloudTilerizer:
                     tile_id += 1
 
             self.tiles_metadata = PointCloudTileMetadataCollection(
-                tiles_metadata, product_name=self.product_name
+                tiles_metadata,product_name=self.tiles_metadata.product_name
             )
 
         print(f"Number of tiles generated: {len(self.tiles_metadata)}")
