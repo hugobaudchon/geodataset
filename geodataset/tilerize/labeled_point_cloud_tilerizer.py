@@ -284,6 +284,7 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         final_aoi_labels = {aoi: [] for aoi in list(aois_tiles.keys()) + ["all"]}
 
         for aoi in aois_tiles:
+            tiles_to_remove = []
             for tile_id in aois_tiles[aoi]:
                 labels_crs_coords = intersected_labels_aois[
                     intersected_labels_aois["tile_id"] == tile_id
@@ -319,11 +320,15 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                 ]
 
                 if self.ignore_tiles_without_labels and len(labels_tiles_coords) == 0:
+                    tiles_to_remove.append(tile_id)
                     print(f"Removing tile {tile_id} from AOI {aoi} as it has no labels")
                     continue
 
                 final_aoi_labels[aoi].append(labels_tiles_coords)
                 final_aoi_labels["all"].append(labels_tiles_coords)
+            
+            for id in tiles_to_remove:
+                aois_tiles[aoi].remove(id)
 
         return aois_tiles, final_aoi_labels
 
