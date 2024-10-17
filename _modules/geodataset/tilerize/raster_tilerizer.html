@@ -132,7 +132,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span> <span class="o">=</span> <span class="n">aois_config</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">output_name_suffix</span> <span class="o">=</span> <span class="n">output_name_suffix</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ignore_black_white_alpha_tiles_threshold</span> <span class="o">=</span> <span class="n">ignore_black_white_alpha_tiles_threshold</span>
-
         <span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span> <span class="o">=</span> <span class="n">scale_factor</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span> <span class="o">=</span> <span class="n">ground_resolution</span>
 
@@ -189,16 +188,20 @@
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span><span class="p">)</span> <span class="ow">is</span> <span class="n">AOIGeneratorConfig</span><span class="p">:</span>
-                <span class="n">aoi_engine</span> <span class="o">=</span> <span class="n">AOIGeneratorForTiles</span><span class="p">(</span><span class="n">tiles</span><span class="o">=</span><span class="n">tiles</span><span class="p">,</span>
-                                                  <span class="n">tile_coordinate_step</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">,</span>
-                                                  <span class="n">aois_config</span><span class="o">=</span><span class="n">cast</span><span class="p">(</span><span class="n">AOIGeneratorConfig</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span><span class="p">))</span>
+                <span class="n">aoi_engine</span> <span class="o">=</span> <span class="n">AOIGeneratorForTiles</span><span class="p">(</span>
+                    <span class="n">tiles</span><span class="o">=</span><span class="n">tiles</span><span class="p">,</span>
+                    <span class="n">tile_coordinate_step</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">,</span>
+                    <span class="n">aois_config</span><span class="o">=</span><span class="n">cast</span><span class="p">(</span><span class="n">AOIGeneratorConfig</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span><span class="p">)</span>
+                <span class="p">)</span>
             <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span><span class="p">)</span> <span class="ow">is</span> <span class="n">AOIFromPackageConfig</span><span class="p">:</span>
-                <span class="n">aoi_engine</span> <span class="o">=</span> <span class="n">AOIFromPackageForTiles</span><span class="p">(</span><span class="n">tiles</span><span class="o">=</span><span class="n">tiles</span><span class="p">,</span>
-                                                    <span class="n">tile_coordinate_step</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">,</span>
-                                                    <span class="n">aois_config</span><span class="o">=</span><span class="n">cast</span><span class="p">(</span><span class="n">AOIFromPackageConfig</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span><span class="p">),</span>
-                                                    <span class="n">associated_raster</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="p">,</span>
-                                                    <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span>
-                                                    <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">)</span>
+                <span class="n">aoi_engine</span> <span class="o">=</span> <span class="n">AOIFromPackageForTiles</span><span class="p">(</span>
+                    <span class="n">tiles</span><span class="o">=</span><span class="n">tiles</span><span class="p">,</span>
+                    <span class="n">tile_coordinate_step</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">,</span>
+                    <span class="n">aois_config</span><span class="o">=</span><span class="n">cast</span><span class="p">(</span><span class="n">AOIFromPackageConfig</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span><span class="p">),</span>
+                    <span class="n">associated_raster</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="p">,</span>
+                    <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span>
+                    <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span>
+                <span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;aois_config type unsupported: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
 
@@ -227,16 +230,15 @@
 
         <span class="c1"># Checking if the tile has more than a certain ratio of white, black, or alpha pixels.</span>
         <span class="k">if</span> <span class="n">is_rgb</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">data</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">tile_size</span> <span class="o">*</span> <span class="n">tile_size</span> <span class="o">*</span> <span class="mi">3</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">skip_ratio</span><span class="p">:</span>
-                <span class="k">return</span> <span class="kc">True</span>
-            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">data</span> <span class="o">==</span> <span class="mi">255</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">tile_size</span> <span class="o">*</span> <span class="n">tile_size</span> <span class="o">*</span> <span class="mi">3</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">skip_ratio</span><span class="p">:</span>
+            <span class="n">black</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">data</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">white</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">data</span> <span class="o">==</span> <span class="mi">255</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">black</span> <span class="o">|</span> <span class="n">white</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">tile_size</span> <span class="o">*</span> <span class="n">tile_size</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">skip_ratio</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">True</span>
         <span class="k">elif</span> <span class="n">is_rgba</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">data</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">tile_size</span> <span class="o">*</span> <span class="n">tile_size</span> <span class="o">*</span> <span class="mi">3</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">skip_ratio</span><span class="p">:</span>
-                <span class="k">return</span> <span class="kc">True</span>
-            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">data</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">255</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">tile_size</span> <span class="o">*</span> <span class="n">tile_size</span> <span class="o">*</span> <span class="mi">3</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">skip_ratio</span><span class="p">:</span>
-                <span class="k">return</span> <span class="kc">True</span>
-            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">tile_size</span> <span class="o">*</span> <span class="n">tile_size</span> <span class="o">*</span> <span class="mi">3</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">skip_ratio</span><span class="p">:</span>
+            <span class="n">black</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">data</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">white</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">tile</span><span class="o">.</span><span class="n">data</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">255</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">alpha</span> <span class="o">=</span> <span class="n">tile</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">black</span> <span class="o">|</span> <span class="n">white</span> <span class="o">|</span> <span class="n">alpha</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">tile_size</span> <span class="o">*</span> <span class="n">tile_size</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">skip_ratio</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">True</span>
 
         <span class="k">return</span> <span class="kc">False</span>
@@ -385,7 +387,7 @@
                                 <span class="p">),</span>
                                 <span class="n">tile_coordinate_step</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">)</span>
 
-        <span class="p">[</span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No tiles found for AOI </span><span class="si">{</span><span class="n">aoi</span><span class="si">}</span><span class="s1">.&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span><span class="o">.</span><span class="n">aois</span>
+        <span class="p">[</span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No tiles found for AOI </span><span class="si">{</span><span class="n">aoi</span><span class="si">}</span><span class="s1">.&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span><span class="o">.</span><span class="n">actual_names</span>
          <span class="k">if</span> <span class="n">aoi</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">aois_tiles</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span>
 
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Saving tiles...&quot;</span><span class="p">)</span>
@@ -441,24 +443,6 @@
                  <span class="n">scale_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">output_name_suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        raster_path: Path,</span>
-<span class="sd">            Path to the raster (.tif, .png...).</span>
-<span class="sd">        tile_size: int,</span>
-<span class="sd">            The wanted size of the tiles (tile_size, tile_size).</span>
-<span class="sd">        tile_overlap: float,</span>
-<span class="sd">            The overlap between the tiles (should be 0 &lt;= overlap &lt; 1).</span>
-<span class="sd">        aois_config: AOIConfig or None,</span>
-<span class="sd">            An instance of AOIConfig to use, or None if all tiles should be kept in an &#39;all&#39; AOI.</span>
-<span class="sd">        ground_resolution: float,</span>
-<span class="sd">            The ground resolution in meter per pixel desired when loading the raster.</span>
-<span class="sd">            Only one of ground_resolution and scale_factor can be set at the same time.</span>
-<span class="sd">        scale_factor: float,</span>
-<span class="sd">            Scale factor for rescaling the data (change pixel resolution).</span>
-<span class="sd">            Only one of ground_resolution and scale_factor can be set at the same time.</span>
-<span class="sd">        ignore_black_white_alpha_tiles_threshold: bool,</span>
-<span class="sd">            Whether to ignore (skip) mostly black or white (&gt;ignore_black_white_alpha_tiles_threshold%) tiles.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">raster_path</span><span class="o">=</span><span class="n">raster_path</span><span class="p">,</span>
                          <span class="n">tile_size</span><span class="o">=</span><span class="n">tile_size</span><span class="p">,</span>
