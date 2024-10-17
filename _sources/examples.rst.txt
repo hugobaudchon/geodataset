@@ -34,6 +34,17 @@ If no AOI config is passed to the Tilerizer, all the tiles will be kept in a sin
               }
     )
 
+    # For AOIGeneratorConfig, you can also specify additional parameters to control the generation of the AOIs,
+    # where the 'actual_name' separates a same AOI 'train' into 2 parts, allowing an other aoi 'valid' in the middle.
+    # The 'priority_aoi' can be used on a single aoi to force its tiles to be whole and not partially blacked-out because
+    # they overlap other aois tiles (this is useful for small aois compared to others, like when "percentage" = 0.01).
+    aoi_gen_config = AOIGeneratorConfig(
+    aoi_type="band",  # currently supports 'band' and 'corner'
+    aois={"train1": {"percentage": 0.495, "position": 1, "actual_name": "train"},
+          "valid": {"percentage": 0.01, "position": 2, "priority_aoi": True},
+          "train2": {"percentage": 0.495, "position": 3, "actual_name": "train"}},
+    )
+
 Unlabeled Raster
 ~~~~~~~~~~~~~~~~
 

@@ -110,6 +110,17 @@ If no AOI config is passed to the Tilerizer, all the tiles will be kept in a sin
           <span class="s1">&#39;test&#39;</span><span class="p">:</span> <span class="s1">&#39;Data/raw/quebec_trees_dataset_2021-09-02/inference_zone.gpkg&#39;</span>
           <span class="p">}</span>
 <span class="p">)</span>
+
+<span class="c1"># For AOIGeneratorConfig, you can also specify additional parameters to control the generation of the AOIs,</span>
+<span class="c1"># where the &#39;actual_name&#39; separates a same AOI &#39;train&#39; into 2 parts, allowing an other aoi &#39;valid&#39; in the middle.</span>
+<span class="c1"># The &#39;priority_aoi&#39; can be used on a single aoi to force its tiles to be whole and not partially blacked-out because</span>
+<span class="c1"># they overlap other aois tiles (this is useful for small aois compared to others, like when &quot;percentage&quot; = 0.01).</span>
+<span class="n">aoi_gen_config</span> <span class="o">=</span> <span class="n">AOIGeneratorConfig</span><span class="p">(</span>
+<span class="n">aoi_type</span><span class="o">=</span><span class="s2">&quot;band&quot;</span><span class="p">,</span>  <span class="c1"># currently supports &#39;band&#39; and &#39;corner&#39;</span>
+<span class="n">aois</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;train1&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;percentage&quot;</span><span class="p">:</span> <span class="mf">0.495</span><span class="p">,</span> <span class="s2">&quot;position&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;actual_name&quot;</span><span class="p">:</span> <span class="s2">&quot;train&quot;</span><span class="p">},</span>
+      <span class="s2">&quot;valid&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;percentage&quot;</span><span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span> <span class="s2">&quot;position&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;priority_aoi&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
+      <span class="s2">&quot;train2&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;percentage&quot;</span><span class="p">:</span> <span class="mf">0.495</span><span class="p">,</span> <span class="s2">&quot;position&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;actual_name&quot;</span><span class="p">:</span> <span class="s2">&quot;train&quot;</span><span class="p">}},</span>
+<span class="p">)</span>
 </pre></div>
 </div>
 </section>
