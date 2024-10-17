@@ -10,8 +10,9 @@ from tqdm import tqdm
 
 from geodataset.aoi import AOIGeneratorForTiles, AOIFromPackageForTiles
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
-from geodataset.geodata import Raster, Tile
+from geodataset.geodata import Raster, RasterTile
 from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention
+from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
 
 
 class BaseRasterTilerizer(ABC):
@@ -57,13 +58,16 @@ class BaseRasterTilerizer(ABC):
         self.aois_config = aois_config
         self.output_name_suffix = output_name_suffix
         self.ignore_black_white_alpha_tiles_threshold = ignore_black_white_alpha_tiles_threshold
-
         self.scale_factor = scale_factor
         self.ground_resolution = ground_resolution
 
         self._check_parameters()
 
         self.raster = self._load_raster()
+
+        if self.aois_config is None:
+            self.aois_config = AOIGeneratorConfig(aois={'all': {'percentage': 1, 'position': 1}}, aoi_type='band')
+            print('No AOIs provided, all tiles will be kept in the "all" AOI.')
 
     def _check_parameters(self):
         assert self.raster_path.exists(), \
@@ -82,7 +86,7 @@ class BaseRasterTilerizer(ABC):
                         scale_factor=self.scale_factor)
         return raster
 
-    def _create_tiles(self) -> List[Tile]:
+    def _create_tiles(self) -> List[RasterTile]:
         width = self.raster.metadata['width']
         height = self.raster.metadata['height']
 
@@ -105,21 +109,25 @@ class BaseRasterTilerizer(ABC):
 
         return tiles
 
-    def _get_tiles_per_aoi(self, tiles: List[Tile]):
+    def _get_tiles_per_aoi(self, tiles: List[RasterTile]):
         print('Assigning the tiles to the aois...')
 
         if self.aois_config is not None:
             if type(self.aois_config) is AOIGeneratorConfig:
-                aoi_engine = AOIGeneratorForTiles(tiles=tiles,
-                                                  tile_coordinate_step=self.tile_coordinate_step,
-                                                  aois_config=cast(AOIGeneratorConfig, self.aois_config))
+                aoi_engine = AOIGeneratorForTiles(
+                    tiles=tiles,
+                    tile_coordinate_step=self.tile_coordinate_step,
+                    aois_config=cast(AOIGeneratorConfig, self.aois_config)
+                )
             elif type(self.aois_config) is AOIFromPackageConfig:
-                aoi_engine = AOIFromPackageForTiles(tiles=tiles,
-                                                    tile_coordinate_step=self.tile_coordinate_step,
-                                                    aois_config=cast(AOIFromPackageConfig, self.aois_config),
-                                                    associated_raster=self.raster,
-                                                    ground_resolution=self.ground_resolution,
-                                                    scale_factor=self.scale_factor)
+                aoi_engine = AOIFromPackageForTiles(
+                    tiles=tiles,
+                    tile_coordinate_step=self.tile_coordinate_step,
+                    aois_config=cast(AOIFromPackageConfig, self.aois_config),
+                    associated_raster=self.raster,
+                    ground_resolution=self.ground_resolution,
+                    scale_factor=self.scale_factor
+                )
             else:
                 raise Exception(f'aois_config type unsupported: {type(self.aois_config)}')
 
@@ -148,16 +156,15 @@ class BaseRasterTilerizer(ABC):
 
         # Checking if the tile has more than a certain ratio of white, black, or alpha pixels.
         if is_rgb:
-            if np.sum(tile.data == 0) / (tile_size * tile_size * 3) > skip_ratio:
-                return True
-            if np.sum(tile.data == 255) / (tile_size * tile_size * 3) > skip_ratio:
+            black = np.all(tile.data == 0, axis=0)
+            white = np.all(tile.data == 255, axis=0)
+            if np.sum(black | white) / (tile_size * tile_size) >= skip_ratio:
                 return True
         elif is_rgba:
-            if np.sum(tile.data[:-1] == 0) / (tile_size * tile_size * 3) > skip_ratio:
-                return True
-            if np.sum(tile.data[:-1] == 255) / (tile_size * tile_size * 3) > skip_ratio:
-                return True
-            if np.sum(tile.data[-1] == 0) / (tile_size * tile_size * 3) > skip_ratio:
+            black = np.all(tile.data[:-1] == 0, axis=0)
+            white = np.all(tile.data[:-1] == 255, axis=0)
+            alpha = tile.data[-1] == 0
+            if np.sum(black | white | alpha) / (tile_size * tile_size) >= skip_ratio:
                 return True
 
         return False
@@ -214,6 +221,26 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
         self.output_path = Path(output_path) / self.raster.output_name
         self.tiles_path = self.output_path / 'tiles'
         self.tiles_path.mkdir(parents=True, exist_ok=True)
+
+    def _get_tiles_per_aoi(self, tiles: List[RasterTile]):
+        aois_tiles, aois_gdf = super()._get_tiles_per_aoi(tiles=tiles)
+
+        # Saving the AOIs to disk
+        for aoi in aois_gdf['aoi'].unique():
+            if aoi in aois_tiles and len(aois_tiles[aoi]) > 0:
+                aoi_gdf = aois_gdf[aois_gdf['aoi'] == aoi]
+                aoi_gdf = self.raster.revert_polygons_pixels_coordinates_to_crs(aoi_gdf)
+                aoi_file_name = AoiGeoPackageConvention.create_name(
+                    product_name=self.raster.output_name,
+                    aoi=aoi,
+                    ground_resolution=self.ground_resolution,
+                    scale_factor=self.scale_factor
+                )
+                aoi_gdf.drop(columns=['id'], inplace=True, errors='ignore')
+                aoi_gdf.to_file(self.output_path / aoi_file_name, driver='GPKG')
+                print(f"Final AOI '{aoi}' saved to {self.output_path / aoi_file_name}.")
+
+        return aois_tiles, aois_gdf
 
 
 class RasterTilerizer(BaseDiskRasterTilerizer):
@@ -282,6 +309,9 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                                 ),
                                 tile_coordinate_step=self.tile_coordinate_step)
 
+        [print(f'No tiles found for AOI {aoi}.') for aoi in self.aois_config.actual_names
+         if aoi not in aois_tiles or len(aois_tiles[aoi]) == 0]
+
         print("Saving tiles...")
         for aoi in aois_tiles:
             if aoi == 'all' and len(aois_tiles.keys()) > 1:
@@ -331,24 +361,6 @@ class RasterTilerizerGDF(BaseRasterTilerizer):
                  scale_factor: float = None,
                  output_name_suffix: str = None,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8):
-        """
-        raster_path: Path,
-            Path to the raster (.tif, .png...).
-        tile_size: int,
-            The wanted size of the tiles (tile_size, tile_size).
-        tile_overlap: float,
-            The overlap between the tiles (should be 0 <= overlap < 1).
-        aois_config: AOIConfig or None,
-            An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
-        ground_resolution: float,
-            The ground resolution in meter per pixel desired when loading the raster.
-            Only one of ground_resolution and scale_factor can be set at the same time.
-        scale_factor: float,
-            Scale factor for rescaling the data (change pixel resolution).
-            Only one of ground_resolution and scale_factor can be set at the same time.
-        ignore_black_white_alpha_tiles_threshold: bool,
-            Whether to ignore (skip) mostly black or white (>ignore_black_white_alpha_tiles_threshold%) tiles.
-        """
 
         super().__init__(raster_path=raster_path,
                          tile_size=tile_size,

@@ -10,13 +10,13 @@ from shapely import box
 from .aoi_disambiguator import AOIDisambiguator
 from .aoi_config import AOIGeneratorConfig
 from .aoi_base import AOIBaseForTiles, AOIBaseGenerator
-from geodataset.geodata import Tile
+from geodataset.geodata import RasterTile
 from ..utils import get_tiles_array
 
 
 class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
     def __init__(self,
-                 tiles: List[Tile],
+                 tiles: List[RasterTile],
                  tile_coordinate_step: int,
                  aois_config: AOIGeneratorConfig):
         """
@@ -34,35 +34,35 @@ class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
         self.aois = self.aois_config.aois
         self.aoi_type = self.aois_config.aoi_type
 
-    def get_aoi_tiles(self) -> (dict[str, List[Tile]], dict[str, gpd.GeoDataFrame]):
+    def get_aoi_tiles(self) -> (dict[str, List[RasterTile]], dict[str, gpd.GeoDataFrame]):
         sorted_aois = {k: v for k, v in sorted(self.aois.items(), key=lambda item: (float('inf'),) if item[1]['position'] is None else (item[1]['position'],))}
         aois_tiles = {}
-        for key in sorted_aois:
-            max_n_tiles_in_aoi = np.round(sorted_aois[key]['percentage'] * self.n_tiles)
+        for aoi in sorted_aois:
+            max_n_tiles_in_aoi = np.round(sorted_aois[aoi]['percentage'] * self.n_tiles)
             n_tiles_left = np.sum(self.tiles_array[self.tiles_array == 1])
             if max_n_tiles_in_aoi > n_tiles_left:
                 max_n_tiles_in_aoi = n_tiles_left
 
             if self.aoi_type == "corner":
                 aoi_array = self._get_corner_aoi_array(max_n_tiles_in_aoi=max_n_tiles_in_aoi,
-                                                       forced_position=sorted_aois[key]['percentage'])
+                                                       forced_position=sorted_aois[aoi]['percentage'])
             elif self.aoi_type == 'band':
                 aoi_array = self._get_band_aoi_array(max_n_tiles_in_aoi=max_n_tiles_in_aoi,
-                                                     forced_position=sorted_aois[key]['percentage'])
+                                                     forced_position=sorted_aois[aoi]['percentage'])
             else:
                 raise Exception(f'aoi_type value \'{self.aoi_type}\' is not supported.')
 
             # Finding associated tile objects and storing them in a dict
-            aois_tiles[key] = []
+            aois_tiles[aoi] = []
             for tile in self.tiles:
                 if aoi_array[int(tile.row/self.tile_coordinate_step), int(tile.col/self.tile_coordinate_step)] == 2:
-                    aois_tiles[key].append(tile)
+                    tile = tile.copy_with_aoi_and_id(new_aoi=aoi, new_id=tile.tile_id)
+                    aois_tiles[aoi].append(tile)
 
             # Setting tiles already assigned to an AOI as 0 so that they don't get assigned again.
             self.tiles_array[aoi_array == 2] = 0
 
         # Getting gdfs of the AOIs and the tiles.
-        tiles_gdfs = {}
         aois_gdfs = {}
         for aoi, tiles in aois_tiles.items():
             aoi_tiles_gdf = GeoDataFrame({'tile': tiles,
@@ -75,11 +75,10 @@ class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
             aoi_tiles_gdf['aoi'] = aoi
             aoi_gdf = GeoDataFrame({'geometry': [aoi_tiles_gdf.geometry.unary_union]})
             aoi_gdf['aoi'] = aoi
-            tiles_gdfs[aoi] = aoi_tiles_gdf
             aois_gdfs[aoi] = aoi_gdf
 
         # Blacking out the parts of the tiles that are not in their assigned AOI.
-        tiles_gdf = gpd.GeoDataFrame(pd.concat(tiles_gdfs.values(), ignore_index=True)).reset_index()
+        tiles_gdf = self.duplicate_tiles_at_aoi_intersection(aois_tiles=aois_tiles)
         aois_gdf = gpd.GeoDataFrame(pd.concat(aois_gdfs.values(), ignore_index=True)).reset_index()
 
         aoi_disambiguator = AOIDisambiguator(
@@ -89,6 +88,8 @@ class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
         )
         aoi_disambiguator.redistribute_generated_aois_intersections(aois_config=self.aois_config)
         aoi_disambiguator.disambiguate_tiles()
+
+        aois_tiles, aois_gdf = self.use_actual_aois_names(self.aois_config, aois_tiles, aois_gdf)
 
         return aois_tiles, aois_gdf
 

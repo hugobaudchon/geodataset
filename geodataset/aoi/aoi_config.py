@@ -1,3 +1,4 @@
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -5,6 +6,24 @@ from pathlib import Path
 class AOIConfig(ABC):
     def __init__(self, aois: dict):
         self.aois = aois
+        self.actual_names = self._check_aois_names()
+
+    def _check_aois_names(self):
+        actual_names = set()
+        for aoi_name in self.aois.keys():
+            assert re.match(r'^[a-zA-Z0-9]+$', aoi_name), (
+                "The AOI name should only contain alphanumeric characters like 'train', 'test1', 'test2'... "
+            )
+            if 'actual_name' in self.aois[aoi_name]:
+                actual_name = self.aois[aoi_name]['actual_name']
+                assert re.match(r'^[a-zA-Z0-9]+$', actual_name), (
+                    f"The AOI {aoi_name}'s 'actual_name={actual_name}' should only contain alphanumeric characters like 'train', 'test1', 'test2'... "
+                )
+                actual_names.add(actual_name)
+            else:
+                actual_names.add(aoi_name)
+
+        return actual_names
 
     @abstractmethod
     def _check_config(self):
@@ -64,6 +83,7 @@ class AOIGeneratorConfig(AOIConfig):
         assert self.aoi_type in self.SUPPORTED_AOI_TYPES, (f"The specified aoi_type {self.aoi_type} is not supported."
                                                            f" Valid values are {self.SUPPORTED_AOI_TYPES}")
 
+        priority_aoi = None
         positions = []
         percentages = []
         for aoi_name in self.aois:
@@ -74,6 +94,10 @@ class AOIGeneratorConfig(AOIConfig):
             assert 'percentage' in aoi, f"The aoi '{aoi_name}' doesn't have a 'percentage' value."
             assert type(aoi['percentage']) is float or aoi['percentage'] == 1, \
                 f"The 'percentage' value of aoi {aoi_name} is not a float. Got value {aoi['percentage']}"
+
+            if 'priority_aoi' in aoi and aoi['priority_aoi']:
+                assert priority_aoi is None, "Only one AOI can be set as 'priority_aoi=True'."
+                priority_aoi = aoi_name
 
             positions.append(aoi['position'])
             percentages.append(aoi['percentage'])

@@ -7,7 +7,7 @@ from shapely import box, Polygon
 from shapely.affinity import translate
 
 from geodataset.aoi import AOIConfig
-from geodataset.geodata.tile import Tile
+from geodataset.geodata.raster_tile import RasterTile
 from geodataset.labels.raster_labels import RasterPolygonLabels
 
 
@@ -161,6 +161,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
     def _get_tiles_and_labels_per_aoi(self):
         tiles = self._create_tiles()
+
         (intersecting_labels_raster_coords,
          intersecting_labels_tiles_coords) = self._find_associated_labels(tiles=tiles)
 
@@ -175,6 +176,10 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
         # Assigning the tiles to AOIs
         aois_tiles, aois_gdf = self._get_tiles_per_aoi(tiles=labeled_tiles)
+
+        # As some tiles may have been duplicated/removed, we have to re-compute the associated labels
+        (intersecting_labels_raster_coords,
+         intersecting_labels_tiles_coords) = self._find_associated_labels(tiles=[tile for tiles in aois_tiles.values() for tile in tiles])
 
         # Intersect the labels with the aois, to make sure for a given tile, we only get labels inside its assigned AOI.
         intersecting_labels_raster_coords['label_id'] = intersecting_labels_raster_coords.index
@@ -233,7 +238,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         significant_polygons_inter = inter_polygons[inter_polygons['intersection_ratio'] > self.min_intersection_ratio]
         significant_polygons_inter.reset_index()
 
-        def adjust_geometry(polygon: Polygon, tile: Tile):
+        def adjust_geometry(polygon: Polygon, tile: RasterTile):
             return translate(polygon, xoff=-tile.col, yoff=-tile.row)
 
         intersecting_labels_tiles_coords = significant_polygons_inter.copy()
@@ -261,6 +266,9 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                                 ),
                                 tile_coordinate_step=self.tile_coordinate_step)
 
+        [print(f'No tiles found for AOI {aoi}.') for aoi in self.aois_config.actual_names
+         if aoi not in aois_tiles or len(aois_tiles[aoi]) == 0]
+
         print('Saving the tiles and COCO json files...')
         coco_paths = {}
         for aoi in aois_tiles:
@@ -272,14 +280,13 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             labels = aois_labels[aoi]
 
             if len(tiles) == 0:
-                print(f"No tiles found for AOI {aoi}, skipping...")
-                continue
-
-            if len(tiles) == 0:
                 print(f"No tiles found for AOI {aoi}. Skipping...")
                 continue
 
-            tiles_paths = [self.tiles_path / tile.generate_name() for tile in tiles]
+            tiles_path_aoi = self.tiles_path / aoi
+            tiles_path_aoi.mkdir(parents=True, exist_ok=True)
+
+            tiles_paths = [tiles_path_aoi / tile.generate_name() for tile in tiles]
             polygons = [x['geometry'].to_list() for x in labels]
             categories_list = [x[self.labels.main_label_category_column_name].to_list() for x in labels]\
                 if self.labels.main_label_category_column_name else None
@@ -291,7 +298,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
             # Saving the tiles
             for tile in aois_tiles[aoi]:
-                tile.save(output_folder=self.tiles_path)
+                tile.save(output_folder=tiles_path_aoi)
 
             coco_output_file_path = self.output_path / CocoNameConvention.create_name(
                 product_name=self.raster.output_name,
