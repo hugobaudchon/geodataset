@@ -1277,7 +1277,6 @@ def tiles_polygons_gdf_to_crs_gdf(dataframe: gpd.GeoDataFrame):
 
     return all_tiles_gdf
 
-
 def find_tiles_paths(directories: List[Path], extensions: List[str]) -> dict[str, Path]:
     """
     Find all files with given extensions in a list of directories, recursively.
