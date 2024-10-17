@@ -158,7 +158,7 @@ class PointCloudTilerizer:
                     tile_id += 1
 
             self.tiles_metadata = PointCloudTileMetadataCollection(
-                tiles_metadata, product_name=self.product_name
+                tiles_metadata,product_name=self.tiles_metadata.product_name
             )
 
         print(f"Number of tiles generated: {len(self.tiles_metadata)}")
@@ -255,6 +255,7 @@ class PointCloudTilerizer:
         plt.savefig(self.output_path / f"{self.tiles_metadata.product_name}_aois.png")
 
     def _laspy_to_o3d(self, pc_file: Path, keep_dims: List[str]):
+        float_type = np.float32
         dimensions = list(pc_file.point_format.dimension_names)
 
         if keep_dims == "ALL":
@@ -264,33 +265,32 @@ class PointCloudTilerizer:
         assert all([dim in dimensions for dim in keep_dims])
 
         pc = np.ascontiguousarray(
-            np.vstack([pc_file.x, pc_file.y, pc_file.z]).T.astype(np.float64)
+            np.vstack([pc_file.x, pc_file.y, pc_file.z]).T.astype(float_type)
         )
 
         map_to_tensors = {}
-        map_to_tensors["positions"] = pc.astype(np.float64)
+        map_to_tensors["positions"] = pc.astype(float_type)
 
         keep_dims.remove("X")
         keep_dims.remove("Y")
         keep_dims.remove("Z")
 
         if "red" in keep_dims and "green" in keep_dims and "blue" in keep_dims:
-            pc_colors = (
-                np.ascontiguousarray(
+            colors = np.ascontiguousarray(
                     np.vstack([pc_file.red, pc_file.green, pc_file.blue]).T.astype(
-                        np.float64
+                        float_type
                     )
                 )
-                / 255
-            )
-            map_to_tensors["colors"] = pc_colors.astype(np.float64)
 
+            pc_colors = np.round(colors/255)
+            map_to_tensors["colors"] = pc_colors.astype(np.uint8)
+            
             keep_dims.remove("red")
             keep_dims.remove("blue")
             keep_dims.remove("green")
 
         for dim in keep_dims:
-            dim_value = np.ascontiguousarray(pc_file[dim]).astype(np.float64)
+            dim_value = np.ascontiguousarray(pc_file[dim]).astype(float_type)
 
             assert len(dim_value.shape) == 1
             dim_value = dim_value.reshape(-1, 1)

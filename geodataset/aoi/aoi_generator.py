@@ -63,7 +63,6 @@ class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
             self.tiles_array[aoi_array == 2] = 0
 
         # Getting gdfs of the AOIs and the tiles.
-        tiles_gdfs = {}
         aois_gdfs = {}
         for aoi, tiles in aois_tiles.items():
             aoi_tiles_gdf = GeoDataFrame({'tile': tiles,
@@ -76,11 +75,10 @@ class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
             aoi_tiles_gdf['aoi'] = aoi
             aoi_gdf = GeoDataFrame({'geometry': [aoi_tiles_gdf.geometry.unary_union]})
             aoi_gdf['aoi'] = aoi
-            tiles_gdfs[aoi] = aoi_tiles_gdf
             aois_gdfs[aoi] = aoi_gdf
 
         # Blacking out the parts of the tiles that are not in their assigned AOI.
-        tiles_gdf = gpd.GeoDataFrame(pd.concat(tiles_gdfs.values(), ignore_index=True)).reset_index()
+        tiles_gdf = self.duplicate_tiles_at_aoi_intersection(aois_tiles=aois_tiles)
         aois_gdf = gpd.GeoDataFrame(pd.concat(aois_gdfs.values(), ignore_index=True)).reset_index()
 
         aoi_disambiguator = AOIDisambiguator(
@@ -90,6 +88,8 @@ class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
         )
         aoi_disambiguator.redistribute_generated_aois_intersections(aois_config=self.aois_config)
         aoi_disambiguator.disambiguate_tiles()
+
+        aois_tiles, aois_gdf = self.use_actual_aois_names(self.aois_config, aois_tiles, aois_gdf)
 
         return aois_tiles, aois_gdf
 
