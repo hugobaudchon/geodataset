@@ -4,6 +4,7 @@ from pathlib import Path
 import albumentations
 import open3d as o3d
 from geodataset.dataset.base_dataset import BaseDataset
+import pandas as pd
 
 class SegmentationLabeledPointCloudCocoDataset(BaseLabeledPointCloudCocoDataset):
     """
@@ -115,12 +116,13 @@ class BasePointDataset(BaseDataset):
     def __init__(self,
                  root_path: Union[str, List[str], Path, List[Path]],
                  fold: str = None, 
-                 extension: str = '.pcd'):
+                 extension: str = 'pcd'):
         
         self.fold = fold
         self.root_path = root_path
         self.tile_paths = []
         self.extension = extension
+        self.metadata_df = pd.DataFrame(columns = ["tile_name","min_x","max_x","min_y","max_y","crs"])
 
         if isinstance(self.root_path, (str, Path)):
             self.root_path = [self.root_path]
@@ -129,25 +131,38 @@ class BasePointDataset(BaseDataset):
 
         self._find_tiles_paths(directories=self.root_path)
 
+        print(f"Found {len(self.tile_paths)} tiles for {fold}.")
+
     def _find_tiles_paths(self, directories: List[Path]):
         """
         Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
         """
 
         for directory in directories:
-            if directory.is_dir() and directory.name == 'tiles':
+            if directory.is_dir() and 'pc_tiles' in directory.name:
+                for file in directory.iterdir():
+                    if file.suffix == '.csv':
+                        df = pd.read_csv(file)
+                        df = df[df["tile_name"].str.contains(self.fold)]
+                        if all(x == y for x, y in zip(df.columns, self.metadata_df.columns)):
+                            if self.metadata_df.empty:
+                                self.metadata_df = df
+                            else:
+                                self.metadata_df = pd.concat([self.metadata_df,df], axis=0)
+                # Iterate within the 'pc_tiles' folder
                 fold_directory = (directory / self.fold)
                 # Datasets may not contain all splits
                 if fold_directory.exists():
                     for path in fold_directory.iterdir():
                         # Iterate within the corresponding split folder
-                        if path.suffix == self.extension:
+                        if path.suffix == f".{self.extension}":
                             self.tile_paths.append(path)
 
             if directory.is_dir():
                 for path in directory.iterdir():
                     if path.is_dir():
                         self._find_tiles_paths(directories=[path])
+        
 
     def __getitem__(self, idx: int):
         """
