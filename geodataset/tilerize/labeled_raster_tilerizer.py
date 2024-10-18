@@ -266,7 +266,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                                 ),
                                 tile_coordinate_step=self.tile_coordinate_step)
 
-        [print(f'No tiles found for AOI {aoi}.') for aoi in self.aois_config.aois
+        [print(f'No tiles found for AOI {aoi}.') for aoi in self.aois_config.actual_names
          if aoi not in aois_tiles or len(aois_tiles[aoi]) == 0]
 
         print('Saving the tiles and COCO json files...')
@@ -278,10 +278,6 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
             tiles = aois_tiles[aoi]
             labels = aois_labels[aoi]
-
-            if len(tiles) == 0:
-                print(f"No tiles found for AOI {aoi}, skipping...")
-                continue
 
             if len(tiles) == 0:
                 print(f"No tiles found for AOI {aoi}. Skipping...")

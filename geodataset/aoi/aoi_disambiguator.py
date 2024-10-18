@@ -55,6 +55,9 @@ class AOIDisambiguator:
 
                 # Redistribute intersection
                 aoi_1_polygon, aoi_2_polygon = self.redistribute_intersection(
+                    aois_config=aois_config,
+                    aoi_name_1=aoi_1,
+                    aoi_name_2=aoi_2,
                     aoi_1_polygon=aoi_1_polygon,
                     aoi_2_polygon=aoi_2_polygon,
                     percent_1=percent_1
@@ -64,8 +67,14 @@ class AOIDisambiguator:
                 self.aois_gdf.loc[self.aois_gdf['aoi'] == aoi_1, 'geometry'] = aoi_1_polygon
                 self.aois_gdf.loc[self.aois_gdf['aoi'] == aoi_2, 'geometry'] = aoi_2_polygon
 
-    @staticmethod
-    def redistribute_intersection(aoi_1_polygon: Polygon, aoi_2_polygon: Polygon, percent_1: float, max_iterations=500):
+    def redistribute_intersection(self,
+                                  aois_config: AOIGeneratorConfig,
+                                  aoi_name_1: str,
+                                  aoi_name_2: str,
+                                  aoi_1_polygon: Polygon,
+                                  aoi_2_polygon: Polygon,
+                                  percent_1: float,
+                                  max_iterations=500):
         """
         Redistributes the intersection of two geometries based on the given percentage,
         aiming for a more complex and accurate handling of non-rectangular intersections.
@@ -83,49 +92,55 @@ class AOIDisambiguator:
         # Calculate the intersection
         intersection = aoi_1_polygon.intersection(aoi_2_polygon)
         if intersection.is_empty:
-            return aoi_1_polygon, aoi_2_polygon
-
-        # Remove the intersection from both geometries
-        aoi_1_polygon = aoi_1_polygon.difference(intersection)
-        aoi_2_polygon = aoi_2_polygon.difference(intersection)
-
-        # Target areas to add back to each geometry based on the percentage
-        target_area_1 = intersection.area * percent_1
-        target_area_2 = intersection.area * (1 - percent_1)
-
-        # Function to progressively adjust area
-        def adjust_area(aoi_polygon, target_area, other_aoi_polygon=None):
-            adjusted_polygon = aoi_polygon
-            intersection_width = intersection.bounds[2] - intersection.bounds[0]
-            intersection_height = intersection.bounds[3] - intersection.bounds[1]
-            step = max(intersection_width, intersection_height) / max_iterations
-
-            for _ in range(max_iterations):
-                added_area = adjusted_polygon.intersection(intersection).area
-                if added_area < target_area:
-                    buffered_polygon = adjusted_polygon.buffer(step)
-                    adjusted_polygon = adjusted_polygon.union(buffered_polygon.intersection(intersection))
-                    if other_aoi_polygon:
-                        adjusted_polygon = adjusted_polygon.difference(other_aoi_polygon)
-
-                    new_added_area = adjusted_polygon.intersection(intersection).area
-                    if new_added_area == added_area:
-                        break
-                else:
-                    break
-
-            return adjusted_polygon
-
-        # Adjust the areas, do the smaller AOI first.
-        if target_area_1 < target_area_2:
-            adjusted_part_1 = adjust_area(aoi_1_polygon, target_area_1)
-            adjusted_part_2 = adjust_area(aoi_2_polygon, target_area_2, other_aoi_polygon=adjusted_part_1)
+            pass
+        elif 'priority_aoi' in aois_config.aois[aoi_name_1] and aois_config.aois[aoi_name_1]['priority_aoi']:
+            # keep aoi_1 unchanged and remove intersection from aoi_2
+            aoi_2_polygon = aoi_2_polygon.difference(intersection)
+        elif 'priority_aoi' in aois_config.aois[aoi_name_2] and aois_config.aois[aoi_name_2]['priority_aoi']:
+            # keep aoi_2 unchanged and remove intersection from aoi_1
+            aoi_1_polygon = aoi_1_polygon.difference(intersection)
         else:
-            adjusted_part_2 = adjust_area(aoi_2_polygon, target_area_2)
-            adjusted_part_1 = adjust_area(aoi_1_polygon, target_area_1, other_aoi_polygon=adjusted_part_2)
+            # Remove the intersection from both geometries
+            aoi_1_polygon = aoi_1_polygon.difference(intersection)
+            aoi_2_polygon = aoi_2_polygon.difference(intersection)
 
-        # Add back the adjusted parts to the original geometries
-        aoi_1_polygon = aoi_1_polygon.union(adjusted_part_1)
-        aoi_2_polygon = aoi_2_polygon.union(adjusted_part_2)
+            # Target areas to add back to each geometry based on the percentage
+            target_area_1 = intersection.area * percent_1
+            target_area_2 = intersection.area * (1 - percent_1)
+
+            # Function to progressively adjust area
+            def adjust_area(aoi_polygon, target_area, other_aoi_polygon=None):
+                adjusted_polygon = aoi_polygon
+                intersection_width = intersection.bounds[2] - intersection.bounds[0]
+                intersection_height = intersection.bounds[3] - intersection.bounds[1]
+                step = max(intersection_width, intersection_height) / max_iterations
+
+                for _ in range(max_iterations):
+                    added_area = adjusted_polygon.intersection(intersection).area
+                    if added_area < target_area:
+                        buffered_polygon = adjusted_polygon.buffer(step)
+                        adjusted_polygon = adjusted_polygon.union(buffered_polygon.intersection(intersection))
+                        if other_aoi_polygon:
+                            adjusted_polygon = adjusted_polygon.difference(other_aoi_polygon)
+
+                        new_added_area = adjusted_polygon.intersection(intersection).area
+                        if new_added_area == added_area:
+                            break
+                    else:
+                        break
+
+                return adjusted_polygon
+
+            # Adjust the areas, do the smaller AOI first.
+            if target_area_1 < target_area_2:
+                adjusted_part_1 = adjust_area(aoi_1_polygon, target_area_1)
+                adjusted_part_2 = adjust_area(aoi_2_polygon, target_area_2, other_aoi_polygon=adjusted_part_1)
+            else:
+                adjusted_part_2 = adjust_area(aoi_2_polygon, target_area_2)
+                adjusted_part_1 = adjust_area(aoi_1_polygon, target_area_1, other_aoi_polygon=adjusted_part_2)
+
+            # Add back the adjusted parts to the original geometries
+            aoi_1_polygon = aoi_1_polygon.union(adjusted_part_1)
+            aoi_2_polygon = aoi_2_polygon.union(adjusted_part_2)
 
         return aoi_1_polygon, aoi_2_polygon
