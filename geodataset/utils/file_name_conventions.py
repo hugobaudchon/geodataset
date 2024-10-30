@@ -68,7 +68,7 @@ class FileNameConvention(ABC):
 
 
 class TileNameConvention(FileNameConvention):
-    pattern_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_[a-zA-Z]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
+    pattern_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_[a-zA-Z0-9]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
     pattern_no_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
 
     @staticmethod
@@ -113,7 +113,7 @@ class TileNameConvention(FileNameConvention):
 
 
 class PolygonTileNameConvention(FileNameConvention):
-    pattern_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_polygontile_[a-zA-Z]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+\.tif$"
+    pattern_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_polygontile_[a-zA-Z0-9]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+\.tif$"
     pattern_no_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_polygontile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+\.tif$"
 
     @staticmethod
@@ -324,7 +324,7 @@ class AoiGeoPackageConvention(FileNameConvention):
 class PointCloudTileNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^.*pctile_[a-zA-Z]+_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+\.(ply|las|pcd)$"
+        pattern = r"^.*pctile_[a-zA-Z0-9]+_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+\.(ply|las|pcd)$"
         if not re.match(pattern, name):
             raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
         else:

@@ -54,19 +54,8 @@ class AOIFromPackageForTiles(AOIBaseForTiles, AOIBaseFromPackage):
         intersections['intersection_area'] = intersections.geometry.area
         aois_tiles = intersections.groupby('aoi')['tile'].apply(list).to_dict()
 
-        # adding aoi data info to each Tile, duplicating each Tile object that is in multiple aoi into multiple Tile objects (one per aoi)
-        current_max_tile_id = max([tile.tile_id for tile in self.tiles])
-        final_aoi_tiles_gdfs = []
-        for aoi in aois_tiles:
-            for i in range(len(aois_tiles[aoi])):
-                aois_tiles[aoi][i] = aois_tiles[aoi][i].copy_with_aoi_and_id(new_aoi=aoi, new_id=current_max_tile_id+1)      # doing it like this to avoid duplicating all tiles in memory, which could lead to OOM issues
-                final_aoi_tiles_gdfs.append(gpd.GeoDataFrame({'tile': [aois_tiles[aoi][i]],
-                                                              'tile_id': [aois_tiles[aoi][i].tile_id],
-                                                              'geometry': [aois_tiles[aoi][i].get_bbox()],
-                                                              'aoi': [aoi]}))
-                current_max_tile_id += 1
 
-        final_aoi_tiles_gdf = gpd.GeoDataFrame(pd.concat(final_aoi_tiles_gdfs, ignore_index=True)).reset_index()
+        final_aoi_tiles_gdf = self.duplicate_tiles_at_aoi_intersection(aois_tiles=aois_tiles)
 
         aoi_disambiguator = AOIDisambiguator(
             tiles_gdf=final_aoi_tiles_gdf,
@@ -74,6 +63,8 @@ class AOIFromPackageForTiles(AOIBaseForTiles, AOIBaseFromPackage):
             aois_gdf=aois_gdf
         )
         aoi_disambiguator.disambiguate_tiles()
+        
+        aois_tiles, aois_gdf = self.use_actual_aois_names(self.aois_config, aois_tiles, aois_gdf)
 
         return aois_tiles, aois_gdf
 
@@ -111,5 +102,7 @@ class AOIFromPackageForPolygons(AOIBaseForPolygons, AOIBaseFromPackage):
         aois_polygons_ids = intersections.loc[max_intersection_per_polygon].groupby('aoi')['geometry_id'].apply(list).to_dict()
 
         aois_polygons = {aoi: polygons.loc[aois_polygons_ids[aoi]] for aoi in aois_polygons_ids}
+        
+        aois_polygons, aois_gdf = self.use_actual_aois_names(self.aois_config, aois_polygons, aois_gdf)
 
         return aois_polygons, aois_gdf
