@@ -425,8 +425,10 @@ class PointCloudTileMetadataCollection:
         df["max_y"] = max_y_list
         df["crs"] = crs_list
         
-        file_path = output_folder / f"pc_tiles_{downsample_voxel_size}" / f"{self.product_name}_tile_metadata.csv"
-
-        df.to_csv(file_path, index=False)
+        file_path = output_folder / f"pc_tiles_{downsample_voxel_size}" 
+        file_path.mkdir(parents=True, exist_ok=True)
+        file_name = file_path / f"{self.product_name}_tile_metadata.csv"
+        
+        df.to_csv(file_name, index=False)
 
         print(f"Tile metadata written to {file_path}")

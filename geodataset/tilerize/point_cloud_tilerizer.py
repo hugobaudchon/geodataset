@@ -226,7 +226,7 @@ class PointCloudTilerizer:
                 o3d.t.io.write_point_cloud(str(downsampled_tile_path), pcd)
 
         print(f"Finished tilerizing. Number of tiles generated: {len(new_tile_md_list)}.")
-        self.tiles_metadata = PointCloudTileMetadataCollection(new_tile_md_list)
+        self.tiles_metadata = PointCloudTileMetadataCollection(new_tile_md_list, product_name=self.tiles_metadata.product_name)
 
     def tilerize(
         self,
@@ -244,13 +244,17 @@ class PointCloudTilerizer:
             "green": "#06D6A0",
         }
 
-        self.aoi_engine.loaded_aois["train"].plot(
-            ax=ax, color=palette["blue"], alpha=0.5
-        )
-        self.aoi_engine.loaded_aois["valid"].plot(
-            ax=ax, color=palette["green"], alpha=0.5
-        )
-        self.aoi_engine.loaded_aois["test"].plot(ax=ax, color=palette["red"], alpha=0.5)
+        if "train" in self.aoi_engine.loaded_aois:
+            self.aoi_engine.loaded_aois["train"].plot(
+                ax=ax, color=palette["blue"], alpha=0.5
+            )
+        if "valid" in self.aoi_engine.loaded_aois:
+            self.aoi_engine.loaded_aois["valid"].plot(
+                ax=ax, color=palette["green"], alpha=0.5
+            )
+        if "test" in self.aoi_engine.loaded_aois:
+            self.aoi_engine.loaded_aois["test"].plot(ax=ax, color=palette["red"], alpha=0.5)
+
 
         plt.savefig(self.output_path / f"{self.tiles_metadata.product_name}_aois.png")
 
