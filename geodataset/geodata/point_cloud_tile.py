@@ -10,6 +10,7 @@ from shapely import box
 
 from geodataset.utils import find_tiles_paths, TileNameConvention, strip_all_extensions_and_path
 from geodataset.utils.file_name_conventions import PointCloudTileNameConvention, validate_and_convert_product_name
+import pandas as pd
 
 
 class PointCloudTileMetadata:
@@ -144,6 +145,8 @@ class PointCloudTileMetadataCollection:
     def __init__(self, tile_metadata_list: List[PointCloudTileMetadata], product_name=Union[str, None]):
         self.product_name = product_name
         self.tile_metadata_list = tile_metadata_list
+        self.downsample_voxel_size = None
+
         self.min_x, self.max_x, self.min_y, self.max_y, self.min_z, self.max_z = (
             self._calculate_bounds()
         )
@@ -205,9 +208,7 @@ class PointCloudTileMetadataCollection:
         tiles_folder = Path(root_tiles_folder)
         point_cloud_path = Path(point_cloud_path)
         tiles_paths = find_tiles_paths([tiles_folder], extensions=['tif'])
-
         pc_product_name = validate_and_convert_product_name(strip_all_extensions_and_path(point_cloud_path))
-
         tiles_metadata = []
         tile_id = 0
         for tile_name in tiles_paths.keys():
@@ -396,3 +397,38 @@ class PointCloudTileMetadataCollection:
             f"num_unique_xz_bounds: {len(self.unique_xz_bounds)}\n"
             f"num_unique_yz_bounds: {len(self.unique_yz_bounds)}\n"
         )
+
+    def save(self, output_folder, downsample_voxel_size):
+        output_folder = Path(output_folder)
+        output_folder.mkdir(parents=True, exist_ok=True)
+
+        tile_name_list = []
+        min_x_list = []
+        max_x_list = []
+        min_y_list = []
+        max_y_list = []
+        crs_list = []
+
+        for tile in self.tile_metadata_list:
+            tile_name_list.append(tile.tile_name)
+            min_x_list.append(tile.min_x)
+            max_x_list.append(tile.max_x)
+            min_y_list.append(tile.min_y)
+            max_y_list.append(tile.max_y)
+            crs_list.append(tile.crs)
+        
+        df = pd.DataFrame()
+        df["tile_name"] = tile_name_list
+        df["min_x"] = min_x_list
+        df["max_x"] = max_x_list
+        df["min_y"] = min_y_list
+        df["max_y"] = max_y_list
+        df["crs"] = crs_list
+        
+        file_path = output_folder / f"pc_tiles_{downsample_voxel_size}" 
+        file_path.mkdir(parents=True, exist_ok=True)
+        file_name = file_path / f"{self.product_name}_tile_metadata.csv"
+        
+        df.to_csv(file_name, index=False)
+
+        print(f"Tile metadata written to {file_path}")
