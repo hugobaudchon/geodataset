@@ -12,27 +12,33 @@ from ..labels import RasterPolygonLabels
 class AOIForRasterBase(ABC):
     @staticmethod
     def use_actual_aois_names(aois_config: AOIConfig, aois_tiles: dict[str, List[RasterTile]], aois_gdf: gpd.GeoDataFrame):
-        new_aois_tiles = {}
-        for aoi in aois_tiles:
-            tiles = aois_tiles[aoi]
+        if isinstance(aois_config, AOIGeneratorConfig):
+            # If the AOI has an 'actual_name' field, use it to rename the AOI in the tiles and gdf
+            # This is useful when the AOI is named 'train1', 'train2', 'valid'...
+            # and we want to rename them to 'train', 'valid'...
+            new_aois_tiles = {}
+            for aoi in aois_tiles:
+                tiles = aois_tiles[aoi]
 
-            if 'actual_name' in aois_config.aois[aoi]:
-                actual_name = aois_config.aois[aoi]['actual_name']
-                aois_gdf.loc[aois_gdf['aoi'] == aoi, 'aoi'] = actual_name
-                for tile in tiles:
-                    tile.aoi = actual_name
+                if 'actual_name' in aois_config.aois[aoi]:
+                    actual_name = aois_config.aois[aoi]['actual_name']
+                    aois_gdf.loc[aois_gdf['aoi'] == aoi, 'aoi'] = actual_name
+                    for tile in tiles:
+                        tile.aoi = actual_name
 
-                if actual_name in new_aois_tiles:
-                    new_aois_tiles[actual_name] += tiles
+                    if actual_name in new_aois_tiles:
+                        new_aois_tiles[actual_name] += tiles
+                    else:
+                        new_aois_tiles[actual_name] = tiles
                 else:
-                    new_aois_tiles[actual_name] = tiles
-            else:
-                if aoi in new_aois_tiles:
-                    new_aois_tiles[aoi] += tiles
-                else:
-                    new_aois_tiles[aoi] = tiles
+                    if aoi in new_aois_tiles:
+                        new_aois_tiles[aoi] += tiles
+                    else:
+                        new_aois_tiles[aoi] = tiles
 
-        return new_aois_tiles, aois_gdf
+            return new_aois_tiles, aois_gdf
+        else:
+            return aois_tiles, aois_gdf
 
 
 class AOIBaseForTiles(AOIForRasterBase, ABC):
