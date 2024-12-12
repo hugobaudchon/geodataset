@@ -28,13 +28,13 @@ source $HOME/.cargo/env
 Finally, you can install the library with pip:
 
 ```bash
-pip install https://github.com/hugobaudchon/geodataset.git
+pip install git+https://github.com/hugobaudchon/geodataset.git
 ```
 
 Or for a specific version:
 
 ```bash
-pip install https://github.com/hugobaudchon/geodataset.git@v0.2.1
+pip install git+https://github.com/hugobaudchon/geodataset.git@v0.2.1
 ```
 
 ### Documentation
