@@ -25,7 +25,7 @@ source $HOME/.cargo/env
 ```
 
 \
-Finally, you can install the python dependencies with pip:
+Finally, you can install the library with pip:
 
 ```bash
 pip install git+ssh://git@github.com/hugobaudchon/geodataset.git
