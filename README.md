@@ -6,8 +6,35 @@ This package provide essential tools for cutting rasters and their labels into s
 
 ### Installation
 
+It is strongly advised to use this library on a Linux-based system.
+
+\
+First, install the following dependencies:
+
 ```bash
-pip install git+ssh://git@github.com/hugobaudchon/geodataset.git
+sudo apt update
+sudo apt install -y build-essential ninja-build cmake python3-dev
+```
+\
+Then, make sure you have [Rust](https://www.rust-lang.org/tools/install) installed on your system (it is needed for point cloud processing libraries).\
+On linux, you can install it with:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+```
+
+\
+Finally, you can install the library with pip:
+
+```bash
+pip install git+https://github.com/hugobaudchon/geodataset.git
+```
+
+Or for a specific version:
+
+```bash
+pip install git+https://github.com/hugobaudchon/geodataset.git@v0.2.1
 ```
 
 ### Documentation
