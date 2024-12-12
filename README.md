@@ -6,6 +6,10 @@ This package provide essential tools for cutting rasters and their labels into s
 
 ### Installation
 
+First, make sure you have [Rust](https://www.rust-lang.org/learn/get-started) installed on your system (it is needed for point cloud processing).
+
+Then, you can install the package with pip:
+
 ```bash
 pip install git+ssh://git@github.com/hugobaudchon/geodataset.git
 ```
