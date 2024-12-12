@@ -485,6 +485,9 @@ class Aggregator:
 
         self.polygons_gdf['geometry'] = self.polygons_gdf['geometry'].astype(object).apply(fix_geometry)
 
+        # Remove geometries that are still not valid after fixing
+        self.polygons_gdf = self.polygons_gdf[self.polygons_gdf.is_valid]
+
     def _prepare_scores(self):
         self.polygons_gdf['score'] = [(s if s else 0) ** self.scores_weights[0] for s in
                                       self.polygons_gdf[self.scores_names[0]]]
@@ -609,7 +612,7 @@ class Aggregator:
                                 intersection = gdf.at[current_id, 'geometry'].intersection(gdf.at[g_id, 'geometry'])
                             except shapely.errors.GEOSException:
                                 # 'invalid value encountered in intersection'
-                                print('* Skipped polygon matching ids {}/{} for shapely intersection error. *'.format(current_id, g_id))
+                                print('* Skipped polygon matching ids {}/{} for shapely intersection error. *'.format(current_id, g_id))
 
                         intersection = self._check_geometry_collection(intersection)
 
@@ -626,8 +629,7 @@ class Aggregator:
                                 new_geometry = gdf.at[g_id, 'geometry'].difference(intersection)
                             except shapely.errors.GEOSException:
                                 # 'TopologyException: found non-noded intersection'
-                                print('* Skipped polygon union between {} and {} '
-                                      'for shapely union error. *'.format(current_id, g_id))
+                                print('* Skipped polygon union between {} and {} for shapely union error. *'.format(current_id, g_id))
                                 skip_ids.add(g_id)
                                 continue
 
@@ -724,6 +726,8 @@ class Aggregator:
               f" by applying the Non-Maximum Suppression-{self.nms_algorithm} algorithm.")
 
     def _save_polygons(self):
+        self._validate_polygons()
+
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self.output_path.suffix == '.geojson':
