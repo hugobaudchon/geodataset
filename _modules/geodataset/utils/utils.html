@@ -171,7 +171,9 @@
 
 <div class="viewcode-block" id="polygon_to_coco_rle_segmentation">
 <a class="viewcode-back" href="../../../utils.html#geodataset.utils.polygon_to_coco_rle_segmentation">[docs]</a>
-<span class="k">def</span> <span class="nf">polygon_to_coco_rle_segmentation</span><span class="p">(</span><span class="n">polygon</span><span class="p">:</span> <span class="n">Polygon</span> <span class="ow">or</span> <span class="n">MultiPolygon</span><span class="p">,</span> <span class="n">tile_height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">tile_width</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="k">def</span> <span class="nf">polygon_to_coco_rle_segmentation</span><span class="p">(</span><span class="n">polygon</span><span class="p">:</span> <span class="n">Polygon</span> <span class="ow">or</span> <span class="n">MultiPolygon</span><span class="p">,</span>
+                                     <span class="n">tile_height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                                     <span class="n">tile_width</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Encodes a Polygon or MultiPolygon object into a COCO annotation RLE mask.</span>
 
@@ -179,58 +181,77 @@
 <span class="sd">    ----------</span>
 <span class="sd">    polygon: Polygon or MultiPolygon</span>
 <span class="sd">        The polygon to encode.</span>
+<span class="sd">    tile_height: int</span>
+<span class="sd">        The height of the tile the polygon is in.</span>
+<span class="sd">    tile_width: int</span>
+<span class="sd">        The width of the tile the polygon is in.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    dict</span>
 <span class="sd">        A COCO RLE mask segmentation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">binary_mask</span> <span class="o">=</span> <span class="n">polygon_to_mask</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="n">tile_height</span><span class="p">,</span> <span class="n">tile_width</span><span class="p">)</span>
 
-    <span class="n">binary_mask_fortran</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">binary_mask</span><span class="p">)</span>
-    <span class="n">rle</span> <span class="o">=</span> <span class="n">mask_utils</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">binary_mask_fortran</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">):</span>
+        <span class="n">polygons</span> <span class="o">=</span> <span class="p">[</span><span class="n">polygon</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">):</span>
+        <span class="n">polygons</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">polygon</span><span class="o">.</span><span class="n">geoms</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Input must be a Shapely Polygon or MultiPolygon&quot;</span><span class="p">)</span>
 
-    <span class="c1"># Encode the counts to base64 to be able to store it in a json file</span>
-    <span class="n">rle</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">base64</span><span class="o">.</span><span class="n">b64encode</span><span class="p">(</span><span class="n">rle</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>  <span class="c1"># JSON can&#39;t save bytes</span>
+        <span class="c1"># Convert each polygon to COCO format [x1,y1,x2,y2,...]</span>
+    <span class="n">coco_coords</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">polygon</span> <span class="ow">in</span> <span class="n">polygons</span><span class="p">:</span>
+        <span class="n">coords</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">polygon</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">coords</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># Remove last point (same as first)</span>
+        <span class="n">coords</span> <span class="o">=</span> <span class="n">coords</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="n">coco_coords</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coords</span><span class="p">)</span>
+
+    <span class="c1"># Convert directly to RLE using frPyObjects</span>
+    <span class="n">rle</span> <span class="o">=</span> <span class="n">mask_utils</span><span class="o">.</span><span class="n">frPyObjects</span><span class="p">(</span><span class="n">coco_coords</span><span class="p">,</span> <span class="n">tile_height</span><span class="p">,</span> <span class="n">tile_width</span><span class="p">)</span>
+    <span class="n">rle</span> <span class="o">=</span> <span class="n">mask_utils</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">rle</span><span class="p">)</span>  <span class="c1"># Merge all polygons into single RLE</span>
+
+    <span class="c1"># Convert to Python native types for JSON serialization</span>
+    <span class="n">rle</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">rle</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+
     <span class="k">return</span> <span class="n">rle</span></div>
 
 
 
 <div class="viewcode-block" id="coco_rle_segmentation_to_mask">
 <a class="viewcode-back" href="../../../utils.html#geodataset.utils.coco_rle_segmentation_to_mask">[docs]</a>
-<span class="k">def</span> <span class="nf">coco_rle_segmentation_to_mask</span><span class="p">(</span><span class="n">segmentation</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="k">def</span> <span class="nf">coco_rle_segmentation_to_mask</span><span class="p">(</span><span class="n">rle_segmentation</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Decodes a COCO annotation RLE segmentation into a binary mask.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    segmentation: dict</span>
-<span class="sd">        The RLE segmentation to decode.</span>
+<span class="sd">    rle_segmentation: dict</span>
+<span class="sd">        The RLE segmentation to decode of a Polygon or MultiPolygon.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    np.ndarray</span>
 <span class="sd">        A binary mask of the segmentation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># Decode the counts from base64</span>
-    <span class="k">if</span> <span class="s1">&#39;counts&#39;</span> <span class="ow">in</span> <span class="n">segmentation</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">segmentation</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">],</span> <span class="nb">str</span><span class="p">):</span>
-        <span class="n">counts</span> <span class="o">=</span> <span class="n">base64</span><span class="o">.</span><span class="n">b64decode</span><span class="p">(</span><span class="n">segmentation</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">])</span>
-        <span class="n">segmentation</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">counts</span>
 
-    <span class="n">mask</span> <span class="o">=</span> <span class="n">mask_utils</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rle_segmentation</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">],</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">rle_segmentation</span> <span class="o">=</span> <span class="n">rle_segmentation</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">rle_segmentation</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">rle_segmentation</span><span class="p">[</span><span class="s1">&#39;counts&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">mask_utils</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">rle_segmentation</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">mask</span></div>
 
 
 
 <div class="viewcode-block" id="coco_rle_segmentation_to_bbox">
 <a class="viewcode-back" href="../../../utils.html#geodataset.utils.coco_rle_segmentation_to_bbox">[docs]</a>
-<span class="k">def</span> <span class="nf">coco_rle_segmentation_to_bbox</span><span class="p">(</span><span class="n">segmentation</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">box</span><span class="p">:</span>
+<span class="k">def</span> <span class="nf">coco_rle_segmentation_to_bbox</span><span class="p">(</span><span class="n">rle_segmentation</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">box</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Calculates the bounding box from a COCO annotation RLE segmentation.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    segmentation: dict</span>
+<span class="sd">    rle_segmentation: dict</span>
 <span class="sd">        The RLE segmentation to decode.</span>
 
 <span class="sd">    Returns</span>
@@ -239,7 +260,7 @@
 <span class="sd">        A shapely box representing the bounding box of the segmentation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">mask</span> <span class="o">=</span> <span class="n">coco_rle_segmentation_to_mask</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">coco_rle_segmentation_to_mask</span><span class="p">(</span><span class="n">rle_segmentation</span><span class="p">)</span>
 
     <span class="n">rows</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">cols</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
@@ -354,13 +375,13 @@
 
 <div class="viewcode-block" id="coco_rle_segmentation_to_polygon">
 <a class="viewcode-back" href="../../../utils.html#geodataset.utils.coco_rle_segmentation_to_polygon">[docs]</a>
-<span class="k">def</span> <span class="nf">coco_rle_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">coco_rle_segmentation_to_polygon</span><span class="p">(</span><span class="n">rle_segmentation</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Decodes a COCO annotation RLE segmentation into a shapely Polygon or MultiPolygon.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    segmentation: dict</span>
+<span class="sd">    rle_segmentation: dict</span>
 <span class="sd">        The RLE segmentation to decode.</span>
 
 <span class="sd">    Returns</span>
@@ -369,7 +390,7 @@
 <span class="sd">        A shapely Polygon or MultiPolygon representing the segmentation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Decode the RLE</span>
-    <span class="n">mask</span> <span class="o">=</span> <span class="n">coco_rle_segmentation_to_mask</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">coco_rle_segmentation_to_mask</span><span class="p">(</span><span class="n">rle_segmentation</span><span class="p">)</span>
 
     <span class="c1"># Find contours in the binary mask</span>
     <span class="n">contours</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">findContours</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">RETR_EXTERNAL</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">CHAIN_APPROX_SIMPLE</span><span class="p">)</span>
@@ -662,9 +683,6 @@
 <span class="sd">        **IMPORTANT**: the &#39;score&#39; attribute is reserved for the score associated with the polygon.</span>
 <span class="sd">    output_path: Path</span>
 <span class="sd">        The path to save the COCO dataset JSON file (should have .json extension).</span>
-<span class="sd">    use_rle_for_labels: bool</span>
-<span class="sd">        Whether to use RLE encoding for the labels or not. If False, the polygon&#39;s exterior coordinates will be used.</span>
-<span class="sd">        RLE Encoding takes less space on disk but takes more time to encode.</span>
 <span class="sd">    n_workers: int</span>
 <span class="sd">        The number of workers to use for parallel processing.</span>
 <span class="sd">    coco_categories_list: List[dict] or None</span>
@@ -712,7 +730,6 @@
                  <span class="n">categories</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]]</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">other_attributes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">output_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
-                 <span class="n">use_rle_for_labels</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
                  <span class="n">n_workers</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
                  <span class="n">coco_categories_list</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="n">description</span>
@@ -722,7 +739,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">categories</span> <span class="o">=</span> <span class="n">categories</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="o">=</span> <span class="n">other_attributes</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">=</span> <span class="n">output_path</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">use_rle_for_labels</span> <span class="o">=</span> <span class="n">use_rle_for_labels</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">n_workers</span> <span class="o">=</span> <span class="n">n_workers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">coco_categories_list</span> <span class="o">=</span> <span class="n">coco_categories_list</span>
 
@@ -750,14 +766,16 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">categories_coco</span><span class="p">,</span> <span class="n">category_to_id_map</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_coco_categories</span><span class="p">()</span>
 
+        <span class="n">polygons_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_polygon_ids</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons</span><span class="p">)</span>
+
         <span class="k">with</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_workers</span><span class="p">)</span> <span class="k">as</span> <span class="n">pool</span><span class="p">:</span>
             <span class="n">results</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">pool</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_generate_tile_coco</span><span class="p">,</span> <span class="nb">enumerate</span><span class="p">(</span>
                 <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">,</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">polygons</span><span class="p">,</span>
+                    <span class="n">polygons_ids</span><span class="p">,</span>
                     <span class="p">[[</span><span class="n">category_to_id_map</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">category_to_id_map</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cs</span><span class="p">]</span> <span class="k">for</span> <span class="n">cs</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">categories</span><span class="p">]</span>
                     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">categories</span> <span class="k">else</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">),</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="k">else</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">),</span>
-                    <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">use_rle_for_labels</span><span class="p">,</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="k">else</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_paths</span><span class="p">)</span>
                     <span class="p">)</span>
             <span class="p">)))</span>
 
@@ -787,9 +805,24 @@
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Saved COCO dataset to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">output_path</span><span class="si">}</span><span class="s1">.&#39;</span><span class="p">)</span></div>
 
 
+<div class="viewcode-block" id="COCOGenerator.get_polygon_ids">
+<a class="viewcode-back" href="../../../utils.html#geodataset.utils.COCOGenerator.get_polygon_ids">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">get_polygon_ids</span><span class="p">(</span><span class="n">polygons</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Polygon</span><span class="p">]]):</span>
+        <span class="n">start_id</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">polygon_ids</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">tile_polygons</span> <span class="ow">in</span> <span class="n">polygons</span><span class="p">:</span>
+            <span class="n">tile_polygons_ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">start_id</span><span class="p">,</span> <span class="n">start_id</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">tile_polygons</span><span class="p">)))</span>
+            <span class="n">polygon_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile_polygons_ids</span><span class="p">)</span>
+            <span class="n">start_id</span> <span class="o">=</span> <span class="n">tile_polygons_ids</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+
+        <span class="k">return</span> <span class="n">polygon_ids</span></div>
+
+
     <span class="k">def</span> <span class="nf">_generate_tile_coco</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tile_data</span><span class="p">):</span>
         <span class="p">(</span><span class="n">tile_id</span><span class="p">,</span>
-         <span class="p">(</span><span class="n">tile_path</span><span class="p">,</span> <span class="n">tile_polygons</span><span class="p">,</span> <span class="n">tiles_polygons_category_ids</span><span class="p">,</span> <span class="n">tiles_polygons_other_attributes</span><span class="p">,</span> <span class="n">use_rle_for_labels</span><span class="p">))</span> <span class="o">=</span> <span class="n">tile_data</span>
+         <span class="p">(</span><span class="n">tile_path</span><span class="p">,</span> <span class="n">tile_polygons</span><span class="p">,</span> <span class="n">tile_polygons_ids</span><span class="p">,</span> <span class="n">tiles_polygons_category_ids</span><span class="p">,</span>
+          <span class="n">tiles_polygons_other_attributes</span><span class="p">))</span> <span class="o">=</span> <span class="n">tile_data</span>
 
         <span class="n">local_detections_coco</span> <span class="o">=</span> <span class="p">[]</span>
 
@@ -801,10 +834,10 @@
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tile_polygons</span><span class="p">)):</span>
             <span class="n">detection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_label_coco</span><span class="p">(</span>
                 <span class="n">polygon</span><span class="o">=</span><span class="n">tile_polygons</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">polygon_id</span><span class="o">=</span><span class="n">tile_polygons_ids</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
                 <span class="n">tile_height</span><span class="o">=</span><span class="n">tile_height</span><span class="p">,</span>
                 <span class="n">tile_width</span><span class="o">=</span><span class="n">tile_width</span><span class="p">,</span>
                 <span class="n">tile_id</span><span class="o">=</span><span class="n">tile_id</span><span class="p">,</span>
-                <span class="n">use_rle_for_labels</span><span class="o">=</span><span class="n">use_rle_for_labels</span><span class="p">,</span>
                 <span class="n">category_id</span><span class="o">=</span><span class="n">tiles_polygons_category_ids</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="n">tiles_polygons_category_ids</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
                 <span class="n">other_attributes_dict</span><span class="o">=</span><span class="n">tiles_polygons_other_attributes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="n">tiles_polygons_other_attributes</span> <span class="k">else</span> <span class="kc">None</span>
             <span class="p">)</span>
@@ -821,20 +854,17 @@
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">_generate_label_coco</span><span class="p">(</span><span class="n">polygon</span><span class="p">:</span> <span class="n">shapely</span><span class="o">.</span><span class="n">Polygon</span><span class="p">,</span>
+                             <span class="n">polygon_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
                              <span class="n">tile_height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
                              <span class="n">tile_width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
                              <span class="n">tile_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-                             <span class="n">use_rle_for_labels</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
                              <span class="n">category_id</span><span class="p">:</span> <span class="nb">int</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
                              <span class="n">other_attributes_dict</span><span class="p">:</span> <span class="nb">dict</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">use_rle_for_labels</span><span class="p">:</span>
-            <span class="c1"># Convert the polygon to a COCO RLE mask</span>
-            <span class="n">segmentation</span> <span class="o">=</span> <span class="n">polygon_to_coco_rle_segmentation</span><span class="p">(</span><span class="n">polygon</span><span class="o">=</span><span class="n">polygon</span><span class="p">,</span>
-                                                            <span class="n">tile_height</span><span class="o">=</span><span class="n">tile_height</span><span class="p">,</span>
-                                                            <span class="n">tile_width</span><span class="o">=</span><span class="n">tile_width</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># Convert the polygon&#39;s exterior coordinates to the format expected by COCO</span>
-            <span class="n">segmentation</span> <span class="o">=</span> <span class="n">polygon_to_coco_coordinates_segmentation</span><span class="p">(</span><span class="n">polygon</span><span class="o">=</span><span class="n">polygon</span><span class="p">)</span>
+
+        <span class="n">segmentation</span> <span class="o">=</span> <span class="n">polygon_to_coco_rle_segmentation</span><span class="p">(</span><span class="n">polygon</span><span class="o">=</span><span class="n">polygon</span><span class="p">,</span>
+                                                        <span class="n">tile_height</span><span class="o">=</span><span class="n">tile_height</span><span class="p">,</span>
+                                                        <span class="n">tile_width</span><span class="o">=</span><span class="n">tile_width</span><span class="p">)</span>
+
 
         <span class="c1"># Calculate the area of the polygon</span>
         <span class="n">area</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">area</span>
@@ -843,10 +873,11 @@
         <span class="n">bbox</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">)</span>
         <span class="n">bbox_coco_format</span> <span class="o">=</span> <span class="p">[</span><span class="n">bbox</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
 
+
         <span class="c1"># Generate COCO annotation data from each associated label</span>
         <span class="n">coco_annotation</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">polygon_id</span><span class="p">,</span>
             <span class="s2">&quot;segmentation&quot;</span><span class="p">:</span> <span class="n">segmentation</span><span class="p">,</span>
-            <span class="s2">&quot;is_rle_format&quot;</span><span class="p">:</span> <span class="n">use_rle_for_labels</span><span class="p">,</span>
             <span class="s2">&quot;area&quot;</span><span class="p">:</span> <span class="n">area</span><span class="p">,</span>
             <span class="s2">&quot;iscrowd&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>  <span class="c1"># Assuming this polygon represents a single object (not a crowd)</span>
             <span class="s2">&quot;image_id&quot;</span><span class="p">:</span> <span class="n">tile_id</span><span class="p">,</span>
@@ -944,9 +975,6 @@
 <span class="sd">        **IMPORTANT**: the &#39;score&#39; attribute is reserved for the score associated with the polygon.</span>
 <span class="sd">    output_path: Path</span>
 <span class="sd">        The path to save the COCO dataset JSON file (should have .json extension).</span>
-<span class="sd">    use_rle_for_labels: bool</span>
-<span class="sd">        Whether to use RLE encoding for the labels or not. If False, the polygon&#39;s exterior coordinates will be used.</span>
-<span class="sd">        RLE Encoding takes less space on disk but takes more time to encode.</span>
 <span class="sd">    n_workers: int</span>
 <span class="sd">        The number of workers to use for parallel processing.</span>
 <span class="sd">    coco_categories_list: List[dict] or None</span>
@@ -995,7 +1023,6 @@
                  <span class="n">scores</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="ow">or</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">categories</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]]</span> <span class="ow">or</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">other_attributes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="ow">or</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                 <span class="n">use_rle_for_labels</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
                  <span class="n">n_workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
                  <span class="n">coco_categories_list</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="ow">or</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 
@@ -1006,7 +1033,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">categories</span> <span class="o">=</span> <span class="n">categories</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="o">=</span> <span class="n">other_attributes</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">=</span> <span class="n">output_path</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">use_rle_for_labels</span> <span class="o">=</span> <span class="n">use_rle_for_labels</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">n_workers</span> <span class="o">=</span> <span class="n">n_workers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">coco_categories_list</span> <span class="o">=</span> <span class="n">coco_categories_list</span>
 
@@ -1033,14 +1059,16 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">categories_coco</span><span class="p">,</span> <span class="n">category_to_id_map</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_coco_categories</span><span class="p">()</span>
 
+        <span class="n">polygons_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_polygon_ids</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons</span><span class="p">)</span>
+
         <span class="k">with</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_workers</span><span class="p">)</span> <span class="k">as</span> <span class="n">pool</span><span class="p">:</span>
             <span class="n">results</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">pool</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_generate_tile_coco</span><span class="p">,</span> <span class="nb">enumerate</span><span class="p">(</span>
                 <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_metadata</span><span class="p">,</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">polygons</span><span class="p">,</span>
+                    <span class="n">polygons_ids</span><span class="p">,</span>
                     <span class="p">[[</span><span class="n">category_to_id_map</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">category_to_id_map</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cs</span><span class="p">]</span> <span class="k">for</span> <span class="n">cs</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">categories</span><span class="p">]</span>
                     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">categories</span> <span class="k">else</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_metadata</span><span class="p">),</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="k">else</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_metadata</span><span class="p">),</span>
-                    <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">use_rle_for_labels</span><span class="p">,</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_metadata</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes</span> <span class="k">else</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_metadata</span><span class="p">)</span>
                     <span class="p">)</span>
             <span class="p">)))</span>
 
@@ -1071,23 +1099,33 @@
 
         <span class="k">return</span> <span class="n">categories_coco</span><span class="p">,</span> <span class="n">category_to_id_map</span>
 
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">get_polygon_ids</span><span class="p">(</span><span class="n">polygons</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Polygon</span><span class="p">]]):</span>
+        <span class="n">start_id</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">polygon_ids</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">tile_polygons</span> <span class="ow">in</span> <span class="n">polygons</span><span class="p">:</span>
+            <span class="n">tile_polygons_ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">start_id</span><span class="p">,</span> <span class="n">start_id</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">tile_polygons</span><span class="p">)))</span>
+            <span class="n">polygon_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile_polygons_ids</span><span class="p">)</span>
+            <span class="n">start_id</span> <span class="o">=</span> <span class="n">tile_polygons_ids</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+
+        <span class="k">return</span> <span class="n">polygon_ids</span>
+
     <span class="k">def</span> <span class="nf">_generate_tile_coco</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tile_data</span><span class="p">):</span>
         <span class="p">(</span><span class="n">tile_id</span><span class="p">,</span>
-         <span class="p">(</span><span class="n">tile_metadata</span><span class="p">,</span> <span class="n">tile_polygons</span><span class="p">,</span> <span class="n">tiles_polygons_category_ids</span><span class="p">,</span> <span class="n">tiles_polygons_other_attributes</span><span class="p">,</span>
-          <span class="n">use_rle_for_labels</span><span class="p">))</span> <span class="o">=</span> <span class="n">tile_data</span>
+         <span class="p">(</span><span class="n">tile_metadata</span><span class="p">,</span> <span class="n">tile_polygons</span><span class="p">,</span> <span class="n">tile_polygons_ids</span><span class="p">,</span>
+          <span class="n">tiles_polygons_category_ids</span><span class="p">,</span> <span class="n">tiles_polygons_other_attributes</span><span class="p">))</span> <span class="o">=</span> <span class="n">tile_data</span>
 
         <span class="n">local_detections_coco</span> <span class="o">=</span> <span class="p">[]</span>
 
         <span class="n">tile_width</span><span class="p">,</span> <span class="n">tile_height</span> <span class="o">=</span> <span class="n">tile_metadata</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="n">tile_metadata</span><span class="o">.</span><span class="n">width</span>
 
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tile_polygons</span><span class="p">)):</span>
-            <span class="n">polygon</span> <span class="o">=</span> <span class="n">tile_polygons</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
             <span class="n">detection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_label_coco</span><span class="p">(</span>
-                <span class="n">polygon</span><span class="o">=</span><span class="n">polygon</span><span class="p">,</span>
+                <span class="n">polygon</span><span class="o">=</span><span class="n">tile_polygons</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">polygon_id</span><span class="o">=</span><span class="n">tile_polygons_ids</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
                 <span class="n">tile_height</span><span class="o">=</span><span class="n">tile_height</span><span class="p">,</span>
                 <span class="n">tile_width</span><span class="o">=</span><span class="n">tile_width</span><span class="p">,</span>
                 <span class="n">tile_id</span><span class="o">=</span><span class="n">tile_id</span><span class="p">,</span>
-                <span class="n">use_rle_for_labels</span><span class="o">=</span><span class="n">use_rle_for_labels</span><span class="p">,</span>
                 <span class="n">category_id</span><span class="o">=</span><span class="n">tiles_polygons_category_ids</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="n">tiles_polygons_category_ids</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
                 <span class="n">other_attributes_dict</span><span class="o">=</span><span class="n">tiles_polygons_other_attributes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="n">tiles_polygons_other_attributes</span> <span class="k">else</span> <span class="kc">None</span>
             <span class="p">)</span>
@@ -1108,21 +1146,17 @@
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">_generate_label_coco</span><span class="p">(</span><span class="n">polygon</span><span class="p">:</span> <span class="n">shapely</span><span class="o">.</span><span class="n">Polygon</span><span class="p">,</span>
+                             <span class="n">polygon_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
                              <span class="n">tile_height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
                              <span class="n">tile_width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
                              <span class="n">tile_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-                             <span class="n">use_rle_for_labels</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
                              <span class="n">category_id</span><span class="p">:</span> <span class="nb">int</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
                              <span class="n">other_attributes_dict</span><span class="p">:</span> <span class="nb">dict</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 
-        <span class="k">if</span> <span class="n">use_rle_for_labels</span><span class="p">:</span>
-            <span class="c1"># Convert the polygon to a COCO RLE mask</span>
-            <span class="n">segmentation</span> <span class="o">=</span> <span class="n">polygon_to_coco_rle_segmentation</span><span class="p">(</span><span class="n">polygon</span><span class="o">=</span><span class="n">polygon</span><span class="p">,</span>
-                                                            <span class="n">tile_height</span><span class="o">=</span><span class="n">tile_height</span><span class="p">,</span>
-                                                            <span class="n">tile_width</span><span class="o">=</span><span class="n">tile_width</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># Convert the polygon&#39;s exterior coordinates to the format expected by COCO</span>
-            <span class="n">segmentation</span> <span class="o">=</span> <span class="n">polygon_to_coco_coordinates_segmentation</span><span class="p">(</span><span class="n">polygon</span><span class="o">=</span><span class="n">polygon</span><span class="p">)</span>
+        <span class="c1"># Convert the polygon to a COCO RLE mask</span>
+        <span class="n">segmentation</span> <span class="o">=</span> <span class="n">polygon_to_coco_rle_segmentation</span><span class="p">(</span><span class="n">polygon</span><span class="o">=</span><span class="n">polygon</span><span class="p">,</span>
+                                                        <span class="n">tile_height</span><span class="o">=</span><span class="n">tile_height</span><span class="p">,</span>
+                                                        <span class="n">tile_width</span><span class="o">=</span><span class="n">tile_width</span><span class="p">)</span>
 
         <span class="c1"># Calculate the area of the polygon</span>
         <span class="n">area</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">area</span>
@@ -1133,8 +1167,8 @@
 
         <span class="c1"># Generate COCO annotation data from each associated label</span>
         <span class="n">coco_annotation</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;polygon_id&quot;</span><span class="p">:</span> <span class="n">polygon_id</span><span class="p">,</span>
             <span class="s2">&quot;segmentation&quot;</span><span class="p">:</span> <span class="n">segmentation</span><span class="p">,</span>
-            <span class="s2">&quot;is_rle_format&quot;</span><span class="p">:</span> <span class="n">use_rle_for_labels</span><span class="p">,</span>
             <span class="s2">&quot;area&quot;</span><span class="p">:</span> <span class="n">area</span><span class="p">,</span>
             <span class="s2">&quot;iscrowd&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>  <span class="c1"># Assuming this polygon represents a single object (not a crowd)</span>
             <span class="s2">&quot;image_id&quot;</span><span class="p">:</span> <span class="n">tile_id</span><span class="p">,</span>
@@ -1298,11 +1332,7 @@
 
         <span class="n">polygons</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">annotation</span> <span class="ow">in</span> <span class="n">tile_annotations</span><span class="p">:</span>
-            <span class="c1"># Check if segmentation data is in RLE format; if so, decode it</span>
-            <span class="k">if</span> <span class="n">annotation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;is_rle_format&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">],</span> <span class="nb">dict</span><span class="p">):</span>
-                <span class="n">polygon</span> <span class="o">=</span> <span class="n">coco_rle_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="o">=</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">])</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">polygon</span> <span class="o">=</span> <span class="n">coco_coordinates_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="o">=</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">])</span>
+            <span class="n">polygon</span> <span class="o">=</span> <span class="n">coco_rle_segmentation_to_polygon</span><span class="p">(</span><span class="n">rle_segmentation</span><span class="o">=</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">])</span>
             <span class="n">polygons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span>
 
         <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">({</span>

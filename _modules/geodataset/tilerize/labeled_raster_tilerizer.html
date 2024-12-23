@@ -120,8 +120,6 @@
 <span class="sd">        Suffix to add to the output file names.</span>
 <span class="sd">    ignore_black_white_alpha_tiles_threshold : float, optional</span>
 <span class="sd">        Threshold ratio of black, white or transparent pixels in a tile to skip it. Default is 0.8.</span>
-<span class="sd">    use_rle_for_labels : bool, optional</span>
-<span class="sd">        Whether to use RLE encoding for the labels. If False, the labels will be saved as polygons.</span>
 <span class="sd">    min_intersection_ratio : float, optional</span>
 <span class="sd">        When finding the associated polygon labels to a tile, this ratio will specify the minimal required intersection</span>
 <span class="sd">        ratio (intersecting_polygon_area / polygon_area) between a candidate polygon and the tile in order to keep this</span>
@@ -138,7 +136,6 @@
 <span class="sd">        as a dictionary in the COCO annotations data.</span>
 <span class="sd">    coco_n_workers : int, optional</span>
 <span class="sd">        Number of workers to use when generating the COCO dataset.</span>
-<span class="sd">        Useful when use_rle_for_labels=True as it is quite slow.</span>
 <span class="sd">    coco_categories_list : list of dict, optional</span>
 <span class="sd">        A list of category dictionaries in COCO format. If a polygon has a category (label in</span>
 <span class="sd">        &#39;main_label_category_column_name&#39;) that is not in this list, its category_id will be set to None in its COCO</span>
@@ -190,7 +187,6 @@
                  <span class="n">scale_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">output_name_suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
-                 <span class="n">use_rle_for_labels</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
                  <span class="n">min_intersection_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.9</span><span class="p">,</span>
                  <span class="n">ignore_tiles_without_labels</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
                  <span class="n">geopackage_layer_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -210,7 +206,6 @@
                          <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">labels_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">labels_path</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">use_rle_for_labels</span> <span class="o">=</span> <span class="n">use_rle_for_labels</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">min_intersection_ratio</span> <span class="o">=</span> <span class="n">min_intersection_ratio</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ignore_tiles_without_labels</span> <span class="o">=</span> <span class="n">ignore_tiles_without_labels</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">coco_n_workers</span> <span class="o">=</span> <span class="n">coco_n_workers</span>
@@ -396,7 +391,6 @@
                 <span class="n">categories</span><span class="o">=</span><span class="n">categories_list</span><span class="p">,</span>
                 <span class="n">other_attributes</span><span class="o">=</span><span class="n">other_attributes_dict_list</span><span class="p">,</span>
                 <span class="n">output_path</span><span class="o">=</span><span class="n">coco_output_file_path</span><span class="p">,</span>
-                <span class="n">use_rle_for_labels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">use_rle_for_labels</span><span class="p">,</span>
                 <span class="n">n_workers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coco_n_workers</span><span class="p">,</span>
                 <span class="n">coco_categories_list</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coco_categories_list</span>
             <span class="p">)</span>
