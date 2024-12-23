@@ -44,8 +44,6 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         Suffix to add to the output file names.
     ignore_black_white_alpha_tiles_threshold : float, optional
         Threshold ratio of black, white or transparent pixels in a tile to skip it. Default is 0.8.
-    use_rle_for_labels : bool, optional
-        Whether to use RLE encoding for the labels. If False, the labels will be saved as polygons.
     min_intersection_ratio : float, optional
         When finding the associated polygon labels to a tile, this ratio will specify the minimal required intersection
         ratio (intersecting_polygon_area / polygon_area) between a candidate polygon and the tile in order to keep this
@@ -62,7 +60,6 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         as a dictionary in the COCO annotations data.
     coco_n_workers : int, optional
         Number of workers to use when generating the COCO dataset.
-        Useful when use_rle_for_labels=True as it is quite slow.
     coco_categories_list : list of dict, optional
         A list of category dictionaries in COCO format. If a polygon has a category (label in
         'main_label_category_column_name') that is not in this list, its category_id will be set to None in its COCO
@@ -114,7 +111,6 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                  scale_factor: float = None,
                  output_name_suffix: str = None,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8,
-                 use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.9,
                  ignore_tiles_without_labels: bool = False,
                  geopackage_layer_name: str = None,
@@ -134,7 +130,6 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
 
         self.labels_path = Path(labels_path)
-        self.use_rle_for_labels = use_rle_for_labels
         self.min_intersection_ratio = min_intersection_ratio
         self.ignore_tiles_without_labels = ignore_tiles_without_labels
         self.coco_n_workers = coco_n_workers
@@ -318,7 +313,6 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                 categories=categories_list,
                 other_attributes=other_attributes_dict_list,
                 output_path=coco_output_file_path,
-                use_rle_for_labels=self.use_rle_for_labels,
                 n_workers=self.coco_n_workers,
                 coco_categories_list=self.coco_categories_list
             )

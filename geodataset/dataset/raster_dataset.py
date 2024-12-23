@@ -83,14 +83,7 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
                 bbox = box(*[bbox_coco[0], bbox_coco[1], bbox_coco[0] + bbox_coco[2], bbox_coco[1] + bbox_coco[3]])
             else:
                 segmentation = label['segmentation']
-                if ('is_rle_format' in label and label['is_rle_format']) or isinstance(segmentation, dict):
-                    # RLE format
-                    bbox = coco_rle_segmentation_to_bbox(segmentation)
-                elif ('is_rle_format' in label and not label['is_rle_format']) or isinstance(segmentation, list):
-                    # Polygon (coordinates) format
-                    bbox = coco_coordinates_segmentation_to_bbox(segmentation)
-                else:
-                    raise NotImplementedError("Could not find the segmentation type (RLE vs polygon coordinates).")
+                bbox = coco_rle_segmentation_to_bbox(segmentation)
 
             if self.box_padding_percentage:
                 minx, miny, maxx, maxy = bbox.bounds
@@ -200,12 +193,8 @@ class SegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
 
         for label in labels:
             if 'segmentation' in label:
-                segmentation = label['segmentation']
-                if ('is_rle_format' in label and label['is_rle_format']) or isinstance(segmentation, dict):
-                    # RLE format
-                    mask = coco_rle_segmentation_to_mask(segmentation)
-                else:
-                    raise NotImplementedError("Please make sure that the masks are encoded using RLE.")
+                rle_segmentation = label['segmentation']
+                mask = coco_rle_segmentation_to_mask(rle_segmentation)
 
                 masks.append(mask)
 
@@ -304,16 +293,9 @@ class InstanceSegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset)
         bboxes = []
 
         for label in labels:
-            segmentation = label['segmentation']
-            if ('is_rle_format' in label and label['is_rle_format']) or isinstance(segmentation, dict):
-                # RLE format
-                bbox = coco_rle_segmentation_to_bbox(segmentation)
-                mask = coco_rle_segmentation_to_mask(segmentation)
-            elif ('is_rle_format' in label and not label['is_rle_format']) or isinstance(segmentation, list):
-                bbox = coco_coordinates_segmentation_to_bbox(segmentation)
-                mask = polygon_to_mask(segmentation, tile_info['height'], tile_info['width'])
-            else:
-                raise NotImplementedError("Please make sure that the masks are encoded using RLE.")
+            rle_segmentation = label['segmentation']
+            bbox = coco_rle_segmentation_to_bbox(rle_segmentation)
+            mask = coco_rle_segmentation_to_mask(rle_segmentation)
 
             if self.box_padding_percentage:
                 minx, miny, maxx, maxy = bbox.bounds
