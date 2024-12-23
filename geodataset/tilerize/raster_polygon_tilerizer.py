@@ -26,7 +26,6 @@ class RasterPolygonTilerizer:
                  ground_resolution: float or None,
                  scale_factor: float or None,
                  output_name_suffix: str = None,
-                 use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.5,
                  geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
@@ -42,7 +41,6 @@ class RasterPolygonTilerizer:
         self.variable_tile_size_pixel_buffer = variable_tile_size_pixel_buffer
         self.aois_config = aois_config
         self.output_name_suffix = output_name_suffix
-        self.use_rle_for_labels = use_rle_for_labels
         self.min_intersection_ratio = min_intersection_ratio
         self.coco_n_workers = coco_n_workers
         self.coco_categories_list = coco_categories_list
@@ -230,7 +228,6 @@ class RasterPolygonTilerizer:
                 categories=categories_list,
                 other_attributes=other_attributes_dict_list,
                 output_path=coco_output_file_path,
-                use_rle_for_labels=self.use_rle_for_labels,
                 n_workers=self.coco_n_workers,
                 coco_categories_list=self.coco_categories_list
             )

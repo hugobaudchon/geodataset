@@ -46,8 +46,6 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         Name of the main label category column, by default None.
     other_labels_attributes_column_names : List[str], optional
         List of other label attributes, by default None.
-    use_rle_for_labels : bool, optional
-        Whether to use RLE for labels, by default True.
     coco_n_workers : int, optional
         Number of workers for the COCO dataset, by default 1.
     tile_side_length : float, optional
@@ -80,7 +78,6 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         geopackage_layer_name: str = None,
         main_label_category_column_name: str = "Label",
         other_labels_attributes_column_names: List[str] = None,
-        use_rle_for_labels: bool = True,
         coco_n_workers: int = 1,
         tile_overlap: float = 0.5,
         max_tile: int = 50000,
@@ -100,7 +97,6 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         self.main_label_category_column_name = main_label_category_column_name
         self.other_labels_attributes_column_names = other_labels_attributes_column_names
         self.aois_config = aois_config
-        self.use_rle_for_labels = use_rle_for_labels
         self.coco_n_workers = coco_n_workers
         self.coco_categories_list = coco_categories_list
         self.downsample_voxel_size = downsample_voxel_size
@@ -141,17 +137,13 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
             self.populate_tiles_metadata()
 
-        if self.use_rle_for_labels:
-            assert self.tiles_metadata is not None, "Tile metadata is required for RLE encoding (image height and width)"
-            assert self.tiles_metadata.height is not None and self.tiles_metadata.width is not None, "Height and width of the tiles are required for RLE encoding"
+        assert self.tiles_metadata is not None, "Tile metadata is required for RLE encoding (image height and width)"
+        assert self.tiles_metadata.height is not None and self.tiles_metadata.width is not None, "Height and width of the tiles are required for RLE encoding"
 
         assert (
             len(self.tiles_metadata) < max_tile
         ), f"Number of max possible tiles {len(self.tiles_metadata)} exceeds the maximum number of tiles {max_tile}"
 
-        # if self.use_rle_for_labels:
-        #     assert self.til #??
-        # Processing AOIs
         if self.aois_config is None:
             raise Exception("Please provide an aoi_config. Currently don't support 'None'.")
         self.aoi_engine = AOIBaseFromGeoFileInCRS(aois_config)
@@ -466,7 +458,6 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                 categories=categories_list,
                 other_attributes=other_attributes_dict_list,
                 output_path=coco_output_file_path,
-                use_rle_for_labels=self.use_rle_for_labels,
                 n_workers=self.coco_n_workers,
                 coco_categories_list=self.coco_categories_list,
             )
