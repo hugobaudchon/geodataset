@@ -17,11 +17,12 @@ from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
 class RasterPolygonTilerizer:
     def __init__(self,
                  raster_path: str or Path,
-                 labels_path: str or Path,
+                 labels_path: str or Path or None,
                  output_path: str or Path,
                  tile_size: int,
                  use_variable_tile_size: bool,
                  variable_tile_size_pixel_buffer: int or None,
+                 labels_gdf: gpd.GeoDataFrame,
                  aois_config: AOIFromPackageConfig or None,
                  ground_resolution: float or None,
                  scale_factor: float or None,
@@ -57,6 +58,7 @@ class RasterPolygonTilerizer:
 
         self.raster = self._load_raster()
         self.labels = self._load_labels(
+            labels_gdf=labels_gdf,
             geopackage_layer_name=geopackage_layer_name,
             main_label_category_column_name=main_label_category_column_name,
             other_labels_attributes_column_names=other_labels_attributes_column_names
@@ -74,15 +76,26 @@ class RasterPolygonTilerizer:
         return raster
 
     def _load_labels(self,
+                     labels_gdf: gpd.GeoDataFrame,
                      geopackage_layer_name: str or None,
                      main_label_category_column_name: str or None,
                      other_labels_attributes_column_names: List[str] or None):
 
-        labels = RasterPolygonLabels(path=self.labels_path,
-                                     associated_raster=self.raster,
-                                     geopackage_layer_name=geopackage_layer_name,
-                                     main_label_category_column_name=main_label_category_column_name,
-                                     other_labels_attributes_column_names=other_labels_attributes_column_names)
+        if self.labels_path and labels_gdf:
+            raise ValueError("You can't provide both a labels_path and a labels_gdf.")
+        elif self.labels_path:
+            labels = RasterPolygonLabels(path=self.labels_path,
+                                         associated_raster=self.raster,
+                                         geopackage_layer_name=geopackage_layer_name,
+                                         main_label_category_column_name=main_label_category_column_name,
+                                         other_labels_attributes_column_names=other_labels_attributes_column_names)
+        elif labels_gdf:
+            labels = RasterPolygonLabels(labels_gdf=labels_gdf,
+                                         associated_raster=self.raster,
+                                         main_label_category_column_name=main_label_category_column_name,
+                                         other_labels_attributes_column_names=other_labels_attributes_column_names)
+        else:
+            raise ValueError("You must provide either a labels_path or a labels_gdf.")
 
         return labels
 
