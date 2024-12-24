@@ -24,7 +24,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
     ----------
     raster_path : str or pathlib.Path
         Path to the raster (.tif, .png...).
-    labels_path : str or pathlib.Path
+    labels_path : str or pathlib.Path or None
         Path to the labels. Supported formats are: .gpkg, .geojson, .shp, .xml, .csv.
     output_path : str or pathlib.Path
         Path to parent folder where to save the image tiles and associated labels.
@@ -32,6 +32,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         The size of the tiles in pixels (tile_size, tile_size).
     tile_overlap : float
         The overlap between the tiles (0 <= overlap < 1).
+    labels_gdf: geopandas.GeoDataFrame, optional
+        A GeoDataFrame containing the labels. If provided, labels_path must be None.
     aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
         An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
     ground_resolution : float, optional
@@ -102,10 +104,11 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
     def __init__(self,
                  raster_path: str or Path,
-                 labels_path: str or Path,
+                 labels_path: str or Path or None,
                  output_path: str or Path,
                  tile_size: int,
                  tile_overlap: float,
+                 labels_gdf: gpd.GeoDataFrame = None,
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
@@ -129,28 +132,40 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                          output_name_suffix=output_name_suffix,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
 
-        self.labels_path = Path(labels_path)
+        self.labels_path = Path(labels_path) if labels_path else None
         self.min_intersection_ratio = min_intersection_ratio
         self.ignore_tiles_without_labels = ignore_tiles_without_labels
         self.coco_n_workers = coco_n_workers
         self.coco_categories_list = coco_categories_list
 
         self.labels = self._load_labels(
+            labels_gdf=labels_gdf,
             geopackage_layer_name=geopackage_layer_name,
             main_label_category_column_name=main_label_category_column_name,
             other_labels_attributes_column_names=other_labels_attributes_column_names
         )
 
     def _load_labels(self,
+                     labels_gdf: gpd.GeoDataFrame,
                      geopackage_layer_name: str or None,
                      main_label_category_column_name: str or None,
                      other_labels_attributes_column_names: List[str] or None):
 
-        labels = RasterPolygonLabels(path=self.labels_path,
-                                     associated_raster=self.raster,
-                                     geopackage_layer_name=geopackage_layer_name,
-                                     main_label_category_column_name=main_label_category_column_name,
-                                     other_labels_attributes_column_names=other_labels_attributes_column_names)
+        if self.labels_path and labels_gdf:
+            raise ValueError("You can't provide both a labels_path and a labels_gdf.")
+        elif self.labels_path:
+            labels = RasterPolygonLabels(path=self.labels_path,
+                                         associated_raster=self.raster,
+                                         geopackage_layer_name=geopackage_layer_name,
+                                         main_label_category_column_name=main_label_category_column_name,
+                                         other_labels_attributes_column_names=other_labels_attributes_column_names)
+        elif labels_gdf:
+            labels = RasterPolygonLabels(labels_gdf=labels_gdf,
+                                         associated_raster=self.raster,
+                                         main_label_category_column_name=main_label_category_column_name,
+                                         other_labels_attributes_column_names=other_labels_attributes_column_names)
+        else:
+            raise ValueError("You must provide either a labels_path or a labels_gdf.")
 
         return labels
 

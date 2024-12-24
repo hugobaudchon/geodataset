@@ -40,6 +40,7 @@ class RasterPolygonLabels:
     def __init__(self,
                  path: str or Path,
                  associated_raster: Raster,
+                 labels_gdf: gpd.GeoDataFrame = None,
                  geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None):
@@ -53,11 +54,13 @@ class RasterPolygonLabels:
         self.main_label_category_column_name = main_label_category_column_name
         self.other_labels_attributes_column_names = other_labels_attributes_column_names
 
-        self.geometries_gdf = self._load_labels()
+        self.geometries_gdf = self._load_labels(labels_gdf)
 
-    def _load_labels(self):
+    def _load_labels(self, labels_gdf: gpd.GeoDataFrame = None):
         # Loading the labels into a GeoDataFrame
-        if self.ext.lower() == '.xml':
+        if labels_gdf is not None:
+            labels_gdf = labels_gdf
+        elif self.ext.lower() == '.xml':
             labels_gdf = self._load_xml_labels()
         elif self.ext == '.csv':
             labels_gdf = self._load_csv_labels()
