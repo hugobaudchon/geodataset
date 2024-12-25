@@ -45,7 +45,7 @@ class RasterPolygonLabels:
                  geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None):
-        if self.path:
+        if path:
             self.path = Path(path)
         else:
             self.path = path
