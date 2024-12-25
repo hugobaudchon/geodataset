@@ -37,15 +37,18 @@ class RasterPolygonLabels:
         The names of the columns in the labels file that contains other attributes of the labels, which should be kept
         as a dictionary in the COCO annotations data.
     """
+
     def __init__(self,
-                 path: str or Path,
+                 path: str or Path or None,
                  associated_raster: Raster,
                  labels_gdf: gpd.GeoDataFrame = None,
                  geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None):
-
-        self.path = Path(path)
+        if self.path:
+            self.path = Path(path)
+        else:
+            self.path = path
         self.ext = self.path.suffix
         self.associated_raster = associated_raster
         self.labels_gdf = labels_gdf
