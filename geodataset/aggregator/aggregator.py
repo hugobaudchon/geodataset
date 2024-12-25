@@ -66,8 +66,8 @@ class Aggregator:
         assert self.nms_algorithm in self.SUPPORTED_NMS_ALGORITHMS, \
             f"The nms_algorithm must be one of {self.SUPPORTED_NMS_ALGORITHMS}. Got {self.nms_algorithm}."
 
-        assert self.output_path.suffix in ['.json', '.geojson'], ("The output_path needs to end with either .json"
-                                                                  " (coco output) or .geojson (geopackage output).")
+        assert self.output_path.suffix in ['.json', '.geojson', '.gpkg'], \
+            "The output_path needs to end with either .json (coco output) or .geojson/.gpkg (geopackage output)."
 
         if self.output_path.suffix == '.json':
             assert self.tile_ids_to_path is not None, \
