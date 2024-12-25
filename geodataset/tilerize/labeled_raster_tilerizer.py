@@ -160,7 +160,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                                          main_label_category_column_name=main_label_category_column_name,
                                          other_labels_attributes_column_names=other_labels_attributes_column_names)
         elif labels_gdf is not None:
-            labels = RasterPolygonLabels(labels_gdf=labels_gdf,
+            labels = RasterPolygonLabels(path=None,
+                                         labels_gdf=labels_gdf,
                                          associated_raster=self.raster,
                                          main_label_category_column_name=main_label_category_column_name,
                                          other_labels_attributes_column_names=other_labels_attributes_column_names)
