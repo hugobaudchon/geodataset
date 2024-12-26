@@ -24,6 +24,7 @@ class Aggregator:
     """
 
     SUPPORTED_NMS_ALGORITHMS = ['iou', 'ioa-disambiguate']  # 'diou'
+    SUPPORTED_SCORE_WEIGHTING_METHODS = ['weighted_arithmetic_mean', 'weighted_geometric_mean', 'weighted_harmonic_mean']
 
     def __init__(self,
                  output_path: str or Path,
@@ -33,6 +34,7 @@ class Aggregator:
                  scores_weights: List[float],
                  tiles_extent_gdf: gpd.GeoDataFrame,
                  tile_ids_to_path: dict or None,
+                 scores_weighting_method: str = 'weighted_geometric_mean',
                  score_threshold: float = 0.1,
                  nms_threshold: float = 0.8,
                  nms_algorithm: str = 'iou',
@@ -45,10 +47,14 @@ class Aggregator:
         self.scores_weights = scores_weights
         self.tiles_extent_gdf = tiles_extent_gdf
         self.tile_ids_to_path = tile_ids_to_path
+        self.scores_weighting_method = scores_weighting_method
         self.score_threshold = score_threshold
         self.nms_threshold = nms_threshold
         self.nms_algorithm = nms_algorithm
         self.best_geom_keep_area_ratio = best_geom_keep_area_ratio
+
+        # If only 1 set of scores is provided, we set the score_weight to 1.0
+        if len(self.scores_weights) == 1: self.scores_weights = [1.0]
 
         self._check_parameters()
         self._validate_polygons()
@@ -72,6 +78,10 @@ class Aggregator:
             assert self.tile_ids_to_path is not None, \
                 "The tile_ids_to_path must be provided to save the polygons in COCO format."
 
+        assert sum(self.scores_weights) == 1, "The sum of the scores_weights values must be equal to 1."
+        assert self.scores_weighting_method in self.SUPPORTED_SCORE_WEIGHTING_METHODS, \
+            f"The score_weighting_method must be one of {self.SUPPORTED_SCORE_WEIGHTING_METHODS}. " \
+
     @classmethod
     def from_coco(cls,
                   output_path: str or Path,
@@ -80,6 +90,7 @@ class Aggregator:
                   scores_names: List[str] = None,
                   other_attributes_names: List[str] = None,
                   scores_weights: List[float] = None,
+                  scores_weighting_method: str = 'weighted_geometric_mean',
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
                   nms_algorithm: str = 'iou',
@@ -129,12 +140,15 @@ class Aggregator:
             The names of the attributes in the COCO file annotations which should be kept in the output result
             (but won't be used by the Aggregator itself). Same structure than "scores_names".
         scores_weights: List[float]
-            The weights to apply to each score column in the polygons_gdf. Weights are exponents.
-            There should be as many weights as there are scores_names.
+            The weights to apply to each score set. The scores_weights should sum to 1 and there should be as many
+             weights as there are scores_names. See the 'scores_weighting_method' parameter for more details.
+        scores_weighting_method: str
+            The method to use to weight the different sets of scores. Supported values are ['weighted_arithmetic_mean',
+            'weighted_geometric_mean', 'weighted_harmonic_mean'].
 
-            The equation is::
-
-                score = (score1 ** weight1) * (score2 ** weight2) * ...
+                - 'weighted_arithmetic_mean': The scores are simply averaged, but each score is weighted by its weight.
+                - 'weighted_geometric_mean': The scores are multiplied, but each score is weighted by its weight.
+                - 'weighted_harmonic_mean': The scores are averaged, but each score is weighted by its reciprocal.
         score_threshold: float
             The score threshold under which polygons will be removed, before applying the NMS algorithm.
         nms_threshold: float
@@ -192,6 +206,7 @@ class Aggregator:
                    other_attributes_names=other_attributes_names,
                    scores_weights=scores_weights,
                    tiles_extent_gdf=all_tiles_extents_gdf,
+                   scores_weighting_method=scores_weighting_method,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
                    nms_algorithm=nms_algorithm,
@@ -206,6 +221,7 @@ class Aggregator:
                       scores: List[List[float]] or Dict[str, List[List[float]]],
                       other_attributes: Dict[str, List[List[float]]],
                       scores_weights: Dict[str, float] = None,
+                      scores_weighting_method: str = 'weighted_geometric_mean',
                       score_threshold: float = 0.1,
                       nms_threshold: float = 0.8,
                       nms_algorithm: str = 'iou',
@@ -241,13 +257,15 @@ class Aggregator:
             Structure is similar to "scores", a dict with keys being the attribute (=output gpkg columns) names and
             values being lists of lists, one value for each associated polygon.
         scores_weights: Dict[str, float]
-            The weights to apply to each score column in the polygons_gdf. Weights are exponents.
-            Only used if 'scores' is a dict and has more than 1 key (more than 1 set of scores).
-            There keys of the dict should be the same as the keys of the 'scores' dict.
+            The weights to apply to each score set. The scores_weights should sum to 1 and there should be as many
+                weights as there are scores_names. See the 'scores_weighting_method' parameter for more details.
+        scores_weighting_method: str
+            The method to use to weight the different sets of scores. Supported values are ['weighted_arithmetic_mean',
+            'weighted_geometric_mean', 'weighted_harmonic_mean'].
 
-            The equation is::
-
-                score = (score1 ** weight1) * (score2 ** weight2) * ...
+                - 'weighted_arithmetic_mean': The scores are simply averaged, but each score is weighted by its weight.
+                - 'weighted_geometric_mean': The scores are multiplied, but each score is weighted by its weight.
+                - 'weighted_harmonic_mean': The scores are averaged, but each score is weighted by its reciprocal
         score_threshold: float
             The score threshold under which polygons will be removed, before applying the NMS algorithm.
         nms_threshold: float
@@ -294,8 +312,6 @@ class Aggregator:
         if scores_weights:
             assert set(scores_weights.keys()) == set(scores.keys()), ("The scores_weights keys must be "
                                                                       "the same as the scores keys.")
-            assert all([w >= 1.0 for w in scores_weights.values()]), "All scores_weights values should be > 1."
-
         else:
             scores_weights = {score_name: 1 for score_name in scores.keys()} if type(scores) is dict else {'score': 1}
 
@@ -320,6 +336,7 @@ class Aggregator:
                    other_attributes_names=list(other_attributes.keys()),
                    scores_weights=[scores_weights[score_name] for score_name in scores.keys()],
                    tiles_extent_gdf=all_tiles_extents_gdf,
+                   scores_weighting_method=scores_weighting_method,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
                    nms_algorithm=nms_algorithm,
@@ -456,14 +473,29 @@ class Aggregator:
         self.polygons_gdf = self.polygons_gdf[self.polygons_gdf.is_valid]
 
     def _prepare_scores(self):
-        self.polygons_gdf['aggregator_score'] = [(s if s else 0) ** self.scores_weights[0] for s in
-                                                self.polygons_gdf[self.scores_names[0]]]
-        for score_name, score_weight in zip(self.scores_names[1:], self.scores_weights[1:]):
-            self.polygons_gdf['aggregator_score'] *= [(s if s else 0) ** score_weight for s in self.polygons_gdf[score_name]]
-
-        # normalize the 'aggregator_score' column between 0 and 1
-        self.polygons_gdf['aggregator_score'] = (self.polygons_gdf['aggregator_score'] - self.polygons_gdf['aggregator_score'].min()) / \
-                                                (self.polygons_gdf['aggregator_score'].max() - self.polygons_gdf['aggregator_score'].min())
+        if self.scores_weighting_method == 'weighted_arithmetic_mean':
+            self.polygons_gdf['aggregator_score'] = sum(
+                [score_weight * self.polygons_gdf[score_name].fillna(0)
+                 for score_name, score_weight in zip(self.scores_names, self.scores_weights)]
+            )
+        elif self.scores_weighting_method == 'weighted_geometric_mean':
+            self.polygons_gdf['aggregator_score'] = 1.0
+            for score_name, score_weight in zip(self.scores_names, self.scores_weights):
+                self.polygons_gdf['aggregator_score'] *= (
+                        self.polygons_gdf[score_name].fillna(0) ** score_weight
+                )
+            # Take the root based on the sum of the weights
+            total_weight = sum(self.scores_weights)
+            self.polygons_gdf['aggregator_score'] = self.polygons_gdf['aggregator_score'] ** (1 / total_weight)
+        elif self.scores_weighting_method == 'weighted_harmonic_mean':
+            weighted_reciprocal_sum = sum(
+                [score_weight / (self.polygons_gdf[score_name].fillna(0) + 1e-12)
+                 for score_name, score_weight in zip(self.scores_names, self.scores_weights)]
+            )
+            total_weight = sum(self.scores_weights)
+            self.polygons_gdf['aggregator_score'] = total_weight / weighted_reciprocal_sum
+        else:
+            raise ValueError(f"Unsupported score weighting method: {self.scores_weighting_method}")
 
     def _remove_low_score_polygons(self):
         if self.score_threshold:
