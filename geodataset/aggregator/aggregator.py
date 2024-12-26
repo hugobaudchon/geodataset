@@ -192,7 +192,7 @@ class Aggregator:
             assert len(scores_names) == len(scores_weights), ("The scores_weights must have "
                                                               "the same length as the scores_names.")
         else:
-            scores_weights = [1, ] * len(scores_names)
+            scores_weights = [1 / len(scores_names), ] * len(scores_names)
 
         all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path = cls._from_coco(
             tiles_folder_path=tiles_folder_path,
@@ -313,7 +313,8 @@ class Aggregator:
             assert set(scores_weights.keys()) == set(scores.keys()), ("The scores_weights keys must be "
                                                                       "the same as the scores keys.")
         else:
-            scores_weights = {score_name: 1 for score_name in scores.keys()} if type(scores) is dict else {'score': 1}
+            scores_weights = {score_name: 1 / len(scores.keys()) for score_name in scores.keys()}\
+                             if type(scores) is dict else {'score': 1}
 
         tile_ids_to_attributes = {}
         for tile_id in ids:
