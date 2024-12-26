@@ -29,7 +29,7 @@ class Aggregator:
                  output_path: str or Path,
                  polygons_gdf: gpd.GeoDataFrame,
                  scores_names: List[str],
-                 classes_names: List[str],
+                 other_attributes_names: List[str],
                  scores_weights: List[float],
                  tiles_extent_gdf: gpd.GeoDataFrame,
                  tile_ids_to_path: dict or None,
@@ -41,7 +41,7 @@ class Aggregator:
         self.output_path = Path(output_path)
         self.polygons_gdf = polygons_gdf
         self.scores_names = scores_names
-        self.classes_names = classes_names
+        self.other_attributes_names = other_attributes_names
         self.scores_weights = scores_weights
         self.tiles_extent_gdf = tiles_extent_gdf
         self.tile_ids_to_path = tile_ids_to_path
@@ -53,7 +53,6 @@ class Aggregator:
         self._check_parameters()
         self._validate_polygons()
         self._prepare_scores()
-        self._prepare_classes()
         self._remove_low_score_polygons()
         self._apply_nms_algorithm()
         self._save_polygons()
@@ -79,7 +78,7 @@ class Aggregator:
                   tiles_folder_path: str or Path,
                   coco_json_path: str or Path,
                   scores_names: List[str] = None,
-                  classes_names: List[str] = None,
+                  other_attributes_names: List[str] = None,
                   scores_weights: List[float] = None,
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
@@ -126,9 +125,9 @@ class Aggregator:
                     },
                     ...
                 ]
-        classes_names: List[str]
-            The names of the attributes in the COCO file annotations which should be used as classes.
-            Same structure than "scores_names".
+        other_attributes_names: List[str]
+            The names of the attributes in the COCO file annotations which should be kept in the output result
+            (but won't be used by the Aggregator itself). Same structure than "scores_names".
         scores_weights: List[float]
             The weights to apply to each score column in the polygons_gdf. Weights are exponents.
             There should be as many weights as there are scores_names.
@@ -172,8 +171,8 @@ class Aggregator:
         if scores_names is None:
             scores_names = ['score']  # will try to find a 'score' attribute as it's required for NMS algorithm.
 
-        if classes_names is None:
-            classes_names = []  # by default classes are not mandatory
+        if other_attributes_names is None:
+            other_attributes_names = []  # by default other attributes are not mandatory
 
         if scores_weights:
             assert len(scores_names) == len(scores_weights), ("The scores_weights must have "
@@ -184,14 +183,13 @@ class Aggregator:
         all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path = cls._from_coco(
             tiles_folder_path=tiles_folder_path,
             coco_json_path=coco_json_path,
-            scores_names=scores_names,
-            classes_names=classes_names
+            attributes_names=scores_names + other_attributes_names
         )
 
         return cls(output_path=output_path,
                    polygons_gdf=all_polygons_gdf,
                    scores_names=scores_names,
-                   classes_names=classes_names,
+                   other_attributes_names=other_attributes_names,
                    scores_weights=scores_weights,
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
@@ -206,7 +204,7 @@ class Aggregator:
                       tiles_paths: List[str or Path],
                       polygons: List[List[Polygon]],
                       scores: List[List[float]] or Dict[str, List[List[float]]],
-                      classes: List[List[float]] or Dict[str, List[List[float]]],
+                      other_attributes: Dict[str, List[List[float]]],
                       scores_weights: Dict[str, float] = None,
                       score_threshold: float = 0.1,
                       nms_threshold: float = 0.8,
@@ -236,10 +234,12 @@ class Aggregator:
                     'segmentation_score': [[0.4, 0.2, ...], [0.8, 0.9, ...], ...]
                 }
 
-            This is useful if you have multiple scores for each polygon, such as detection confidence score and
-            segmentation confidence score.
-        classes: List[List[float]] or Dict[str, List[List[float]]]
-            Classes predicted from the detector. Structure is similar to "scores"
+            This is useful if you possibly have multiple scores for each polygon, such as detection confidence score
+            and/or segmentation confidence score.
+        other_attributes: Dict[str, List[List[float]]]
+            Used to pass other polygons information, not used by the Aggregator but used for your downstream tasks.
+            Structure is similar to "scores", a dict with keys being the attribute (=output gpkg columns) names and
+            values being lists of lists, one value for each associated polygon.
         scores_weights: Dict[str, float]
             The weights to apply to each score column in the polygons_gdf. Weights are exponents.
             Only used if 'scores' is a dict and has more than 1 key (more than 1 set of scores).
@@ -291,9 +291,6 @@ class Aggregator:
         if type(scores) is list:
             scores = {'score': scores}
 
-        if type(classes) is list:
-            classes = {'class': classes}
-
         if scores_weights:
             assert set(scores_weights.keys()) == set(scores.keys()), ("The scores_weights keys must be "
                                                                       "the same as the scores keys.")
@@ -302,31 +299,25 @@ class Aggregator:
         else:
             scores_weights = {score_name: 1 for score_name in scores.keys()} if type(scores) is dict else {'score': 1}
 
-        tile_ids_to_scores = {}
+        tile_ids_to_attributes = {}
         for tile_id in ids:
-            id_scores = {}
+            tile_attributes = {}
             for score_name, score_values in scores.items():
-                id_scores[score_name] = score_values[tile_id]
-            tile_ids_to_scores[tile_id] = id_scores
-
-        tile_ids_to_classes = {}
-        for tile_id in ids:
-            id_classes = {}
-            for class_name, class_values in classes.items():
-                id_classes[class_name] = class_values[tile_id]
-            tile_ids_to_classes[tile_id] = id_classes
+                tile_attributes[score_name] = score_values[tile_id]
+            for attribute_name, attribute_values in other_attributes.items():
+                tile_attributes[attribute_name] = attribute_values[tile_id]
+            tile_ids_to_attributes[tile_id] = tile_attributes
 
         all_polygons_gdf, all_tiles_extents_gdf = Aggregator._prepare_polygons(
             tile_ids_to_path=tile_ids_to_path,
             tile_ids_to_polygons=tile_ids_to_polygons,
-            tile_ids_to_scores=tile_ids_to_scores,
-            tile_ids_to_classes=tile_ids_to_classes
+            tile_ids_to_attributes=tile_ids_to_attributes
         )
 
         return cls(output_path=output_path,
                    polygons_gdf=all_polygons_gdf,
                    scores_names=list(scores.keys()),
-                   classes_names=list(classes.keys()),
+                   other_attributes_names=list(other_attributes.keys()),
                    scores_weights=[scores_weights[score_name] for score_name in scores.keys()],
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    score_threshold=score_threshold,
@@ -338,8 +329,7 @@ class Aggregator:
     @staticmethod
     def _from_coco(tiles_folder_path: str or Path,
                    coco_json_path: str or Path,
-                   scores_names: List[str],
-                   classes_names: List[str]):
+                   attributes_names: List[str]):
 
         # Read the JSON file
         with open(coco_json_path, 'r') as f:
@@ -347,57 +337,36 @@ class Aggregator:
 
         # Reading the polygons
         tile_ids_to_polygons = {}
-        tile_ids_to_scores = {}
-        tile_ids_to_classes = {}
+        tile_ids_to_attributes = {}
         for annotation in coco_data['annotations']:
             image_id = annotation['image_id']
 
             annotation_polygon = coco_rle_segmentation_to_polygon(annotation['segmentation'])
 
-            scores = {}
-            warn_scores_not_found = []
-            for score_name in scores_names:
-                if score_name in annotation:
-                    scores[score_name] = annotation[score_name]
+            attributes = {}
+            warn_attributes_not_found = []
+            for attribute_name in attributes_names:
+                if attribute_name in annotation:
+                    attributes[attribute_name] = annotation[attribute_name]
                 elif ("other_attributes" in annotation
                       and annotation["other_attributes"]
-                      and score_name in annotation["other_attributes"]):
-                    scores[score_name] = annotation["other_attributes"][score_name]
+                      and attribute_name in annotation["other_attributes"]):
+                    attributes[attribute_name] = annotation["other_attributes"][attribute_name]
                 else:
-                    scores[score_name] = 0
-                    warn_scores_not_found.append(score_name)
+                    attributes[attribute_name] = 0
+                    warn_attributes_not_found.append(attribute_name)
 
-            if len(warn_scores_not_found) > 0:
-                warn(f"The following scores keys could not be found in the annotation, or in the 'other_attributes' key"
-                     f" of the annotation: {warn_scores_not_found}")
-
-            classes = {}
-            warn_classes_not_found = []
-            for class_name in classes_names:
-                if class_name in annotation:
-                    classes[class_name] = annotation[class_name]
-                elif ("other_attributes" in annotation
-                      and annotation["other_attributes"]
-                      and class_name in annotation["other_attributes"]):
-                    classes[class_name] = annotation["other_attributes"][class_name]
-                else:
-                    classes[class_name] = 0
-                    warn_classes_not_found.append(class_name)
-
-            if len(warn_classes_not_found) > 0:
-                warn(f"The following classes keys could not be found in the annotation, or in the 'other_attributes' key"
-                     f" of the annotation: {warn_classes_not_found}")
+            if len(warn_attributes_not_found) > 0:
+                warn(f"The following attributes keys could not be found in the annotation, or in the 'other_attributes'"
+                     f" key of the annotation: {warn_attributes_not_found}")
 
             if image_id in tile_ids_to_polygons:
                 tile_ids_to_polygons[image_id].append(annotation_polygon)
-                for score_name in scores.keys():
-                    tile_ids_to_scores[image_id][score_name].append(scores[score_name])
-                for class_name in classes.keys():
-                    tile_ids_to_classes[image_id][class_name].append(classes[class_name])
+                for attribute_name in attributes.keys():
+                    tile_ids_to_attributes[image_id][attribute_name].append(attributes[attribute_name])
             else:
                 tile_ids_to_polygons[image_id] = [annotation_polygon]
-                tile_ids_to_scores[image_id] = {score_name: [scores[score_name]] for score_name in scores.keys()}
-                tile_ids_to_classes[image_id] = {class_name: [classes[class_name]] for class_name in classes.keys()}
+                tile_ids_to_attributes[image_id] = {attribute_name: [attributes[attribute_name]] for attribute_name in attributes.keys()}
 
         tiles_folder_path = Path(tiles_folder_path)
         tile_ids_to_path = {}
@@ -410,14 +379,15 @@ class Aggregator:
         all_polygons_gdf, all_tiles_extents_gdf = Aggregator._prepare_polygons(
             tile_ids_to_path=tile_ids_to_path,
             tile_ids_to_polygons=tile_ids_to_polygons,
-            tile_ids_to_scores=tile_ids_to_scores,
-            tile_ids_to_classes=tile_ids_to_classes
+            tile_ids_to_attributes=tile_ids_to_attributes
         )
 
         return all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path
 
     @staticmethod
-    def _prepare_polygons(tile_ids_to_path: dict, tile_ids_to_polygons: dict, tile_ids_to_scores: dict, tile_ids_to_classes: dict):
+    def _prepare_polygons(tile_ids_to_path: dict,
+                          tile_ids_to_polygons: dict,
+                          tile_ids_to_attributes: dict):
         images_without_crs = 0
         all_gdfs_polygons = []
         all_gdfs_tiles_extents = []
@@ -433,19 +403,16 @@ class Aggregator:
             # Making sure the Tile respects the convention
             TileNameConvention.parse_name(Path(image_path).name)
 
-            gdf_polygons = gpd.GeoDataFrame(geometry=tile_ids_to_polygons[tile_id])
-            gdf_polygons['geometry'] = gdf_polygons['geometry'].astype(object).apply(
+            tile_gdf = gpd.GeoDataFrame(geometry=tile_ids_to_polygons[tile_id])
+            tile_gdf['geometry'] = tile_gdf['geometry'].astype(object).apply(
                 lambda geom: apply_affine_transform(geom, src.transform)
             )
-            gdf_polygons.crs = src.crs
-            gdf_polygons['tile_id'] = tile_id
-            for score_name in tile_ids_to_scores[tile_id].keys():
-                gdf_polygons[score_name] = tile_ids_to_scores[tile_id][score_name]
-            all_gdfs_polygons.append(gdf_polygons)
+            tile_gdf.crs = src.crs
+            tile_gdf['tile_id'] = tile_id
+            for attribute_name in tile_ids_to_attributes[tile_id].keys():
+                tile_gdf[attribute_name] = tile_ids_to_attributes[tile_id][attribute_name]
 
-            for class_name in tile_ids_to_classes[tile_id].keys():
-                gdf_polygons[class_name] = tile_ids_to_classes[tile_id][class_name]
-            all_gdfs_polygons.append(gdf_polygons)
+            all_gdfs_polygons.append(tile_gdf)
 
             bounds = src.bounds
             # Create a polygon from the bounds
@@ -489,23 +456,20 @@ class Aggregator:
         self.polygons_gdf = self.polygons_gdf[self.polygons_gdf.is_valid]
 
     def _prepare_scores(self):
-        self.polygons_gdf['score'] = [(s if s else 0) ** self.scores_weights[0] for s in
-                                      self.polygons_gdf[self.scores_names[0]]]
+        self.polygons_gdf['aggregator_score'] = [(s if s else 0) ** self.scores_weights[0] for s in
+                                                self.polygons_gdf[self.scores_names[0]]]
         for score_name, score_weight in zip(self.scores_names[1:], self.scores_weights[1:]):
-            self.polygons_gdf['score'] *= [(s if s else 0) ** score_weight for s in self.polygons_gdf[score_name]]
+            self.polygons_gdf['aggregator_score'] *= [(s if s else 0) ** score_weight for s in self.polygons_gdf[score_name]]
 
-        # normalize the 'score' column between 0 and 1
-        self.polygons_gdf['score'] = (self.polygons_gdf['score'] - self.polygons_gdf['score'].min()) / \
-                                     (self.polygons_gdf['score'].max() - self.polygons_gdf['score'].min())
-
-    def _prepare_classes(self):
-        self.polygons_gdf['class'] = [c for c in self.polygons_gdf[self.classes_names[0]]]
+        # normalize the 'aggregator_score' column between 0 and 1
+        self.polygons_gdf['aggregator_score'] = (self.polygons_gdf['aggregator_score'] - self.polygons_gdf['aggregator_score'].min()) / \
+                                                (self.polygons_gdf['aggregator_score'].max() - self.polygons_gdf['aggregator_score'].min())
 
     def _remove_low_score_polygons(self):
         if self.score_threshold:
-            if "score" in self.polygons_gdf and self.polygons_gdf["score"].any():
+            if "aggregator_score" in self.polygons_gdf and self.polygons_gdf["aggregator_score"].any():
                 n_before = len(self.polygons_gdf)
-                self.polygons_gdf.drop(self.polygons_gdf[self.polygons_gdf["score"] < self.score_threshold].index,
+                self.polygons_gdf.drop(self.polygons_gdf[self.polygons_gdf["aggregator_score"] < self.score_threshold].index,
                                        inplace=True)
                 n_after = len(self.polygons_gdf)
                 print(f"Removed {n_before - n_after} out of {n_before} polygons"
@@ -514,7 +478,8 @@ class Aggregator:
                 warn(f"Could not apply score_threshold={self.score_threshold} as scores were not found"
                      f" in the polygons_gdf. If you instanced the Aggregator from a COCO file,"
                      f" please make sure that ALL annotations have a 'score' key or a ['other_attributes']['score']"
-                     f" nested keys. If you instanced the Aggregator from a list of polygons for each tile,"
+                     f" nested keys (ex: 'detector_score' or 'segmenter_score')."
+                     f" If you instanced the Aggregator from a list of polygons for each tile,"
                      f" make sure you also pass the associated list of scores for each tile.")
 
     @staticmethod
@@ -542,7 +507,7 @@ class Aggregator:
 
     def _apply_iou_nms_algorithm(self):
         gdf = self.polygons_gdf.copy()
-        gdf.sort_values(by='score', ascending=False, inplace=True)
+        gdf.sort_values(by='aggregator_score', ascending=False, inplace=True)
 
         intersect_gdf = gpd.sjoin(gdf, gdf, how='inner', predicate='intersects')
         intersect_gdf = intersect_gdf[intersect_gdf.index != intersect_gdf['index_right']]
@@ -580,7 +545,7 @@ class Aggregator:
 
     def _apply_ioa_disambiguate_nms_algorithm(self):
         gdf = self.polygons_gdf.copy()
-        gdf.sort_values(by='score', ascending=False, inplace=True)
+        gdf.sort_values(by='aggregator_score', ascending=False, inplace=True)
 
         gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: self._check_geometry_collection(x))
         gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: self._check_remove_bad_geometries(x))
@@ -737,17 +702,14 @@ class Aggregator:
         elif self.output_path.suffix == '.json':
             tiles_ids = self.polygons_gdf['tile_id'].unique()
 
+            attributes_names = self.scores_names + self.other_attributes_names
             other_attributes = []
             for tile_id in tiles_ids:
                 tile_attributes = []
                 for label_index in self.polygons_gdf[self.polygons_gdf['tile_id'] == tile_id].index:
-                    label_attributes = {}
                     label_data = self.polygons_gdf.loc[label_index]
-                    label_attributes['score'] = label_data['score']
-                    label_scores = {score_name: label_data[score_name] for score_name in self.scores_names}
-                    label_attributes.update(label_scores)
-                    label_classes = {class_name: int(label_data[class_name]) for class_name in self.classes_names}
-                    label_attributes.update(label_classes)
+                    label_attributes = {'aggregator_score': label_data['aggregator_score']}
+                    label_attributes.update({attribute_name: label_data[attribute_name].tolist() for attribute_name in attributes_names})
                     tile_attributes.append(label_attributes)
 
                 other_attributes.append(tile_attributes)
