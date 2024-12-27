@@ -409,7 +409,7 @@ class Aggregator:
         images_without_crs = 0
         all_gdfs_polygons = []
         all_gdfs_tiles_extents = []
-        for tile_id in tqdm(tile_ids_to_polygons.keys(), desc='Reverting polygons back to tile CRS'):
+        for tile_id in tqdm(tile_ids_to_polygons.keys(), desc='Reverting tiles polygons to CRS coordinates'):
             image_path = tile_ids_to_path[tile_id]
 
             src = rasterio.open(image_path)
