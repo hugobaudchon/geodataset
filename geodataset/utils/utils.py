@@ -1,4 +1,3 @@
-import base64
 import glob
 import json
 import os
@@ -23,7 +22,6 @@ import geopandas as gpd
 from rasterio.enums import Resampling
 from shapely import Polygon, box, MultiPolygon
 from shapely.ops import transform
-from skimage.measure import find_contours
 
 
 def polygon_to_coco_coordinates_segmentation(polygon: Polygon or MultiPolygon):
@@ -181,51 +179,64 @@ def coco_rle_segmentation_to_bbox(rle_segmentation: dict) -> box:
     return box(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
 
 
-def mask_to_polygon(mask: np.ndarray, simplify_tolerance: float = 1.0) -> Polygon:
+def mask_to_polygon(
+        mask: np.ndarray,
+        simplify_tolerance: float = 1.0,
+        min_contour_points: int = 3) -> Union[Polygon, MultiPolygon]:
     """
-    Converts a 1HW mask to a simplified shapely Polygon by finding the contours of the mask
-    and simplifying it.
+    Converts a binary mask to simplified shapely Polygon(s).
 
     Parameters
     ----------
     mask: np.ndarray
-        The mask to convert, in 1HW format.
+        The mask to convert, in HW format
     simplify_tolerance: float
-        The tolerance for simplifying the polygon. Higher values result in more simplified shapes.
+        The tolerance for simplifying polygons
+    min_contour_points: int
+        Minimum number of points required for a valid contour
 
     Returns
     -------
-    Polygon
-     A simplified shapely Polygon object representing the outer boundary of the mask.
+    Union[Polygon, MultiPolygon]
+        Simplified polygon(s) representing the mask
     """
-    # Ensure mask is 2D
     if mask.ndim != 2:
         raise ValueError("Mask must be in HW format (2D array).")
 
-    # Pad the mask to avoid boundary issues
+    # Pad the mask
     padded_mask = np.pad(mask, pad_width=1, mode='constant', constant_values=0)
 
-    # Find contours on the mask, assuming mask is binary
-    contours = find_contours(padded_mask, 0.5)
+    # Find contours
+    contours, _ = cv2.findContours(
+        padded_mask.astype(np.uint8),
+        cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_SIMPLE
+    )
 
-    if len(contours) == 0:
-        # returning empty, dummy polygon at 0,0
-        return Polygon([(0, 0), (0, 0), (0, 0)])
+    polygons = []
 
-    # Take the longest contour as the main outline of the object
-    longest_contour = max(contours, key=len)
+    for contour in contours:
+        if len(contour) >= min_contour_points:
+            # Convert to (x,y) format and adjust for padding
+            points = [(x[0][0] - 1, x[0][1] - 1) for x in contour]
+            poly = Polygon(points)
 
-    # Convert contour coordinates from (row, column) to (x, y)
-    # and revert the padding added to the mask
-    longest_contour_adjusted_xy = [(y - 1, x - 1) for x, y in longest_contour]
+            # Simplify if requested
+            if simplify_tolerance > 0:
+                poly = poly.simplify(
+                    tolerance=simplify_tolerance,
+                    preserve_topology=True
+                )
 
-    # Convert contour to Polygon
-    polygon = Polygon(longest_contour_adjusted_xy)
+            if not poly.is_empty:
+                polygons.append(poly)
 
-    # Simplify the polygon
-    simplified_polygon = polygon.simplify(tolerance=simplify_tolerance, preserve_topology=True)
-
-    return simplified_polygon
+    if not polygons:
+        return Polygon()
+    elif len(polygons) == 1:
+        return polygons[0]
+    else:
+        return MultiPolygon(polygons)
 
 
 def coco_coordinates_segmentation_to_polygon(segmentation: list) -> Polygon or MultiPolygon:
@@ -274,7 +285,10 @@ def coco_coordinates_segmentation_to_bbox(segmentation: list) -> box:
     return box(*polygon.bounds)
 
 
-def coco_rle_segmentation_to_polygon(rle_segmentation):
+def coco_rle_segmentation_to_polygon(
+        rle_segmentation,
+        simplify_tolerance: float = 1.0,
+        min_contour_points: int = 3):
     """
     Decodes a COCO annotation RLE segmentation into a shapely Polygon or MultiPolygon.
 
@@ -282,6 +296,10 @@ def coco_rle_segmentation_to_polygon(rle_segmentation):
     ----------
     rle_segmentation: dict
         The RLE segmentation to decode.
+    simplify_tolerance: float
+        The tolerance for simplifying polygons.
+    min_contour_points: int
+        Minimum number of points required for a valid contour.
 
     Returns
     -------
@@ -290,27 +308,7 @@ def coco_rle_segmentation_to_polygon(rle_segmentation):
     """
     # Decode the RLE
     mask = coco_rle_segmentation_to_mask(rle_segmentation)
-
-    # Find contours in the binary mask
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Initialize an empty list to hold the exterior coordinates of the polygons
-    polygons = []
-
-    for contour in contours:
-        # Ensure the contour is of a significant size
-        if len(contour) > 2:
-            # Flatten the array and convert to a list of tuples
-            contour = contour.flatten().tolist()
-            # Reshape the contour to obtain a sequence of coordinates
-            points = list(zip(contour[::2], contour[1::2]))
-            polygons.append(Polygon(points))
-
-    # Return the polygons (Note: This might be a list of polygons if there are multiple disconnected regions)
-    if len(polygons) == 1:
-        return polygons[0]  # Return the single polygon directly if there's only one
-    else:
-        return MultiPolygon(polygons)  # Return a GeoSeries of Polygons if there are multiple
+    return mask_to_polygon(mask, simplify_tolerance, min_contour_points)
 
 def decode_coco_segmentation(coco_annotation: dict, output_type: str):
     """
