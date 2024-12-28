@@ -11,8 +11,7 @@ from shapely import Polygon, MultiPolygon
 import geopandas as gpd
 from tqdm import tqdm
 
-from geodataset.utils import TileNameConvention, apply_affine_transform, COCOGenerator, \
-    coco_rle_segmentation_to_polygon, apply_inverse_transform
+from geodataset.utils import TileNameConvention, apply_affine_transform, COCOGenerator, apply_inverse_transform
 
 
 class Aggregator:
@@ -359,7 +358,7 @@ class Aggregator:
         for annotation in coco_data['annotations']:
             image_id = annotation['image_id']
 
-            annotation_polygon = coco_rle_segmentation_to_polygon(annotation['segmentation'])
+            annotation_polygon = decode_coco_annotation(annotation['segmentation'])
 
             attributes = {}
             warn_attributes_not_found = []
@@ -757,6 +756,7 @@ class Aggregator:
                 categories=None,  # TODO add support for categories
                 other_attributes=other_attributes,
                 output_path=self.output_path,
+                use_rle_for_labels=True,  # TODO make this a parameter to the class
                 n_workers=5,  # TODO make this a parameter to the class
                 coco_categories_list=None  # TODO make this a parameter to the class
             )

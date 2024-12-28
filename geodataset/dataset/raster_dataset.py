@@ -7,9 +7,7 @@ import rasterio
 from shapely import box
 
 from geodataset.dataset.base_dataset import BaseDataset, BaseLabeledRasterCocoDataset
-from geodataset.utils import coco_rle_segmentation_to_bbox, coco_coordinates_segmentation_to_bbox, \
-    coco_rle_segmentation_to_mask, find_tiles_paths, polygon_to_mask
-
+from geodataset.utils import decode_coco_segmentation
 
 
 class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
@@ -77,13 +75,7 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         bboxes = []
 
         for label in labels:
-            if 'bbox' in label:
-                # Directly use the provided bbox
-                bbox_coco = label['bbox']
-                bbox = box(*[bbox_coco[0], bbox_coco[1], bbox_coco[0] + bbox_coco[2], bbox_coco[1] + bbox_coco[3]])
-            else:
-                segmentation = label['segmentation']
-                bbox = coco_rle_segmentation_to_bbox(segmentation)
+            bbox = decode_coco_segmentation(label, 'bbox')
 
             if self.box_padding_percentage:
                 minx, miny, maxx, maxy = bbox.bounds
@@ -160,6 +152,7 @@ class SegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
                  transform: albumentations.core.composition.Compose = None,
                  force_binary_class=None):
         super().__init__(fold=fold, root_path=root_path, transform=transform)
+        self.force_binary_class = force_binary_class
 
     def __getitem__(self, idx: int):
         """
@@ -193,9 +186,7 @@ class SegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
 
         for label in labels:
             if 'segmentation' in label:
-                rle_segmentation = label['segmentation']
-                mask = coco_rle_segmentation_to_mask(rle_segmentation)
-
+                mask = decode_coco_segmentation(label, 'mask')
                 masks.append(mask)
 
         if self.force_binary_class:
@@ -293,9 +284,8 @@ class InstanceSegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset)
         bboxes = []
 
         for label in labels:
-            rle_segmentation = label['segmentation']
-            bbox = coco_rle_segmentation_to_bbox(rle_segmentation)
-            mask = coco_rle_segmentation_to_mask(rle_segmentation)
+            bbox = decode_coco_segmentation(label, 'bbox')
+            mask = decode_coco_segmentation(label, 'mask')
 
             if self.box_padding_percentage:
                 minx, miny, maxx, maxy = bbox.bounds

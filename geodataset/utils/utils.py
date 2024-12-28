@@ -133,7 +133,6 @@ def polygon_to_coco_rle_segmentation(polygon: Polygon or MultiPolygon,
 
     return rle
 
-
 def coco_rle_segmentation_to_mask(rle_segmentation: dict) -> np.ndarray:
     """
     Decodes a COCO annotation RLE segmentation into a binary mask.
@@ -229,7 +228,7 @@ def mask_to_polygon(mask: np.ndarray, simplify_tolerance: float = 1.0) -> Polygo
     return simplified_polygon
 
 
-def coco_coordinates_segmentation_to_polygon(segmentation: list) -> Polygon:
+def coco_coordinates_segmentation_to_polygon(segmentation: list) -> Polygon or MultiPolygon:
     """
     Converts a list of polygon coordinates in COCO format to a shapely Polygon or MultiPolygon.
 
@@ -312,6 +311,60 @@ def coco_rle_segmentation_to_polygon(rle_segmentation):
         return polygons[0]  # Return the single polygon directly if there's only one
     else:
         return MultiPolygon(polygons)  # Return a GeoSeries of Polygons if there are multiple
+
+def decode_coco_segmentation(coco_annotation: dict, output_type: str):
+    """
+    Decodes a COCO annotation segmentation into a shapely Polygon or MultiPolygon.
+
+    Parameters
+    ----------
+    coco_annotation: dict
+        The segmentation to decode.
+    output_type: str
+        The desired output type. Can be 'polygon', 'bbox' or 'mask'.
+
+    Returns
+    -------
+    Polygon or MultiPolygon or box or np.ndarray
+        The decoded segmentation.
+    """
+    segmentation = coco_annotation['segmentation']
+
+    if ('is_rle_format' in coco_annotation and coco_annotation['is_rle_format']) or isinstance(segmentation, dict):
+        # Compressed RLE format
+        if output_type == 'polygon':
+            return coco_rle_segmentation_to_polygon(segmentation)
+        elif output_type == 'bbox':
+            if 'bbox' in coco_annotation:
+                # Directly use the provided bbox
+                bbox_coco = coco_annotation['bbox']
+                bbox = box(*[bbox_coco[0], bbox_coco[1], bbox_coco[0] + bbox_coco[2], bbox_coco[1] + bbox_coco[3]])
+            else:
+                bbox = coco_rle_segmentation_to_bbox(segmentation)
+            return bbox
+        elif output_type == 'mask':
+            return coco_rle_segmentation_to_mask(segmentation)
+        else:
+            raise ValueError(f"Output type '{output_type}' not supported. Must be 'polygon', 'bbox' or 'mask'.")
+    elif ('is_rle_format' in coco_annotation and not coco_annotation['is_rle_format']) or isinstance(segmentation, list):
+        # Coordinates format
+        if output_type == 'polygon':
+            return coco_coordinates_segmentation_to_polygon(segmentation)
+        elif output_type == 'bbox':
+            if 'bbox' in coco_annotation:
+                # Directly use the provided bbox
+                bbox_coco = coco_annotation['bbox']
+                bbox = box(*[bbox_coco[0], bbox_coco[1], bbox_coco[0] + bbox_coco[2], bbox_coco[1] + bbox_coco[3]])
+            else:
+                bbox = coco_coordinates_segmentation_to_bbox(segmentation)
+            return bbox
+        elif output_type == 'mask':
+            polygon = coco_coordinates_segmentation_to_polygon(segmentation)
+            return polygon_to_mask(polygon, coco_annotation['height'], coco_annotation['width'])
+        else:
+            raise ValueError(f"Output type '{output_type}' not supported. Must be 'polygon', 'bbox' or 'mask'.")
+    else:
+        raise NotImplementedError("Could not find the segmentation type (RLE vs polygon coordinates).")
 
 
 def get_tiles_array(tiles: list, tile_coordinate_step: int):
@@ -574,6 +627,9 @@ class COCOGenerator:
         **IMPORTANT**: the 'score' attribute is reserved for the score associated with the polygon.
     output_path: Path
         The path to save the COCO dataset JSON file (should have .json extension).
+    use_rle_for_labels: bool
+        Whether to use RLE encoding for the labels or not. If False, the polygon's exterior coordinates will be used.
+        RLE Encoding takes less space on disk but takes more time to encode.
     n_workers: int
         The number of workers to use for parallel processing.
     coco_categories_list: List[dict] or None
@@ -621,6 +677,7 @@ class COCOGenerator:
                  categories: List[List[Union[str, int]]] or None,
                  other_attributes: List[List[Dict]] or None,
                  output_path: Path,
+                 use_rle_for_labels: bool,
                  n_workers: int,
                  coco_categories_list: List[dict] or None):
         self.description = description
@@ -630,6 +687,7 @@ class COCOGenerator:
         self.categories = categories
         self.other_attributes = other_attributes
         self.output_path = output_path
+        self.use_rle_for_labels = use_rle_for_labels
         self.n_workers = n_workers
         self.coco_categories_list = coco_categories_list
 
@@ -664,7 +722,8 @@ class COCOGenerator:
                     polygons_ids,
                     [[category_to_id_map[c] if c in category_to_id_map else None for c in cs] for cs in self.categories]
                     if self.categories else [None, ]*len(self.tiles_paths),
-                    self.other_attributes if self.other_attributes else [None, ] * len(self.tiles_paths)
+                    self.other_attributes if self.other_attributes else [None, ] * len(self.tiles_paths),
+                    [self.use_rle_for_labels, ] * len(self.tiles_paths)
                     )
             )))
 
@@ -706,8 +765,8 @@ class COCOGenerator:
 
     def _generate_tile_coco(self, tile_data):
         (tile_id,
-         (tile_path, tile_polygons, tile_polygons_ids, tiles_polygons_category_ids,
-          tiles_polygons_other_attributes)) = tile_data
+         (tile_path, tile_polygons, tile_polygons_ids,
+          tiles_polygons_category_ids, tiles_polygons_other_attributes, use_rle_for_labels)) = tile_data
 
         local_detections_coco = []
 
@@ -723,6 +782,7 @@ class COCOGenerator:
                 tile_height=tile_height,
                 tile_width=tile_width,
                 tile_id=tile_id,
+                use_rle_for_labels=use_rle_for_labels,
                 category_id=tiles_polygons_category_ids[i] if tiles_polygons_category_ids else None,
                 other_attributes_dict=tiles_polygons_other_attributes[i] if tiles_polygons_other_attributes else None
             )
@@ -743,13 +803,17 @@ class COCOGenerator:
                              tile_height: int,
                              tile_width: int,
                              tile_id: int,
+                             use_rle_for_labels: bool,
                              category_id: int or None,
                              other_attributes_dict: dict or None) -> dict:
-
-        segmentation = polygon_to_coco_rle_segmentation(polygon=polygon,
-                                                        tile_height=tile_height,
-                                                        tile_width=tile_width)
-
+        if use_rle_for_labels:
+            # Convert the polygon to a COCO RLE mask
+            segmentation = polygon_to_coco_rle_segmentation(polygon=polygon,
+                                                            tile_height=tile_height,
+                                                            tile_width=tile_width)
+        else:
+            # Convert the polygon's exterior coordinates to the format expected by COCO
+            segmentation = polygon_to_coco_coordinates_segmentation(polygon=polygon)
 
         # Calculate the area of the polygon
         area = polygon.area
@@ -758,11 +822,11 @@ class COCOGenerator:
         bbox = list(polygon.bounds)
         bbox_coco_format = [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]]
 
-
         # Generate COCO annotation data from each associated label
         coco_annotation = {
             "id": polygon_id,
             "segmentation": segmentation,
+            "is_rle_format": use_rle_for_labels,
             "area": area,
             "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
             "image_id": tile_id,
@@ -859,6 +923,9 @@ class PointCloudCOCOGenerator:
         **IMPORTANT**: the 'score' attribute is reserved for the score associated with the polygon.
     output_path: Path
         The path to save the COCO dataset JSON file (should have .json extension).
+    use_rle_for_labels: bool
+        Whether to use RLE encoding for the labels or not. If False, the polygon's exterior coordinates will be used.
+        RLE Encoding takes less space on disk but takes more time to encode.
     n_workers: int
         The number of workers to use for parallel processing.
     coco_categories_list: List[dict] or None
@@ -907,6 +974,7 @@ class PointCloudCOCOGenerator:
                  scores: List[List[float]] or None = None,
                  categories: List[List[Union[str, int]]] or None = None,
                  other_attributes: List[List[Dict]] or None = None,
+                 use_rle_for_labels: bool = True,
                  n_workers: int = 1,
                  coco_categories_list: List[dict] or None = None):
 
@@ -917,6 +985,7 @@ class PointCloudCOCOGenerator:
         self.categories = categories
         self.other_attributes = other_attributes
         self.output_path = output_path
+        self.use_rle_for_labels = use_rle_for_labels
         self.n_workers = n_workers
         self.coco_categories_list = coco_categories_list
 
@@ -952,7 +1021,8 @@ class PointCloudCOCOGenerator:
                     polygons_ids,
                     [[category_to_id_map[c] if c in category_to_id_map else None for c in cs] for cs in self.categories]
                     if self.categories else [None, ] * len(self.tiles_metadata),
-                    self.other_attributes if self.other_attributes else [None, ] * len(self.tiles_metadata)
+                    self.other_attributes if self.other_attributes else [None, ] * len(self.tiles_metadata),
+                    [self.use_rle_for_labels, ] * len(self.tiles_metadata)
                     )
             )))
 
@@ -997,7 +1067,7 @@ class PointCloudCOCOGenerator:
     def _generate_tile_coco(self, tile_data):
         (tile_id,
          (tile_metadata, tile_polygons, tile_polygons_ids,
-          tiles_polygons_category_ids, tiles_polygons_other_attributes)) = tile_data
+          tiles_polygons_category_ids, tiles_polygons_other_attributes, use_rle_for_labels)) = tile_data
 
         local_detections_coco = []
 
@@ -1010,6 +1080,7 @@ class PointCloudCOCOGenerator:
                 tile_height=tile_height,
                 tile_width=tile_width,
                 tile_id=tile_id,
+                use_rle_for_labels=use_rle_for_labels,
                 category_id=tiles_polygons_category_ids[i] if tiles_polygons_category_ids else None,
                 other_attributes_dict=tiles_polygons_other_attributes[i] if tiles_polygons_other_attributes else None
             )
@@ -1034,13 +1105,18 @@ class PointCloudCOCOGenerator:
                              tile_height: int,
                              tile_width: int,
                              tile_id: int,
+                             use_rle_for_labels: bool,
                              category_id: int or None,
                              other_attributes_dict: dict or None) -> dict:
 
-        # Convert the polygon to a COCO RLE mask
-        segmentation = polygon_to_coco_rle_segmentation(polygon=polygon,
-                                                        tile_height=tile_height,
-                                                        tile_width=tile_width)
+        if use_rle_for_labels:
+            # Convert the polygon to a COCO RLE mask
+            segmentation = polygon_to_coco_rle_segmentation(polygon=polygon,
+                                                            tile_height=tile_height,
+                                                            tile_width=tile_width)
+        else:
+            # Convert the polygon's exterior coordinates to the format expected by COCO
+            segmentation = polygon_to_coco_coordinates_segmentation(polygon=polygon)
 
         # Calculate the area of the polygon
         area = polygon.area
@@ -1053,6 +1129,7 @@ class PointCloudCOCOGenerator:
         coco_annotation = {
             "polygon_id": polygon_id,
             "segmentation": segmentation,
+            "is_rle_format": use_rle_for_labels,
             "area": area,
             "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
             "image_id": tile_id,
@@ -1214,7 +1291,7 @@ def coco_to_geopackage(coco_json_path: str,
 
         polygons = []
         for annotation in tile_annotations:
-            polygon = coco_rle_segmentation_to_polygon(rle_segmentation=annotation['segmentation'])
+            polygon = decode_coco_segmentation(annotation, 'polygon')
             polygons.append(polygon)
 
         gdf = gpd.GeoDataFrame({

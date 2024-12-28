@@ -103,9 +103,11 @@ The class LabeledRasterTilerizer can tilerize a raster and its labels (.gpkg, .g
         output_path='Data/pre_processed/test',
         tile_size=1024,
         tile_overlap=0.5,
+        labels_gdf=None,
         aois_config=aoi_gpkg_config,
         ground_resolution=0.05,                          # optional, scale_factor must be None if used.
         scale_factor=0.5,                                # optional, ground_resolution must be None if used.
+        use_rle_for_labels=True,                         # optional
         min_intersection_ratio=0.9,                      # optional
         ignore_tiles_without_labels=False,               # optional
         ignore_black_white_alpha_tiles_threshold=0.8,    # optional
