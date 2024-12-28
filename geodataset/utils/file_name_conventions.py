@@ -19,9 +19,9 @@ class FileNameConvention(ABC):
     @staticmethod
     def create_specifier(scale_factor=None, ground_resolution=None, voxel_size=None):
         if scale_factor is not None:
-            specifier = f"sf{str(scale_factor).replace('.', 'p')}"
+            specifier = f"sf{str(float(scale_factor)).replace('.', 'p')}"
         elif ground_resolution is not None:
-            specifier =  f"gr{str(ground_resolution).replace('.', 'p')}"
+            specifier =  f"gr{str(float(ground_resolution)).replace('.', 'p')}"
         else:
             return FileNameConvention.create_specifier(scale_factor=1.0, voxel_size=voxel_size)
         if voxel_size is not None:
