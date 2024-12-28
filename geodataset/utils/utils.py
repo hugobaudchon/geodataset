@@ -749,10 +749,10 @@ class COCOGenerator:
                 "categories": categories_coco
             }, f, ensure_ascii=False, indent=2)
 
-        print(f'Saved COCO dataset to {self.output_path}. Now verifying its integrity...')
-
+        print(f'Verifying COCO file integrity...')
         # Verify COCO file integrity
         _ = COCO(self.output_path)
+        print(f'Saved COCO dataset to {self.output_path}.')
 
     @staticmethod
     def get_polygon_ids(polygons: List[List[Polygon]]):
@@ -1051,9 +1051,10 @@ class PointCloudCOCOGenerator:
                 "categories": categories_coco
             }, f, ensure_ascii=False, indent=2)
 
-        print(f'Saved COCO dataset to {self.output_path}. Now verifying its integrity...')
+        print(f'Verifying COCO file integrity...')
         # Verify COCO file integrity
         _ = COCO(self.output_path)
+        print(f'Saved COCO dataset to {self.output_path}.')
 
         return categories_coco, category_to_id_map
 
