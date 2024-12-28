@@ -18,6 +18,7 @@ from matplotlib import pyplot as plt, patches as patches
 from matplotlib.colors import ListedColormap
 from pycocotools import mask as mask_utils
 import geopandas as gpd
+from pycocotools.coco import COCO
 
 from rasterio.enums import Resampling
 from shapely import Polygon, box, MultiPolygon
@@ -748,7 +749,10 @@ class COCOGenerator:
                 "categories": categories_coco
             }, f, ensure_ascii=False, indent=2)
 
-        print(f'Saved COCO dataset to {self.output_path}.')
+        print(f'Saved COCO dataset to {self.output_path}. Now verifying its integrity...')
+
+        # Verify COCO file integrity
+        _ = COCO(self.output_path)
 
     @staticmethod
     def get_polygon_ids(polygons: List[List[Polygon]]):
@@ -1047,7 +1051,9 @@ class PointCloudCOCOGenerator:
                 "categories": categories_coco
             }, f, ensure_ascii=False, indent=2)
 
-        print(f'Saved COCO dataset to {self.output_path}.')
+        print(f'Saved COCO dataset to {self.output_path}. Now verifying its integrity...')
+        # Verify COCO file integrity
+        _ = COCO(self.output_path)
 
         return categories_coco, category_to_id_map
 
