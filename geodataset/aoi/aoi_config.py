@@ -56,7 +56,8 @@ class AOIFromPackageConfig(AOIConfig):
             assert isinstance(aoi_path, (str, Path, gpd.GeoDataFrame)), \
                 f"The value associated to aoi {aoi_name} is not a string or pathlib.Path. Got value {type(aoi_path)}."
 
-            self.aois[aoi_name] = Path(aoi_path)
+            if isinstance(aoi_path, str):
+                self.aois[aoi_name] = Path(aoi_path)
 
 
 class AOIGeneratorConfig(AOIConfig):
