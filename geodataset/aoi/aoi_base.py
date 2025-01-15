@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import List
 
 from shapely import MultiPolygon, Polygon
@@ -111,6 +112,16 @@ class AOIBaseFromPackage(AOIForRasterBase, ABC):
 
         self.loaded_aois = self._load_aois()
 
+    def _get_aoi_gdf(self, aoi_name):
+        if isinstance(self.aois_config.aois[aoi_name], (str, Path)):
+            aoi_gdf = gpd.read_file(self.aois_config.aois[aoi_name])
+        elif isinstance(self.aois_config.aois[aoi_name], gpd.GeoDataFrame):
+            aoi_gdf = self.aois_config.aois[aoi_name]
+        else:
+            raise ValueError(f"AOI {aoi_name} is not a string, pathlib.Path or GeoDataFrame.")
+
+        return aoi_gdf
+
     def _load_aois(self):
         """
         Load the AOI from the provided path, converting it to a MultiPolygon if necessary.
@@ -119,7 +130,7 @@ class AOIBaseFromPackage(AOIForRasterBase, ABC):
         loaded_aois = {}
         for aoi_name in self.aois_config.aois:
             # Load the AOI using geopandas
-            aoi_gdf = gpd.read_file(self.aois_config.aois[aoi_name])
+            aoi_gdf = self._get_aoi_gdf(aoi_name)
 
             # Ensure the geometry is a MultiPolygon
             aoi_gdf['geometry'] = aoi_gdf['geometry'].astype(object).apply(
@@ -142,6 +153,16 @@ class AOIBaseFromGeoFileInCRS:
         
         self.aois_config = aois_config
         self.loaded_aois = self._load_aois()
+
+    def _get_aoi_gdf(self, aoi_name):
+        if isinstance(self.aois_config.aois[aoi_name], (str, Path)):
+            aoi_gdf = gpd.read_file(self.aois_config.aois[aoi_name])
+        elif isinstance(self.aois_config.aois[aoi_name], gpd.GeoDataFrame):
+            aoi_gdf = self.aois_config.aois[aoi_name]
+        else:
+            raise ValueError(f"AOI {aoi_name} is not a string, pathlib.Path or GeoDataFrame.")
+
+        return aoi_gdf
     
     def _load_aois(self):
         """
@@ -151,7 +172,7 @@ class AOIBaseFromGeoFileInCRS:
         loaded_aois = {}
         for aoi_name in self.aois_config.aois:
             # Load the AOI using geopandas
-            aoi_gdf = gpd.read_file(self.aois_config.aois[aoi_name])
+            aoi_gdf = self._get_aoi_gdf(aoi_name)
 
             # Ensure the geometry is a MultiPolygon
             aoi_gdf['geometry'] = aoi_gdf['geometry'].astype(object).apply(
