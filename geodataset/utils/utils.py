@@ -25,7 +25,7 @@ from rasterio.enums import Resampling
 from shapely import Polygon, box, MultiPolygon
 from shapely.ops import transform
 
-from geodataset.utils import CocoNameConvention
+from geodataset.utils.file_name_conventions import CocoNameConvention
 
 
 def polygon_to_coco_coordinates_segmentation(polygon: Polygon or MultiPolygon):
