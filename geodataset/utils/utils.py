@@ -1280,9 +1280,9 @@ def create_coco_folds(train_coco_path: str or Path, output_dir: str or Path, num
 
         # Save the train and valid COCO JSON files for the current fold
         with open(output_dir / train_fold_coco_name, 'w') as f:
-            json.dump(train_coco_fold, f)
+            json.dump(train_coco_fold, f, ensure_ascii=False, indent=2)
         with open(output_dir / valid_fold_coco_name, 'w') as f:
-            json.dump(valid_coco_fold, f)
+            json.dump(valid_coco_fold, f, ensure_ascii=False, indent=2)
 
     print(f"Created {num_folds} folds in {output_dir}.")
 
