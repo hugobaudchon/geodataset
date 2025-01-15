@@ -6,6 +6,7 @@ import warnings
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
+import random
 from typing import List, Union, Dict
 
 import cv2
@@ -23,6 +24,8 @@ from pycocotools.coco import COCO
 from rasterio.enums import Resampling
 from shapely import Polygon, box, MultiPolygon
 from shapely.ops import transform
+
+from geodataset.utils import CocoNameConvention
 
 
 def polygon_to_coco_coordinates_segmentation(polygon: Polygon or MultiPolygon):
@@ -1195,6 +1198,93 @@ class PointCloudCOCOGenerator:
                               " so labels won't have categories.")
 
         return categories_coco, category_name_to_id_map
+
+
+def create_coco_folds(train_coco_path: str or Path, output_dir: str or Path, num_folds=5, seed=0):
+    """
+    Create folds for a COCO dataset by splitting the images randomly.
+
+    Parameters
+    ----------
+    train_coco_path: str or Path
+        The path to the train COCO JSON file.
+    output_dir: str or Path
+        The directory where the folds will be saved.
+    num_folds: int
+        The number of folds to create.
+    seed: int or None
+    """
+
+    # Set the random seed
+    if seed is not None:
+        random.seed(seed)
+
+    train_coco_path = Path(train_coco_path)
+
+    # Load the train COCO JSON file
+    with open(train_coco_path, 'r') as f:
+        train_coco = json.load(f)
+
+    product_name, scale_factor, ground_resolution, _ = CocoNameConvention.parse_name(train_coco_path.name)
+
+    # Get the list of image IDs
+    image_ids = [img['id'] for img in train_coco['images']]
+
+    # Shuffle the image IDs randomly
+    random.shuffle(image_ids)
+
+    # Calculate the number of images per fold
+    num_images_per_fold = len(image_ids) // num_folds
+
+    # Create the output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for fold in range(num_folds):
+        # Get the image IDs for the current fold
+        start_idx = fold * num_images_per_fold
+        end_idx = (fold + 1) * num_images_per_fold
+        fold_image_ids = image_ids[start_idx:end_idx]
+
+        # Create the train and valid COCO datasets for the current fold
+        train_coco_fold = {
+            'info': train_coco['info'],
+            'licenses': train_coco['licenses'],
+            'categories': train_coco['categories'],
+            'images': [img for img in train_coco['images'] if img['id'] not in fold_image_ids],
+            'annotations': [ann for ann in train_coco['annotations'] if ann['image_id'] not in fold_image_ids]
+        }
+        valid_coco_fold = {
+            'info': train_coco['info'],
+            'licenses': train_coco['licenses'],
+            'categories': train_coco['categories'],
+            'images': [img for img in train_coco['images'] if img['id'] in fold_image_ids],
+            'annotations': [ann for ann in train_coco['annotations'] if ann['image_id'] in fold_image_ids]
+        }
+
+        train_fold_coco_name = CocoNameConvention.create_name(
+            product_name=product_name,
+            fold=f'train{fold}',
+            scale_factor=scale_factor,
+            ground_resolution=ground_resolution
+        )
+
+        valid_fold_coco_name = CocoNameConvention.create_name(
+            product_name=product_name,
+            fold=f'valid{fold}',
+            scale_factor=scale_factor,
+            ground_resolution=ground_resolution
+        )
+
+        # Save the train and valid COCO JSON files for the current fold
+        with open(output_dir / train_fold_coco_name, 'w') as f:
+            json.dump(train_coco_fold, f)
+        with open(output_dir / valid_fold_coco_name, 'w') as f:
+            json.dump(valid_coco_fold, f)
+
+    print(f"Created {num_folds} folds in {output_dir}.")
 
 
 def apply_affine_transform(geom: shapely.geometry, affine: rasterio.Affine):
