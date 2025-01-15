@@ -15,7 +15,7 @@ class AOIConfig(ABC):
             assert re.match(r'^[a-zA-Z0-9]+$', aoi_name), (
                 "The AOI name should only contain alphanumeric characters like 'train', 'test1', 'test2'... "
             )
-            if 'actual_name' in self.aois[aoi_name]:
+            if isinstance(self.aois[aoi_name], dict) and 'actual_name' in self.aois[aoi_name]:
                 actual_name = self.aois[aoi_name]['actual_name']
                 assert re.match(r'^[a-zA-Z0-9]+$', actual_name), (
                     f"The AOI {aoi_name}'s 'actual_name={actual_name}' should only contain alphanumeric characters like 'train', 'test1', 'test2'... "
