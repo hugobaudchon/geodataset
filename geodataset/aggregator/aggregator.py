@@ -11,7 +11,8 @@ from shapely import Polygon, MultiPolygon
 import geopandas as gpd
 from tqdm import tqdm
 
-from geodataset.utils import TileNameConvention, apply_affine_transform, COCOGenerator, apply_inverse_transform
+from geodataset.utils import TileNameConvention, apply_affine_transform, COCOGenerator, apply_inverse_transform, \
+    decode_coco_segmentation
 
 
 class Aggregator:
@@ -34,6 +35,7 @@ class Aggregator:
                  tiles_extent_gdf: gpd.GeoDataFrame,
                  tile_ids_to_path: dict or None,
                  scores_weighting_method: str = 'weighted_geometric_mean',
+                 min_centroid_distance_weight: float = None,
                  score_threshold: float = 0.1,
                  nms_threshold: float = 0.8,
                  nms_algorithm: str = 'iou',
@@ -47,6 +49,7 @@ class Aggregator:
         self.tiles_extent_gdf = tiles_extent_gdf
         self.tile_ids_to_path = tile_ids_to_path
         self.scores_weighting_method = scores_weighting_method
+        self.min_centroid_distance_weight = min_centroid_distance_weight
         self.score_threshold = score_threshold
         self.nms_threshold = nms_threshold
         self.nms_algorithm = nms_algorithm
@@ -90,6 +93,7 @@ class Aggregator:
                   other_attributes_names: List[str] = None,
                   scores_weights: List[float] = None,
                   scores_weighting_method: str = 'weighted_geometric_mean',
+                  min_centroid_distance_weight: float = None,
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
                   nms_algorithm: str = 'iou',
@@ -148,6 +152,10 @@ class Aggregator:
                 - 'weighted_arithmetic_mean': The scores are simply averaged, but each score is weighted by its weight.
                 - 'weighted_geometric_mean': The scores are multiplied, but each score is weighted by its weight.
                 - 'weighted_harmonic_mean': The scores are averaged, but each score is weighted by its reciprocal.
+        min_centroid_distance_weight: float or None
+            The weight to apply to the polygon scores (after applying the scores_weights) based on the distance
+             between the polygon centroid and its tile centroid. The smaller the value of min_centroid_distance_weight,
+             the smaller the score will be for polygons at the edge of the tile.
         score_threshold: float
             The score threshold under which polygons will be removed, before applying the NMS algorithm.
         nms_threshold: float
@@ -206,6 +214,7 @@ class Aggregator:
                    scores_weights=scores_weights,
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    scores_weighting_method=scores_weighting_method,
+                   min_centroid_distance_weight=min_centroid_distance_weight,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
                    nms_algorithm=nms_algorithm,
@@ -221,6 +230,7 @@ class Aggregator:
                       other_attributes: Dict[str, List[List[float]]],
                       scores_weights: Dict[str, float] = None,
                       scores_weighting_method: str = 'weighted_geometric_mean',
+                      min_centroid_distance_weight: float = None,
                       score_threshold: float = 0.1,
                       nms_threshold: float = 0.8,
                       nms_algorithm: str = 'iou',
@@ -265,6 +275,10 @@ class Aggregator:
                 - 'weighted_arithmetic_mean': The scores are simply averaged, but each score is weighted by its weight.
                 - 'weighted_geometric_mean': The scores are multiplied, but each score is weighted by its weight.
                 - 'weighted_harmonic_mean': The scores are averaged, but each score is weighted by its reciprocal
+        min_centroid_distance_weight: float or None
+            The weight to apply to the polygon scores (after applying the scores_weights) based on the distance
+            between the polygon centroid and its tile centroid. The smaller the value of min_centroid_distance_weight,
+            the smaller the score will be for polygons at the edge of the tile.
         score_threshold: float
             The score threshold under which polygons will be removed, before applying the NMS algorithm.
         nms_threshold: float
@@ -337,6 +351,7 @@ class Aggregator:
                    scores_weights=[scores_weights[score_name] for score_name in scores.keys()],
                    tiles_extent_gdf=all_tiles_extents_gdf,
                    scores_weighting_method=scores_weighting_method,
+                   min_centroid_distance_weight=min_centroid_distance_weight,
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
                    nms_algorithm=nms_algorithm,
@@ -358,7 +373,7 @@ class Aggregator:
         for annotation in coco_data['annotations']:
             image_id = annotation['image_id']
 
-            annotation_polygon = decode_coco_annotation(annotation['segmentation'])
+            annotation_polygon = decode_coco_segmentation(annotation['segmentation'])
 
             attributes = {}
             warn_attributes_not_found = []
@@ -496,6 +511,31 @@ class Aggregator:
             self.polygons_gdf['aggregator_score'] = total_weight / weighted_reciprocal_sum
         else:
             raise ValueError(f"Unsupported score weighting method: {self.scores_weighting_method}")
+
+        if self.min_centroid_distance_weight is not None:
+            # Calculate centroids for tiles and polygons
+            tile_centroids = self.tiles_extent_gdf.set_index('tile_id').geometry.centroid
+            self.polygons_gdf['polygon_centroid'] = self.polygons_gdf.geometry.centroid
+            self.polygons_gdf['tile_centroid'] = self.polygons_gdf['tile_id'].map(tile_centroids)
+
+            # Calculate distances between polygon centroids and tile centroids
+            self.polygons_gdf['centroid_distance'] = self.polygons_gdf.apply(
+                lambda row: row['polygon_centroid'].distance(row['tile_centroid']), axis=1
+            )
+
+            # Calculate max possible distance (tile diagonal)
+            tile_diagonals = self.tiles_extent_gdf.set_index('tile_id').geometry.apply(
+                lambda geom: geom.bounds
+            ).apply(
+                lambda bounds: ((bounds[2] - bounds[0]) ** 2 + (bounds[3] - bounds[1]) ** 2) ** 0.5
+            )
+            self.polygons_gdf['max_distance'] = self.polygons_gdf['tile_id'].map(tile_diagonals)
+
+            # Calculate distance weight and adjust scores
+            self.polygons_gdf['distance_weight'] = 1 - (
+                    self.polygons_gdf['centroid_distance'] / self.polygons_gdf['max_distance']
+            ) * (1 - self.min_centroid_distance_weight)
+            self.polygons_gdf['aggregator_score'] *= self.polygons_gdf['distance_weight']
 
     def _remove_low_score_polygons(self):
         if self.score_threshold:
