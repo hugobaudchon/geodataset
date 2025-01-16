@@ -1215,7 +1215,7 @@ def create_coco_folds(train_coco_path: str or Path, output_dir: str or Path, num
     seed: int or None
         The random seed for shuffling image IDs if predefined_image_folds is None.
     predefined_image_folds: dict or None
-        A dictionary mapping image names to fold IDs. If provided, this overrides random splitting.
+        A dictionary mapping image ids to fold IDs. If provided, this overrides random splitting.
     """
 
     # Set the random seed
@@ -1237,11 +1237,11 @@ def create_coco_folds(train_coco_path: str or Path, output_dir: str or Path, num
     if predefined_image_folds:
         folds = [[] for _ in range(num_folds)]
         for img in images:
-            fold_id = predefined_image_folds.get(img['file_name'])
+            fold_id = predefined_image_folds.get(img['id'])
             if fold_id is not None and 0 <= fold_id < num_folds:
                 folds[fold_id].append(img['id'])
             else:
-                raise ValueError(f"Invalid fold ID for image {img['file_name']}: {fold_id}")
+                raise ValueError(f"Invalid fold ID for image {img['id']}: {fold_id}")
     else:
         # Shuffle the image IDs randomly
         image_ids = [img['id'] for img in images]
