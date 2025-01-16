@@ -1233,35 +1233,34 @@ def create_coco_folds(train_coco_path: str or Path, output_dir: str or Path, num
     # Shuffle the image IDs randomly
     random.shuffle(image_ids)
 
-    # Calculate the number of images per fold
-    num_images_per_fold = len(image_ids) // num_folds
+    # Split the images into folds
+    folds = [[] for _ in range(num_folds)]
+    for idx, img_id in enumerate(image_ids):
+        folds[idx % num_folds].append(img_id)
 
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
-
     output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     for fold in range(num_folds):
         # Get the image IDs for the current fold
-        start_idx = fold * num_images_per_fold
-        end_idx = (fold + 1) * num_images_per_fold
-        fold_image_ids = image_ids[start_idx:end_idx]
+        valid_image_ids = folds[fold]
+        train_image_ids = [img_id for f in folds if f != valid_image_ids for img_id in f]
 
         # Create the train and valid COCO datasets for the current fold
         train_coco_fold = {
             'info': train_coco['info'],
             'licenses': train_coco['licenses'],
             'categories': train_coco['categories'],
-            'images': [img for img in train_coco['images'] if img['id'] not in fold_image_ids],
-            'annotations': [ann for ann in train_coco['annotations'] if ann['image_id'] not in fold_image_ids]
+            'images': [img for img in train_coco['images'] if img['id'] in train_image_ids],
+            'annotations': [ann for ann in train_coco['annotations'] if ann['image_id'] in train_image_ids]
         }
         valid_coco_fold = {
             'info': train_coco['info'],
             'licenses': train_coco['licenses'],
             'categories': train_coco['categories'],
-            'images': [img for img in train_coco['images'] if img['id'] in fold_image_ids],
-            'annotations': [ann for ann in train_coco['annotations'] if ann['image_id'] in fold_image_ids]
+            'images': [img for img in train_coco['images'] if img['id'] in valid_image_ids],
+            'annotations': [ann for ann in train_coco['annotations'] if ann['image_id'] in valid_image_ids]
         }
 
         train_fold_coco_name = CocoNameConvention.create_name(
@@ -1285,6 +1284,7 @@ def create_coco_folds(train_coco_path: str or Path, output_dir: str or Path, num
             json.dump(valid_coco_fold, f, ensure_ascii=False, indent=2)
 
     print(f"Created {num_folds} folds in {output_dir}.")
+    return output_dir
 
 
 def apply_affine_transform(geom: shapely.geometry, affine: rasterio.Affine):
