@@ -765,6 +765,13 @@ class Aggregator:
     def _save_polygons(self):
         self._validate_polygons()
 
+        if 'polygon_centroid' in self.polygons_gdf:
+            self.polygons_gdf.drop(columns=['polygon_centroid'], inplace=True)
+        if 'tile_centroid' in self.polygons_gdf:
+            self.polygons_gdf.drop(columns=['tile_centroid'], inplace=True)
+
+        self.polygons_gdf.set_geometry('geometry', inplace=True)
+
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self.output_path.suffix == '.geojson':
