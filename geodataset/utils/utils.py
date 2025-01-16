@@ -1200,9 +1200,9 @@ class PointCloudCOCOGenerator:
         return categories_coco, category_name_to_id_map
 
 
-def create_coco_folds(train_coco_path: str or Path, output_dir: str or Path, num_folds=5, seed=0):
+def create_coco_folds(train_coco_path: str or Path, output_dir: str or Path, num_folds=5, seed=0, predefined_image_folds=None):
     """
-    Create folds for a COCO dataset by splitting the images randomly.
+    Create folds for a COCO dataset by splitting the images randomly or using predefined folds.
 
     Parameters
     ----------
@@ -1213,6 +1213,9 @@ def create_coco_folds(train_coco_path: str or Path, output_dir: str or Path, num
     num_folds: int
         The number of folds to create.
     seed: int or None
+        The random seed for shuffling image IDs if predefined_image_folds is None.
+    predefined_image_folds: dict or None
+        A dictionary mapping image names to fold IDs. If provided, this overrides random splitting.
     """
 
     # Set the random seed
@@ -1227,16 +1230,27 @@ def create_coco_folds(train_coco_path: str or Path, output_dir: str or Path, num
 
     product_name, scale_factor, ground_resolution, _ = CocoNameConvention.parse_name(train_coco_path.name)
 
-    # Get the list of image IDs
-    image_ids = [img['id'] for img in train_coco['images']]
+    # Get the list of images
+    images = train_coco['images']
 
-    # Shuffle the image IDs randomly
-    random.shuffle(image_ids)
+    # Assign images to folds
+    if predefined_image_folds:
+        folds = [[] for _ in range(num_folds)]
+        for img in images:
+            fold_id = predefined_image_folds.get(img['file_name'])
+            if fold_id is not None and 0 <= fold_id < num_folds:
+                folds[fold_id].append(img['id'])
+            else:
+                raise ValueError(f"Invalid fold ID for image {img['file_name']}: {fold_id}")
+    else:
+        # Shuffle the image IDs randomly
+        image_ids = [img['id'] for img in images]
+        random.shuffle(image_ids)
 
-    # Split the images into folds
-    folds = [[] for _ in range(num_folds)]
-    for idx, img_id in enumerate(image_ids):
-        folds[idx % num_folds].append(img_id)
+        # Split the images into folds
+        folds = [[] for _ in range(num_folds)]
+        for idx, img_id in enumerate(image_ids):
+            folds[idx % num_folds].append(img_id)
 
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
