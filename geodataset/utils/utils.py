@@ -609,9 +609,9 @@ class COCOGenerator:
         A list of paths to the tiles/images.
     polygons: List[List[Polygon]]
         A list of lists of polygons associated with each tile.
-    scores: List[List[float]] or None
+    scores: List[List[float or None]] or None
         A list of lists of scores associated with each polygon.
-    categories: List[List[Union[str, int]]] or None
+    categories: List[List[str or int]] or None
         A list of lists of categories (str or int) associated with each polygon.
     other_attributes: List[List[Dict]] or None
         A list of lists of dictionaries of other attributes associated with each polygon.
@@ -675,8 +675,8 @@ class COCOGenerator:
                  description: str,
                  tiles_paths: List[Path],
                  polygons: List[List[Polygon]],
-                 scores: List[List[float]] or None,
-                 categories: List[List[Union[str, int]]] or None,
+                 scores: List[List[float or None]] or None,
+                 categories: List[List[str or int]] or None,
                  other_attributes: List[List[Dict]] or None,
                  output_path: Path,
                  use_rle_for_labels: bool,
@@ -696,8 +696,12 @@ class COCOGenerator:
         assert len(self.tiles_paths) == len(self.polygons), "The number of tiles and polygons must be the same."
         if self.scores:
             assert len(self.tiles_paths) == len(self.scores), "The number of tiles and scores must be the same."
+        else:
+            self.scores = [[None, ] * len(tile_polygons) for tile_polygons in self.polygons]
         if self.categories:
             assert len(self.tiles_paths) == len(self.categories), "The number of tiles and categories must be the same."
+        else:
+            self.categories = [['NoCategory', ] * len(tile_polygons) for tile_polygons in self.polygons]
         if self.other_attributes:
             assert len(self.tiles_paths) == len(
                 self.other_attributes), "The number of tiles and other_attributes must be the same."
@@ -722,9 +726,8 @@ class COCOGenerator:
                 zip(self.tiles_paths,
                     self.polygons,
                     polygons_ids,
-                    self.scores if self.scores else [[None, ] * len(tile_polygons) for tile_polygons in self.polygons],
-                    [[category_to_id_map[c] if c in category_to_id_map else None for c in cs] for cs in self.categories]
-                    if self.categories else [None, ]*len(self.tiles_paths),
+                    self.scores,
+                    [[category_to_id_map[c] if c in category_to_id_map else -1 for c in cs] for cs in self.categories],
                     self.other_attributes if self.other_attributes else [None, ] * len(self.tiles_paths),
                     [self.use_rle_for_labels, ] * len(self.tiles_paths)
                     )
