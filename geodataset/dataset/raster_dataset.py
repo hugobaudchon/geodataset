@@ -42,8 +42,6 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         self.box_padding_percentage = box_padding_percentage
         self.force_binary_class = force_binary_class
 
-        assert 0 <= self.box_padding_percentage <= 1
-
     def __getitem__(self, idx: int):
         """
         Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,
