@@ -722,6 +722,7 @@ class COCOGenerator:
                 zip(self.tiles_paths,
                     self.polygons,
                     polygons_ids,
+                    self.scores if self.scores else [[None, ] * len(tile_polygons) for tile_polygons in self.polygons],
                     [[category_to_id_map[c] if c in category_to_id_map else None for c in cs] for cs in self.categories]
                     if self.categories else [None, ]*len(self.tiles_paths),
                     self.other_attributes if self.other_attributes else [None, ] * len(self.tiles_paths),
@@ -770,7 +771,7 @@ class COCOGenerator:
 
     def _generate_tile_coco(self, tile_data):
         (tile_id,
-         (tile_path, tile_polygons, tile_polygons_ids,
+         (tile_path, tile_polygons, tile_polygons_ids, tile_polygons_scores,
           tiles_polygons_category_ids, tiles_polygons_other_attributes, use_rle_for_labels)) = tile_data
 
         local_detections_coco = []
@@ -784,6 +785,7 @@ class COCOGenerator:
             detection = self._generate_label_coco(
                 polygon=tile_polygons[i],
                 polygon_id=tile_polygons_ids[i],
+                score=tile_polygons_scores[i],
                 tile_height=tile_height,
                 tile_width=tile_width,
                 tile_id=tile_id,
@@ -805,6 +807,7 @@ class COCOGenerator:
     @staticmethod
     def _generate_label_coco(polygon: shapely.Polygon,
                              polygon_id: int,
+                             score: float,
                              tile_height: int,
                              tile_width: int,
                              tile_id: int,
@@ -832,6 +835,7 @@ class COCOGenerator:
             "id": polygon_id,
             "segmentation": segmentation,
             "is_rle_format": use_rle_for_labels,
+            "score": score,
             "area": area,
             "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
             "image_id": tile_id,
