@@ -84,8 +84,8 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
 
                 new_minx = max(0, minx - padding_x)
                 new_miny = max(0, miny - padding_y)
-                new_maxx = min(tile.shape[0], maxx + padding_x)
-                new_maxy = min(tile.shape[1], maxy + padding_y)
+                new_maxx = min(tile.shape[1], maxx + padding_x)
+                new_maxy = min(tile.shape[2], maxy + padding_y)
 
                 bbox = box(new_minx, new_miny, new_maxx, new_maxy)
 
