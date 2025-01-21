@@ -181,8 +181,6 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         else:
             raise ValueError("You must provide either a labels_path or a labels_gdf.")
 
-        print(labels.geometries_gdf)
-
         return labels
 
     def _generate_aois_tiles(self):
