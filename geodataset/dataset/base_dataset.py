@@ -194,6 +194,7 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
                 tile_ids_without_labels.append(tile_id)
 
         for tile_id in tile_ids_without_labels:
+            del self.tiles_path_to_id_mapping[self.tiles[tile_id]['name']]
             del self.tiles[tile_id]
 
         new_tiles_number = len(self.tiles)
@@ -206,9 +207,12 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
 
     def _reindex_tiles(self):
         reindexed_tiles = {}
+        reindexed_path_to_id_mapping = {}
         for i, (_, tile) in enumerate(self.tiles.items()):
             reindexed_tiles[i] = tile
+            reindexed_path_to_id_mapping[tile['name']] = i
         self.tiles = reindexed_tiles
+        self.tiles_path_to_id_mapping = reindexed_path_to_id_mapping
 
     def __len__(self):
         """
