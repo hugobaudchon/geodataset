@@ -151,9 +151,6 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             other_labels_attributes_column_names=other_labels_attributes_column_names
         )
 
-        self.aois_tiles = None
-        self.aois_gdf = None
-
     def _load_labels(self,
                      labels_gdf: gpd.GeoDataFrame,
                      geopackage_layer_name: str or None,
@@ -202,8 +199,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             else:
                 labeled_tiles.append(tile)
 
-        # Assigning the tiles to AOIs
-        self.aois_tiles, self.aois_gdf = self._get_tiles_per_aoi(tiles=labeled_tiles)
+        self._get_tiles_per_aoi(tiles=labeled_tiles)
 
     def _get_tiles_and_labels_per_aoi(self):
         assert self.aois_tiles is not None, "You must call the _get_aois_tiles method first."
@@ -298,7 +294,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                        tiles: List[RasterTile],
                        tiles_paths_aoi: List[Path],
                        labels: list[gpd.GeoDataFrame],
-                       save_tiles_folder: bool):
+                       save_tiles_folder: Path or None):
         if aoi == 'all' and len(self.aois_tiles.keys()) > 1:
             # don't save the 'all' tiles if aois were provided.
             return

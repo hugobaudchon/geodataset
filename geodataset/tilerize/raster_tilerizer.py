@@ -221,6 +221,8 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
         self.output_path = Path(output_path) / self.raster.output_name
         self.tiles_path = self.output_path / 'tiles'
         self.tiles_path.mkdir(parents=True, exist_ok=True)
+        self.aois_tiles = None
+        self.aois_gdf = None
 
     def _get_tiles_per_aoi(self, tiles: List[RasterTile]):
         aois_tiles, aois_gdf = super()._get_tiles_per_aoi(tiles=tiles)
@@ -240,7 +242,8 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
                 aoi_gdf.to_file(self.output_path / aoi_file_name, driver='GPKG')
                 print(f"Final AOI '{aoi}' saved to {self.output_path / aoi_file_name}.")
 
-        return aois_tiles, aois_gdf
+        self.aois_tiles = aois_tiles
+        self.aois_gdf = aois_gdf
 
 
 class RasterTilerizer(BaseDiskRasterTilerizer):
@@ -298,10 +301,10 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
         """
 
         tiles = self._create_tiles()
-        aois_tiles, _ = self._get_tiles_per_aoi(tiles=tiles)
-        aois_tiles['all'] = [tile for tile_list in aois_tiles.values() for tile in tile_list]
+        self._get_tiles_per_aoi(tiles=tiles)
+        self.aois_tiles['all'] = [tile for tile_list in self.aois_tiles.values() for tile in tile_list]
 
-        save_aois_tiles_picture(aois_tiles=aois_tiles,
+        save_aois_tiles_picture(aois_tiles=self.aois_tiles,
                                 save_path=self.output_path / AoiTilesImageConvention.create_name(
                                     product_name=self.raster.output_name,
                                     ground_resolution=self.ground_resolution,
@@ -310,16 +313,16 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                                 tile_coordinate_step=self.tile_coordinate_step)
 
         [print(f'No tiles found for AOI {aoi}.') for aoi in self.aois_config.actual_names
-         if aoi not in aois_tiles or len(aois_tiles[aoi]) == 0]
+         if aoi not in self.aois_tiles or len(self.aois_tiles[aoi]) == 0]
 
         print("Saving tiles...")
-        for aoi in aois_tiles:
-            if aoi == 'all' and len(aois_tiles.keys()) > 1:
+        for aoi in self.aois_tiles:
+            if aoi == 'all' and len(self.aois_tiles.keys()) > 1:
                 # don't save the 'all' tiles if aois were provided.
                 continue
 
             # Save the tile images
-            for tile in aois_tiles[aoi]:
+            for tile in self.aois_tiles[aoi]:
                 tiles_path_aoi = self.tiles_path / aoi
                 tiles_path_aoi.mkdir(parents=True, exist_ok=True)
                 tile.save(output_folder=tiles_path_aoi)
