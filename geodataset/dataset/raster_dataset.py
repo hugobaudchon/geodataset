@@ -377,18 +377,26 @@ class UnlabeledRasterDataset(BaseDataset):
 
     def _find_tiles_paths(self, directories: List[Path]):
         """
-        Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
+        Loads the dataset by traversing the directory tree and loading relevant tiles metadata.
         """
 
         for directory in directories:
-            if directory.is_dir() and directory.name == 'tiles':
-                fold_directory = (directory / self.fold)
-                # Datasets may not contain all splits
-                if fold_directory.exists():
-                    for path in fold_directory.iterdir():
-                        # Iterate within the corresponding split folder
-                        if path.suffix == ".tif":
-                            self.tile_paths.append(path)
+            if self.fold is not None:
+                # If a fold is specified, load only the tiles for that fold
+                if directory.is_dir() and directory.name == 'tiles':
+                    fold_directory = (directory / self.fold)
+                    # Datasets may not contain all splits
+                    if fold_directory.exists():
+                        for path in fold_directory.iterdir():
+                            # Iterate within the corresponding split folder
+                            if path.suffix == ".tif":
+                                self.tile_paths.append(path)
+            else:
+                # If no fold is specified, load all tiles
+                for path in directory.iterdir():
+                    # Iterate within the corresponding split folder
+                    if path.suffix == ".tif":
+                        self.tile_paths.append(path)
 
             if directory.is_dir():
                 for path in directory.iterdir():
