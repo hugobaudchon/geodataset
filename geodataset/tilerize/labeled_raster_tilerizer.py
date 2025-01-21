@@ -10,7 +10,6 @@ from geodataset.aoi import AOIConfig
 from geodataset.geodata.raster_tile import RasterTile
 from geodataset.labels.raster_labels import RasterPolygonLabels
 
-
 from geodataset.utils import save_aois_tiles_picture, CocoNameConvention, AoiTilesImageConvention, COCOGenerator
 from geodataset.tilerize.raster_tilerizer import BaseDiskRasterTilerizer
 
@@ -126,15 +125,17 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                  coco_n_workers: int = 5,
                  coco_categories_list: list[dict] = None):
 
-        super().__init__(raster_path=raster_path,
-                         output_path=output_path,
-                         tile_size=tile_size,
-                         tile_overlap=tile_overlap,
-                         aois_config=aois_config,
-                         ground_resolution=ground_resolution,
-                         scale_factor=scale_factor,
-                         output_name_suffix=output_name_suffix,
-                         ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
+        super().__init__(
+            raster_path=raster_path,
+            output_path=output_path,
+            tile_size=tile_size,
+            tile_overlap=tile_overlap,
+            aois_config=aois_config,
+            ground_resolution=ground_resolution,
+            scale_factor=scale_factor,
+            output_name_suffix=output_name_suffix,
+            ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold
+        )
 
         self.labels_path = Path(labels_path) if labels_path else None
         self.use_rle_for_labels = use_rle_for_labels
@@ -150,6 +151,9 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             other_labels_attributes_column_names=other_labels_attributes_column_names
         )
 
+        self.aois_tiles = None
+        self.aois_gdf = None
+
     def _load_labels(self,
                      labels_gdf: gpd.GeoDataFrame,
                      geopackage_layer_name: str or None,
@@ -159,23 +163,32 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         if self.labels_path and labels_gdf:
             raise ValueError("You can't provide both a labels_path and a labels_gdf.")
         elif self.labels_path:
-            labels = RasterPolygonLabels(path=self.labels_path,
-                                         associated_raster=self.raster,
-                                         geopackage_layer_name=geopackage_layer_name,
-                                         main_label_category_column_name=main_label_category_column_name,
-                                         other_labels_attributes_column_names=other_labels_attributes_column_names)
+            labels = RasterPolygonLabels(
+                path=self.labels_path,
+                associated_raster=self.raster,
+                geopackage_layer_name=geopackage_layer_name,
+                main_label_category_column_name=main_label_category_column_name,
+                other_labels_attributes_column_names=other_labels_attributes_column_names
+            )
         elif labels_gdf is not None:
-            labels = RasterPolygonLabels(path=None,
-                                         labels_gdf=labels_gdf,
-                                         associated_raster=self.raster,
-                                         main_label_category_column_name=main_label_category_column_name,
-                                         other_labels_attributes_column_names=other_labels_attributes_column_names)
+            labels = RasterPolygonLabels(
+                path=None,
+                labels_gdf=labels_gdf,
+                associated_raster=self.raster,
+                main_label_category_column_name=main_label_category_column_name,
+                other_labels_attributes_column_names=other_labels_attributes_column_names
+            )
         else:
             raise ValueError("You must provide either a labels_path or a labels_gdf.")
 
+        print(labels.geometries_gdf)
+
         return labels
 
-    def _get_tiles_and_labels_per_aoi(self):
+    def _generate_aois_tiles(self):
+        """
+        Get the tiles for each AOI (or for the 'all' AOI) and the associated labels.
+        """
         tiles = self._create_tiles()
 
         (intersecting_labels_raster_coords,
@@ -184,31 +197,43 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         # Keeping only the interesting tiles and creating a mapping from tile_ids to their labels
         labeled_tiles = []
         for tile in tiles:
-            associated_labels = intersecting_labels_tiles_coords[intersecting_labels_tiles_coords['tile_id'] == tile.tile_id]
+            associated_labels = intersecting_labels_tiles_coords[
+                intersecting_labels_tiles_coords['tile_id'] == tile.tile_id]
             if self.ignore_tiles_without_labels and len(associated_labels) == 0:
                 continue
             else:
                 labeled_tiles.append(tile)
 
         # Assigning the tiles to AOIs
-        aois_tiles, aois_gdf = self._get_tiles_per_aoi(tiles=labeled_tiles)
+        self.aois_tiles, self.aois_gdf = self._get_tiles_per_aoi(tiles=labeled_tiles)
+
+    def _get_tiles_and_labels_per_aoi(self):
+        assert self.aois_tiles is not None, "You must call the _get_aois_tiles method first."
 
         # As some tiles may have been duplicated/removed, we have to re-compute the associated labels
+        # First, getting a list of tiles from every aois, except 'all' if there are multiple aois,
+        # as 'all' would be a duplication of the other ones.
+        tiles = [
+            tile for key, tiles in self.aois_tiles.items()
+            if not (key == 'all' and len(self.aois_tiles) > 1)
+            for tile in tiles
+        ]
+
         (intersecting_labels_raster_coords,
-         intersecting_labels_tiles_coords) = self._find_associated_labels(tiles=[tile for tiles in aois_tiles.values() for tile in tiles])
+         intersecting_labels_tiles_coords) = self._find_associated_labels(tiles=tiles)
 
         # Intersect the labels with the aois, to make sure for a given tile, we only get labels inside its assigned AOI.
         intersecting_labels_raster_coords['label_id'] = intersecting_labels_raster_coords.index
         intersecting_labels_raster_coords['label_area'] = intersecting_labels_raster_coords.geometry.area
-        intersecting_labels_aois_raster_coords = gpd.overlay(intersecting_labels_raster_coords, aois_gdf, how='intersection', keep_geom_type=False)
+        intersecting_labels_aois_raster_coords = gpd.overlay(intersecting_labels_raster_coords, self.aois_gdf, how='intersection', keep_geom_type=False)
         intersecting_labels_aois_raster_coords['intersection_area'] = intersecting_labels_aois_raster_coords.geometry.area
         intersecting_labels_aois_raster_coords['intersection_ratio'] = intersecting_labels_aois_raster_coords['intersection_area'] / intersecting_labels_aois_raster_coords['label_area']
         intersecting_labels_aois_raster_coords = intersecting_labels_aois_raster_coords[intersecting_labels_aois_raster_coords['intersection_ratio'] > self.min_intersection_ratio]
 
-        final_aois_tiles = {aoi: [] for aoi in list(aois_tiles.keys()) + ['all']}
-        final_aois_labels = {aoi: [] for aoi in list(aois_tiles.keys()) + ['all']}
-        for aoi in aois_tiles:
-            for tile in aois_tiles[aoi]:
+        final_aois_tiles = {aoi: [] for aoi in list(self.aois_tiles.keys()) + ['all']}
+        final_aois_labels = {aoi: [] for aoi in list(self.aois_tiles.keys()) + ['all']}
+        for aoi in self.aois_tiles:
+            for tile in self.aois_tiles[aoi]:
                 labels_crs_coords = intersecting_labels_aois_raster_coords[intersecting_labels_aois_raster_coords['tile_id'] == tile.tile_id]
                 labels_crs_coords = labels_crs_coords[labels_crs_coords['aoi'] == aoi]
                 labels_ids = labels_crs_coords['label_id'].tolist()
@@ -259,8 +284,10 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
         intersecting_labels_tiles_coords = significant_polygons_inter.copy()
         for tile_id, tile in zip(tile_ids, tiles):
-            labels_indices = intersecting_labels_tiles_coords[intersecting_labels_tiles_coords['tile_id'] == tile_id].index
-            adjusted_labels_tiles_coords = intersecting_labels_tiles_coords.loc[labels_indices, 'geometry'].astype(object).apply(
+            labels_indices = intersecting_labels_tiles_coords[
+                intersecting_labels_tiles_coords['tile_id'] == tile_id].index
+            adjusted_labels_tiles_coords = intersecting_labels_tiles_coords.loc[labels_indices, 'geometry'].astype(
+                object).apply(
                 partial(adjust_geometry, tile=tile))
             intersecting_labels_tiles_coords.loc[labels_indices, 'geometry'] = adjusted_labels_tiles_coords
 
@@ -268,78 +295,146 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
         return intersecting_labels_raster_coords, intersecting_labels_tiles_coords
 
+    def _save_aoi_data(self,
+                       aoi: str,
+                       tiles: List[RasterTile],
+                       tiles_paths_aoi: List[Path],
+                       labels: list[gpd.GeoDataFrame],
+                       save_tiles_folder: bool):
+        if aoi == 'all' and len(self.aois_tiles.keys()) > 1:
+            # don't save the 'all' tiles if aois were provided.
+            return
+
+        if len(tiles) == 0:
+            print(f"No tiles found for AOI {aoi}. Skipping...")
+            return
+
+        polygons = [x['geometry'].to_list() for x in labels]
+        categories_list = [x[self.labels.main_label_category_column_name].to_list() for x in labels] \
+            if self.labels.main_label_category_column_name else None
+        other_attributes_dict_list = [{attribute: label[attribute].to_list() for attribute in
+                                       self.labels.other_labels_attributes_column_names} for label in labels] \
+            if self.labels.other_labels_attributes_column_names else None
+        other_attributes_dict_list = [[{k: d[k][i] for k in d} for i in range(len(next(iter(d.values()))))] for d in
+                                      other_attributes_dict_list] \
+            if self.labels.other_labels_attributes_column_names else None
+
+        # Saving the tiles
+        if save_tiles_folder:
+            save_tiles_folder.mkdir(parents=True, exist_ok=True)
+            for tile in tiles:
+                tile.save(output_folder=save_tiles_folder)
+
+        coco_output_file_path = self.output_path / CocoNameConvention.create_name(
+            product_name=self.raster.output_name,
+            ground_resolution=self.ground_resolution,
+            scale_factor=self.scale_factor,
+            fold=aoi
+        )
+
+        coco_generator = COCOGenerator(
+            description=f"Dataset for the product {self.raster.output_name}"
+                        f" with fold {aoi}"
+                        f" and scale_factor {self.scale_factor}"
+                        f" and ground_resolution {self.ground_resolution}.",
+            tiles_paths=tiles_paths_aoi,
+            polygons=polygons,
+            scores=None,
+            categories=categories_list,
+            other_attributes=other_attributes_dict_list,
+            output_path=coco_output_file_path,
+            use_rle_for_labels=self.use_rle_for_labels,
+            n_workers=self.coco_n_workers,
+            coco_categories_list=self.coco_categories_list
+        )
+
+        coco_generator.generate_coco()
+        return coco_output_file_path
+
     def generate_coco_dataset(self):
         """
         Generate the tiles and the COCO dataset(s) for each AOI (or for the 'all' AOI) and save everything to the disk.
         """
+        self._generate_aois_tiles()
         aois_tiles, aois_labels = self._get_tiles_and_labels_per_aoi()
 
-        save_aois_tiles_picture(aois_tiles=aois_tiles,
-                                save_path=self.output_path / AoiTilesImageConvention.create_name(
-                                    product_name=self.raster.output_name,
-                                    ground_resolution=self.ground_resolution,
-                                    scale_factor=self.scale_factor
-                                ),
-                                tile_coordinate_step=self.tile_coordinate_step)
+        # Updating the final tiles in case generate_additional_coco_dataset is called later
+        self.aois_tiles = aois_tiles
+
+        save_aois_tiles_picture(
+            aois_tiles=self.aois_tiles,
+            save_path=self.output_path / AoiTilesImageConvention.create_name(
+                product_name=self.raster.output_name,
+                ground_resolution=self.ground_resolution,
+                scale_factor=self.scale_factor
+            ),
+            tile_coordinate_step=self.tile_coordinate_step
+        )
 
         [print(f'No tiles found for AOI {aoi}.') for aoi in self.aois_config.actual_names
-         if aoi not in aois_tiles or len(aois_tiles[aoi]) == 0]
+         if aoi not in self.aois_tiles or len(self.aois_tiles[aoi]) == 0]
 
         print('Saving the tiles and COCO json files...')
         coco_paths = {}
-        for aoi in aois_tiles:
-            if aoi == 'all' and len(aois_tiles.keys()) > 1:
-                # don't save the 'all' tiles if aois were provided.
-                continue
+        for aoi in self.aois_tiles:
+            tiles_folder_aoi = self.tiles_path / aoi
+            tiles_paths_aoi = [tiles_folder_aoi / tile.generate_name() for tile in self.aois_tiles[aoi]]
 
-            tiles = aois_tiles[aoi]
-            labels = aois_labels[aoi]
-
-            if len(tiles) == 0:
-                print(f"No tiles found for AOI {aoi}. Skipping...")
-                continue
-
-            tiles_path_aoi = self.tiles_path / aoi
-            tiles_path_aoi.mkdir(parents=True, exist_ok=True)
-
-            tiles_paths = [tiles_path_aoi / tile.generate_name() for tile in tiles]
-            polygons = [x['geometry'].to_list() for x in labels]
-            categories_list = [x[self.labels.main_label_category_column_name].to_list() for x in labels]\
-                if self.labels.main_label_category_column_name else None
-            other_attributes_dict_list = [{attribute: label[attribute].to_list() for attribute in
-                                           self.labels.other_labels_attributes_column_names} for label in labels]\
-                if self.labels.other_labels_attributes_column_names else None
-            other_attributes_dict_list = [[{k: d[k][i] for k in d} for i in range(len(next(iter(d.values()))))] for d in other_attributes_dict_list]\
-                if self.labels.other_labels_attributes_column_names else None
-
-            # Saving the tiles
-            for tile in aois_tiles[aoi]:
-                tile.save(output_folder=tiles_path_aoi)
-
-            coco_output_file_path = self.output_path / CocoNameConvention.create_name(
-                product_name=self.raster.output_name,
-                ground_resolution=self.ground_resolution,
-                scale_factor=self.scale_factor,
-                fold=aoi
+            coco_paths[aoi] = self._save_aoi_data(
+                aoi=aoi,
+                tiles=self.aois_tiles[aoi],
+                tiles_paths_aoi=tiles_paths_aoi,
+                labels=aois_labels[aoi],
+                save_tiles_folder=tiles_folder_aoi
             )
 
-            coco_generator = COCOGenerator(
-                description=f"Dataset for the product {self.raster.output_name}"
-                            f" with fold {aoi}"
-                            f" and scale_factor {self.scale_factor}"
-                            f" and ground_resolution {self.ground_resolution}.",
-                tiles_paths=tiles_paths,
-                polygons=polygons,
-                scores=None,
-                categories=categories_list,
-                other_attributes=other_attributes_dict_list,
-                output_path=coco_output_file_path,
-                use_rle_for_labels=self.use_rle_for_labels,
-                n_workers=self.coco_n_workers,
-                coco_categories_list=self.coco_categories_list
-            )
+        return coco_paths
 
-            coco_generator.generate_coco()
-            coco_paths[aoi] = coco_output_file_path
+    def generate_additional_coco_dataset(self,
+                                         labels_gdf: gpd.GeoDataFrame,
+                                         aoi_name_mapping: dict,
+                                         geopackage_layer_name: str or None = None,
+                                         main_label_category_column_name: str or None = None,
+                                         other_labels_attributes_column_names: List[str] or None = None):
+        """
+        Useful when you want to create a second dataset from another set of labels or predictions,
+        while using the exact same tiles as before, without having to generate+save them another time.
+        A mapping from original aoi names to new aoi names must be provided to avoid overwriting previous COCO datasets.
+        Example: {'groundtruth': 'infer'} could be used if you want to first generate a ground truth COCO dataset
+        and associated tiles using the generate_coco_dataset method, and then generate inference COCO for the same
+        tiles with this generate_additional_coco_dataset method, in order to run some evaluation script afterward.
+        """
+
+        assert self.aois_tiles is not None, "You must call the generate_coco_dataset method first."
+
+        # Loading the new labels
+        self.labels = self._load_labels(
+            labels_gdf=labels_gdf,
+            geopackage_layer_name=geopackage_layer_name,
+            main_label_category_column_name=main_label_category_column_name,
+            other_labels_attributes_column_names=other_labels_attributes_column_names
+        )
+
+        _, aois_labels = self._get_tiles_and_labels_per_aoi()
+
+        print('Saving the tiles and COCO json files...')
+        coco_paths = {}
+        for aoi in aoi_name_mapping.keys():
+            if aoi not in self.aois_tiles:
+                print(f'No tiles found for AOI {aoi}.')
+                continue
+
+            mapped_aoi_name = aoi_name_mapping[aoi]
+
+            tiles_folder_aoi = self.tiles_path / aoi
+            tiles_paths_aoi = [tiles_folder_aoi / tile.generate_name() for tile in self.aois_tiles[aoi]]
+
+            coco_paths[mapped_aoi_name] = self._save_aoi_data(
+                aoi=mapped_aoi_name,
+                tiles=self.aois_tiles[aoi],
+                tiles_paths_aoi=tiles_paths_aoi,
+                labels=aois_labels[aoi],
+                save_tiles_folder=False  # don't save tiles again
+            )
 
         return coco_paths
