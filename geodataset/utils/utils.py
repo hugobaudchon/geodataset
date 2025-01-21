@@ -768,7 +768,8 @@ class COCOGenerator:
         for tile_polygons in polygons:
             tile_polygons_ids = list(range(start_id, start_id + len(tile_polygons)))
             polygon_ids.append(tile_polygons_ids)
-            start_id = tile_polygons_ids[-1] + 1
+            if tile_polygons_ids:
+                start_id = tile_polygons_ids[-1] + 1
 
         return polygon_ids
 
