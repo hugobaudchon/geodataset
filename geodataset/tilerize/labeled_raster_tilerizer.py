@@ -307,7 +307,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         categories_list = [x[self.labels.main_label_category_column_name].to_list() for x in labels] \
             if self.labels.main_label_category_column_name else None
         other_attributes_dict_list = [{attribute: label[attribute].to_list() for attribute in
-                                       self.labels.other_labels_attributes_column_names} for label in labels] \
+                                       self.labels.other_labels_attributes_column_names if attribute in self.labels.geometries_gdf.columns} for label in labels] \
             if self.labels.other_labels_attributes_column_names else None
         other_attributes_dict_list = [[{k: d[k][i] for k in d} for i in range(len(next(iter(d.values()))))] for d in
                                       other_attributes_dict_list] \
@@ -400,6 +400,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         """
 
         assert self.aois_tiles is not None, "You must call the generate_coco_dataset method first."
+
+        self.ignore_tiles_without_labels = False  # we want to keep all tiles, even if they don't have labels
 
         # Loading the new labels
         self.labels = self._load_labels(
