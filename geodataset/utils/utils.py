@@ -186,7 +186,9 @@ def coco_rle_segmentation_to_bbox(rle_segmentation: dict) -> box:
 def mask_to_polygon(
         mask: np.ndarray,
         simplify_tolerance: float = 1.0,
-        min_contour_points: int = 3) -> Union[Polygon, MultiPolygon]:
+        min_contour_points: int = 3,
+        remove_rings: bool = False,
+        remove_small_geoms: int or None = 10) -> Union[Polygon, MultiPolygon]:
     """
     Converts a binary mask to simplified shapely Polygon(s).
 
@@ -198,6 +200,10 @@ def mask_to_polygon(
         The tolerance for simplifying polygons
     min_contour_points: int
         Minimum number of points required for a valid contour
+    remove_rings: bool
+        Whether to remove inner rings (holes) from the polygons
+    remove_small_geoms: int or None
+        Remove small geoms with less than this area from the MultiPolygon
 
     Returns
     -------
@@ -238,9 +244,60 @@ def mask_to_polygon(
     if not polygons:
         return Polygon()
     elif len(polygons) == 1:
-        return polygons[0]
+        polygon = polygons[0]
+        if remove_rings:
+            polygon = remove_rings_from_polygon(polygon)
+        return polygon
     else:
-        return MultiPolygon(polygons)
+        multi_polygon = MultiPolygon(polygons)
+        if remove_small_geoms:
+            multi_polygon = remove_small_geoms_from_multipolygon(multi_polygon, remove_small_geoms)
+        if remove_rings:
+            multi_polygon = remove_rings_from_polygon(multi_polygon)
+        return multi_polygon
+
+
+
+def remove_small_geoms_from_multipolygon(multi_polygon: MultiPolygon, min_area: int):
+    """
+    Removes small geometries from a MultiPolygon.
+
+    Parameters
+    ----------
+    multi_polygon: MultiPolygon
+        The MultiPolygon to process.
+    min_area: int
+        The minimum area for a geometry to be kept.
+
+    Returns
+    -------
+    MultiPolygon
+        The MultiPolygon with small geometries removed.
+    """
+    geoms = [geom for geom in multi_polygon.geoms if geom.area >= min_area]
+    return MultiPolygon(geoms)
+
+def remove_rings_from_polygon(polygon: Polygon or MultiPolygon):
+    """
+    Removes inner rings (holes) from a polygon.
+
+    Parameters
+    ----------
+    polygon: Polygon or MultiPolygon
+        The polygon to process.
+
+    Returns
+    -------
+    Polygon or MultiPolygon
+        The polygon with inner rings removed.
+    """
+    if isinstance(polygon, Polygon):
+        return Polygon(polygon.exterior)
+    elif isinstance(polygon, MultiPolygon):
+        geoms = [Polygon(geom.exterior) for geom in polygon.geoms]
+        return MultiPolygon(geoms)
+    else:
+        raise ValueError("Input must be a Polygon or MultiPolygon.")
 
 
 def coco_coordinates_segmentation_to_polygon(segmentation: list) -> Polygon or MultiPolygon:
