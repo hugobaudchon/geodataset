@@ -22,7 +22,7 @@ import geopandas as gpd
 from pycocotools.coco import COCO
 
 from rasterio.enums import Resampling
-from shapely import Polygon, box, MultiPolygon
+from shapely import Polygon, box, MultiPolygon, make_valid
 from shapely.ops import transform
 
 from geodataset.utils.file_name_conventions import CocoNameConvention
@@ -247,6 +247,8 @@ def mask_to_polygon(
         polygon = polygons[0]
         if remove_rings:
             polygon = remove_rings_from_polygon(polygon)
+        if not polygon.is_valid:
+            polygon = make_valid(polygon)
         return polygon
     else:
         multi_polygon = MultiPolygon(polygons)
@@ -254,6 +256,8 @@ def mask_to_polygon(
             multi_polygon = remove_small_geoms_from_multipolygon(multi_polygon, remove_small_geoms)
         if remove_rings:
             multi_polygon = remove_rings_from_polygon(multi_polygon)
+        if not multi_polygon.is_valid:
+            multi_polygon = make_valid(multi_polygon)
         return multi_polygon
 
 
