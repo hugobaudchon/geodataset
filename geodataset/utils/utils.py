@@ -117,7 +117,7 @@ def polygon_to_coco_rle_segmentation(polygon: Polygon or MultiPolygon,
     elif isinstance(polygon, MultiPolygon):
         polygons = list(polygon.geoms)
     else:
-        raise ValueError("Input must be a Shapely Polygon or MultiPolygon")
+        raise ValueError(f"Input must be a Shapely Polygon or MultiPolygon, not {type(polygon)}.")
 
         # Convert each polygon to COCO format [x1,y1,x2,y2,...]
     coco_coords = []
@@ -134,6 +134,7 @@ def polygon_to_coco_rle_segmentation(polygon: Polygon or MultiPolygon,
     rle['counts'] = rle['counts'].decode('utf-8')
 
     return rle
+
 
 def coco_rle_segmentation_to_mask(rle_segmentation: dict) -> np.ndarray:
     """
@@ -257,7 +258,11 @@ def mask_to_polygon(
 
     polygon = fix_geometry_collection(polygon)
 
-    return polygon
+    if not isinstance(polygon, (Polygon, MultiPolygon)):
+        # If everything failed, return an empty Polygon
+        return Polygon()
+    else:
+        return polygon
 
 
 def remove_small_geoms_from_multipolygon(multi_polygon: MultiPolygon, min_area: int):
@@ -278,6 +283,7 @@ def remove_small_geoms_from_multipolygon(multi_polygon: MultiPolygon, min_area: 
     """
     geoms = [geom for geom in multi_polygon.geoms if geom.area >= min_area]
     return MultiPolygon(geoms)
+
 
 def remove_rings_from_polygon(polygon: Polygon or MultiPolygon):
     """
@@ -1579,6 +1585,7 @@ def tiles_polygons_gdf_to_crs_gdf(dataframe: gpd.GeoDataFrame):
     all_tiles_gdf.crs = common_crs
 
     return all_tiles_gdf
+
 
 def find_tiles_paths(directories: List[Path], extensions: List[str]) -> dict[str, Path]:
     """
