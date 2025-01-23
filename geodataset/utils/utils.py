@@ -257,7 +257,6 @@ def mask_to_polygon(
         return multi_polygon
 
 
-
 def remove_small_geoms_from_multipolygon(multi_polygon: MultiPolygon, min_area: int):
     """
     Removes small geometries from a MultiPolygon.
@@ -326,6 +325,26 @@ def coco_coordinates_segmentation_to_polygon(segmentation: list) -> Polygon or M
         return geoms[0]
     else:
         return MultiPolygon(geoms)
+
+
+def fix_geometry_collection(geometry: shapely.Geometry):
+    """
+    Fixes a GeometryCollection into a Polygon or MultiPolygon by converting LineStrings to Polygons if they are closed.
+    """
+    if geometry.geom_type == 'GeometryCollection':
+        final_geoms = []
+        # Iterate through each geometry in the collection
+        for geom in geometry.geoms:
+            if geom.geom_type == 'Polygon':
+                final_geoms.append(geom)
+            elif geom.geom_type == 'LineString':
+                # Check if the LineString is closed and can be considered a polygon
+                if geom.is_ring:
+                    # Convert the LineString to a Polygon
+                    final_geoms.append(Polygon(geom))
+        return MultiPolygon(final_geoms)
+    else:
+        return geometry
 
 
 def coco_coordinates_segmentation_to_bbox(segmentation: list) -> box:

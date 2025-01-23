@@ -12,7 +12,7 @@ import geopandas as gpd
 from tqdm import tqdm
 
 from geodataset.utils import TileNameConvention, apply_affine_transform, COCOGenerator, apply_inverse_transform, \
-    decode_coco_segmentation
+    decode_coco_segmentation, fix_geometry_collection
 
 
 class Aggregator:
@@ -619,7 +619,7 @@ class Aggregator:
         gdf = self.polygons_gdf.copy()
         gdf.sort_values(by='aggregator_score', ascending=False, inplace=True)
 
-        gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: self._check_geometry_collection(x))
+        gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: fix_geometry_collection(x))
         gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: self._check_remove_bad_geometries(x))
         gdf = gdf[gdf['geometry'].notnull()]
 
@@ -643,7 +643,7 @@ class Aggregator:
                     for g_id in intersecting_geometries_ids:
                         # We have to re-compute the IoA as intersect_gdf might not be up-to-date anymore after some polygons were modified in previous iterations.
                         with warnings.catch_warnings(record=True) as w:
-                            gdf.at[current_id, 'geometry'] = self._check_geometry_collection(
+                            gdf.at[current_id, 'geometry'] = fix_geometry_collection(
                                 gdf.at[current_id, 'geometry'])
                             try:
                                 intersection = gdf.at[current_id, 'geometry'].intersection(gdf.at[g_id, 'geometry'])
@@ -651,7 +651,7 @@ class Aggregator:
                                 # 'invalid value encountered in intersection'
                                 print('* Skipped polygon matching ids {}/{} for shapely intersection error. *'.format(current_id, g_id))
 
-                        intersection = self._check_geometry_collection(intersection)
+                        intersection = fix_geometry_collection(intersection)
 
                         if not self._check_remove_bad_geometries(intersection):
                             continue
@@ -670,7 +670,7 @@ class Aggregator:
                                 skip_ids.add(g_id)
                                 continue
 
-                            new_geometry = self._check_geometry_collection(new_geometry)
+                            new_geometry = fix_geometry_collection(new_geometry)
 
                             if not new_geometry.is_valid:
                                 new_geometry = new_geometry.buffer(0)
@@ -705,23 +705,6 @@ class Aggregator:
     def _check_remove_bad_geometries(geometry):
         if not geometry.is_valid or geometry.area == 0:
             return None
-        else:
-            return geometry
-
-    @staticmethod
-    def _check_geometry_collection(geometry: shapely.Geometry):
-        if geometry.geom_type == 'GeometryCollection':
-            final_geoms = []
-            # Iterate through each geometry in the collection
-            for geom in geometry.geoms:
-                if geom.geom_type == 'Polygon':
-                    final_geoms.append(geom)
-                elif geom.geom_type == 'LineString':
-                    # Check if the LineString is closed and can be considered a polygon
-                    if geom.is_ring:
-                        # Convert the LineString to a Polygon
-                        final_geoms.append(Polygon(geom))
-            return MultiPolygon(final_geoms)
         else:
             return geometry
 
