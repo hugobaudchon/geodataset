@@ -245,20 +245,19 @@ def mask_to_polygon(
         return Polygon()
     elif len(polygons) == 1:
         polygon = polygons[0]
-        if remove_rings:
-            polygon = remove_rings_from_polygon(polygon)
-        if not polygon.is_valid:
-            polygon = make_valid(polygon)
-        return polygon
     else:
-        multi_polygon = MultiPolygon(polygons)
+        polygon = MultiPolygon(polygons)
         if remove_small_geoms:
-            multi_polygon = remove_small_geoms_from_multipolygon(multi_polygon, remove_small_geoms)
-        if remove_rings:
-            multi_polygon = remove_rings_from_polygon(multi_polygon)
-        if not multi_polygon.is_valid:
-            multi_polygon = make_valid(multi_polygon)
-        return multi_polygon
+            polygon = remove_small_geoms_from_multipolygon(polygon, remove_small_geoms)
+
+    if remove_rings:
+        polygon = remove_rings_from_polygon(polygon)
+    if not polygon.is_valid:
+        polygon = make_valid(polygon)
+
+    polygon = fix_geometry_collection(polygon)
+
+    return polygon
 
 
 def remove_small_geoms_from_multipolygon(multi_polygon: MultiPolygon, min_area: int):
