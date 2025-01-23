@@ -9,6 +9,7 @@ import rasterio
 import shapely
 from shapely import Polygon, MultiPolygon
 import geopandas as gpd
+from shapely.validation import make_valid
 from tqdm import tqdm
 
 from geodataset.utils import TileNameConvention, apply_affine_transform, COCOGenerator, apply_inverse_transform, \
@@ -39,7 +40,8 @@ class Aggregator:
                  score_threshold: float = 0.1,
                  nms_threshold: float = 0.8,
                  nms_algorithm: str = 'iou',
-                 best_geom_keep_area_ratio: float = 0.5):
+                 best_geom_keep_area_ratio: float = 0.5,
+                 pre_aggregated_output_path: str or Path = None):
 
         self.output_path = Path(output_path)
         self.polygons_gdf = polygons_gdf
@@ -54,6 +56,10 @@ class Aggregator:
         self.nms_threshold = nms_threshold
         self.nms_algorithm = nms_algorithm
         self.best_geom_keep_area_ratio = best_geom_keep_area_ratio
+        self.pre_aggregated_output_path = pre_aggregated_output_path
+
+        if self.pre_aggregated_output_path:
+            self.polygons_gdf.to_file(self.pre_aggregated_output_path, driver='GPKG')
 
         # If only 1 set of scores is provided, we set the score_weight to 1.0
         if len(self.scores_weights) == 1: self.scores_weights = [1.0]
@@ -97,7 +103,8 @@ class Aggregator:
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
                   nms_algorithm: str = 'iou',
-                  best_geom_keep_area_ratio: float=0.5):
+                  best_geom_keep_area_ratio: float=0.5,
+                  pre_aggregated_output_path: str or Path = None):
 
         """
         Instanciate and run an Aggregator from a COCO JSON file.
@@ -183,6 +190,9 @@ class Aggregator:
             the intersection with another one, that polygon may end-up being cut into multiple smaller and disconnected
             geometries. The algorithm will only consider keeping the largest of those geometries, and only keep it if
             it makes up at least 'best_geom_keep_area_ratio' percent of the original polygon (in terms of area).
+        pre_aggregated_output_path: str or Path
+            If provided, the polygons will be saved in this file before applying the NMS algorithm.
+            This is useful to debug the polygons before the NMS algorithm is applied.
 
         Returns
         -------
@@ -219,7 +229,8 @@ class Aggregator:
                    nms_threshold=nms_threshold,
                    nms_algorithm=nms_algorithm,
                    tile_ids_to_path=tile_ids_to_path,
-                   best_geom_keep_area_ratio=best_geom_keep_area_ratio)
+                   best_geom_keep_area_ratio=best_geom_keep_area_ratio,
+                   pre_aggregated_output_path=pre_aggregated_output_path)
 
     @classmethod
     def from_polygons(cls,
@@ -234,7 +245,8 @@ class Aggregator:
                       score_threshold: float = 0.1,
                       nms_threshold: float = 0.8,
                       nms_algorithm: str = 'iou',
-                      best_geom_keep_area_ratio: float = 0.5):
+                      best_geom_keep_area_ratio: float = 0.5,
+                      pre_aggregated_output_path: str or Path = None):
 
         """
         Instanciate and run an Aggregator from a list of polygons for each tile.
@@ -306,6 +318,9 @@ class Aggregator:
             the intersection with another one, that polygon may end-up being cut into multiple smaller and disconnected
             geometries. The algorithm will only consider keeping the largest of those geometries, and only keep it if
             it makes up at least 'best_geom_keep_area_ratio' percent of the original polygon (in terms of area).
+        pre_aggregated_output_path: str or Path
+            If provided, the polygons will be saved in this file before applying the NMS algorithm.
+            This is useful to debug the polygons before the NMS algorithm is applied.
 
         Returns
         -------
@@ -356,7 +371,8 @@ class Aggregator:
                    nms_threshold=nms_threshold,
                    nms_algorithm=nms_algorithm,
                    tile_ids_to_path=tile_ids_to_path,
-                   best_geom_keep_area_ratio=best_geom_keep_area_ratio)
+                   best_geom_keep_area_ratio=best_geom_keep_area_ratio,
+                   pre_aggregated_output_path=pre_aggregated_output_path)
 
     @staticmethod
     def _from_coco(tiles_folder_path: str or Path,
@@ -478,7 +494,7 @@ class Aggregator:
     def _validate_polygons(self):
         def fix_geometry(geom):
             if not geom.is_valid:
-                fixed_geom = geom.buffer(0)
+                fixed_geom = make_valid(geom)
                 return fixed_geom
             return geom
 
@@ -673,7 +689,7 @@ class Aggregator:
                             new_geometry = fix_geometry_collection(new_geometry)
 
                             if not new_geometry.is_valid:
-                                new_geometry = new_geometry.buffer(0)
+                                new_geometry = make_valid(new_geometry)
 
                             if new_geometry.geom_type == 'MultiPolygon':
                                 # If the largest Polygon represent more than best_geom_keep_area_ratio% of the total area,
