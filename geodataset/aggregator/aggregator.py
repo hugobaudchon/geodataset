@@ -629,7 +629,7 @@ class Aggregator:
 
         skip_ids = set()
         id_to_final_polygon = {}
-        progress = tqdm(total=len(gdf), desc="Applying NMS-iou algorithm")
+        progress = tqdm(total=len(gdf), desc="Applying NMS-iou-disambiguate algorithm")
         for current_id in gdf.index:
             current = gdf.loc[current_id]
             progress.update(1)
