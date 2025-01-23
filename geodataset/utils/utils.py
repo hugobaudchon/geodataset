@@ -346,6 +346,8 @@ def fix_geometry_collection(geometry: shapely.Geometry):
         for geom in geometry.geoms:
             if geom.geom_type == 'Polygon':
                 final_geoms.append(geom)
+            elif geom.geom_type == 'MultiPolygon':
+                final_geoms.extend(geom.geoms)
             elif geom.geom_type == 'LineString':
                 # Check if the LineString is closed and can be considered a polygon
                 if geom.is_ring:
