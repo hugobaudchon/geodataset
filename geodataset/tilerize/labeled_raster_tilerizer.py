@@ -33,6 +33,22 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         The overlap between the tiles (0 <= overlap < 1).
     labels_gdf: geopandas.GeoDataFrame, optional
         A GeoDataFrame containing the labels. If provided, labels_path must be None.
+    global_aoi : str or pathlib.Path or geopandas.GeoDataFrame, optional
+        Path to the global AOI file, or directly a GeoDataFrame.
+        If provided, only the tiles intersecting this AOI will be kept, even if some tiles are inside one of the aois
+        in aois_config (if AOIFromPackageConfig).
+
+        This parameter can be really useful to create a kfold dataset in association with an AOIGeneratorConfig config like this:
+
+        aois_config = AOIGeneratorConfig(aois={
+                'zone1': {'percentage': 0.2, 'position': 1, 'actual_name': f'train{kfold_id}'},
+                'zone2': {'percentage': 0.2, 'position': 2, 'actual_name': f'train{kfold_id}'},
+                'zone3': {'percentage': 0.2, 'position': 3, 'actual_name': f'valid{kfold_id}'},
+                'zone4': {'percentage': 0.2, 'position': 4, 'actual_name': f'train{kfold_id}'},
+                'zone5': {'percentage': 0.2, 'position': 5, 'actual_name': f'train{kfold_id}'}
+            },
+            aoi_type='band'
+        )
     aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
         An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
     ground_resolution : float, optional
@@ -111,6 +127,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                  tile_size: int,
                  tile_overlap: float,
                  labels_gdf: gpd.GeoDataFrame = None,
+                 global_aoi: str or Path or gpd.GeoDataFrame = None,
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
@@ -130,6 +147,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             output_path=output_path,
             tile_size=tile_size,
             tile_overlap=tile_overlap,
+            global_aoi=global_aoi,
             aois_config=aois_config,
             ground_resolution=ground_resolution,
             scale_factor=scale_factor,

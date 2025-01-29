@@ -1,8 +1,8 @@
+from pathlib import Path
 from typing import List
 
 import geopandas as gpd
-import pandas as pd
-from shapely import box
+from pandas.core.computation.expr import intersection
 
 from .aoi_disambiguator import AOIDisambiguator
 from .aoi_config import AOIFromPackageConfig
@@ -15,15 +15,23 @@ class AOIFromPackageForTiles(AOIBaseForTiles, AOIBaseFromPackage):
     def __init__(self,
                  tiles: List[RasterTile],
                  tile_coordinate_step: int,
-                 aois_config: AOIFromPackageConfig,
                  associated_raster: Raster,
+                 global_aoi: str or Path or gpd.GeoDataFrame or None,
+                 aois_config: AOIFromPackageConfig,
                  ground_resolution: float,
                  scale_factor: float):
         """
         :param aois_config: An instanced AOIFromPackageConfig.
         """
 
-        self.associated_raster = associated_raster
+        super().__init__(
+            tiles=tiles,
+            tile_coordinate_step=tile_coordinate_step,
+            associated_raster=associated_raster,
+            global_aoi=global_aoi,
+            aois_config=aois_config
+        )
+
         self.ground_resolution = ground_resolution
         self.scale_factor = scale_factor
 
@@ -33,18 +41,8 @@ class AOIFromPackageForTiles(AOIBaseForTiles, AOIBaseFromPackage):
             "The specified scale_factor for the labels and Raster are different."
         assert type(aois_config) is AOIFromPackageConfig
 
-        AOIBaseForTiles.__init__(self, tiles=tiles, tile_coordinate_step=tile_coordinate_step)
-        AOIBaseFromPackage.__init__(self, associated_raster=associated_raster, aois_config=aois_config)
-
     def get_aoi_tiles(self) -> (dict[str, List[RasterTile]], dict[str, gpd.GeoDataFrame]):
-
-        aois_frames = []
-        for aoi, gdf in self.loaded_aois.items():
-            gdf = gdf.copy()
-            gdf['aoi'] = aoi
-            aois_frames.append(gdf)
-
-        aois_gdf = gpd.GeoDataFrame(pd.concat(aois_frames, ignore_index=True)).reset_index()
+        aois_gdf = self._get_aois_gdf()
 
         tiles_gdf = gpd.GeoDataFrame({'tile': self.tiles,
                                       'tile_id': [tile.tile_id for tile in self.tiles],
@@ -53,7 +51,6 @@ class AOIFromPackageForTiles(AOIBaseForTiles, AOIBaseFromPackage):
         intersections = gpd.overlay(tiles_gdf, aois_gdf, how='intersection')
         intersections['intersection_area'] = intersections.geometry.area
         aois_tiles = intersections.groupby('aoi')['tile'].apply(list).to_dict()
-
 
         final_aoi_tiles_gdf = self.duplicate_tiles_at_aoi_intersection(aois_tiles=aois_tiles)
 
@@ -73,6 +70,7 @@ class AOIFromPackageForPolygons(AOIBaseForPolygons, AOIBaseFromPackage):
     def __init__(self,
                  labels: RasterPolygonLabels,
                  associated_raster: Raster,
+                 global_aoi: str or Path or gpd.GeoDataFrame or None,
                  aois_config: AOIFromPackageConfig):
         """
         :param aois_config: An instanced AOIFromPackageConfig.
@@ -80,19 +78,21 @@ class AOIFromPackageForPolygons(AOIBaseForPolygons, AOIBaseFromPackage):
 
         assert type(aois_config) is AOIFromPackageConfig
 
-        AOIBaseForPolygons.__init__(self, labels=labels)
-        AOIBaseFromPackage.__init__(self, associated_raster=associated_raster, aois_config=aois_config)
+        super().__init__(
+            labels=labels,
+            associated_raster=associated_raster,
+            global_aoi=global_aoi,
+            aois_config=aois_config
+        )
 
     def get_aoi_polygons(self) -> (dict[str, gpd.GeoDataFrame], dict[str, gpd.GeoDataFrame]):
-        aois_frames = []
-        for aoi, gdf in self.loaded_aois.items():
-            gdf = gdf.copy()
-            gdf['aoi'] = aoi
-            aois_frames.append(gdf)
-        aois_gdf = gpd.GeoDataFrame(pd.concat(aois_frames, ignore_index=True)).reset_index()
+        aois_gdf = self._get_aois_gdf()
 
         polygons = self.labels.geometries_gdf.copy()
         polygons['geometry_id'] = polygons.index
+
+        if self.loaded_global_aoi is not None:
+            polygons = gpd.overlay(polygons, self.loaded_global_aoi, how='intersection')
 
         intersections = gpd.overlay(polygons, aois_gdf, how='intersection')
         intersections['intersection_area'] = intersections.geometry.area

@@ -426,7 +426,8 @@ def decode_coco_segmentation(coco_annotation: dict, output_type: str):
         raise NotImplementedError("Could not find the segmentation type (RLE vs polygon coordinates).")
 
 
-def get_tiles_array(tiles: list, tile_coordinate_step: int):
+def get_tiles_array(tiles: list,
+                    tile_coordinate_step: int):
     numpy_coordinates = [(int(tile.row / tile_coordinate_step),
                           int(tile.col / tile_coordinate_step)) for tile in tiles]
 

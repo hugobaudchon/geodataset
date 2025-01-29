@@ -11,6 +11,36 @@ from geodataset.geodata import RasterTile, Raster
 from ..labels import RasterPolygonLabels
 
 class AOIForRasterBase(ABC):
+    def __init__(self,
+                 associated_raster: Raster,
+                 global_aoi: str or Path or gpd.GeoDataFrame or None,
+                 **kwargs):
+
+        self.associated_raster = associated_raster
+        self.global_aoi = global_aoi
+
+    @staticmethod
+    def _get_aoi_gdf(aoi_name: str, aoi_item: str or Path or gpd.GeoDataFrame):
+        if isinstance(aoi_item, (str, Path)):
+            aoi_gdf = gpd.read_file(aoi_item)
+        elif isinstance(aoi_item, gpd.GeoDataFrame):
+            aoi_gdf = aoi_item
+        else:
+            raise ValueError(f"AOI {aoi_name} is not a string, pathlib.Path or GeoDataFrame.")
+
+        return aoi_gdf
+
+    def _align_aoi_gdf(self, gdf):
+        # Ensure the geometry is a MultiPolygon
+        gdf['geometry'] = gdf['geometry'].astype(object).apply(
+            lambda geom: MultiPolygon([geom]) if isinstance(geom, Polygon) else geom
+        )
+        # Making sure the geometries have the same CRS as the raster
+        gdf = self.associated_raster.adjust_geometries_to_raster_crs_if_necessary(gdf=gdf)
+        # Scaling the geometries to pixel coordinates aligned with the Raster
+        gdf = self.associated_raster.adjust_geometries_to_raster_pixel_coordinates(gdf=gdf)
+        return gdf
+
     @staticmethod
     def use_actual_aois_names(aois_config: AOIConfig, aois_tiles: dict[str, List[RasterTile]], aois_gdf: gpd.GeoDataFrame):
         if isinstance(aois_config, AOIGeneratorConfig):
@@ -45,11 +75,15 @@ class AOIForRasterBase(ABC):
 class AOIBaseForTiles(AOIForRasterBase, ABC):
     def __init__(self,
                  tiles: List[RasterTile],
-                 tile_coordinate_step: int):
+                 tile_coordinate_step: int,
+                 associated_raster: Raster,
+                 global_aoi: str or Path or gpd.GeoDataFrame or None,
+                 **kwargs):
         """
         :param tiles: A list of instanced Tile.
         :param tile_coordinate_step: The step in pixels between each tile.
         """
+        super().__init__(associated_raster=associated_raster, global_aoi=global_aoi, **kwargs)
         self.tiles = tiles
         self.tile_coordinate_step = tile_coordinate_step
 
@@ -79,10 +113,14 @@ class AOIBaseForTiles(AOIForRasterBase, ABC):
 
 class AOIBaseForPolygons(AOIForRasterBase, ABC):
     def __init__(self,
-                 labels: RasterPolygonLabels):
+                 labels: RasterPolygonLabels,
+                 associated_raster: Raster,
+                 global_aoi: str or Path or gpd.GeoDataFrame or None,
+                 **kwargs):
         """
         :param labels: An instanced RasterPolygonLabels.
         """
+        super().__init__(associated_raster=associated_raster, global_aoi=global_aoi, **kwargs)
         self.labels = labels
 
     @abstractmethod
@@ -92,35 +130,39 @@ class AOIBaseForPolygons(AOIForRasterBase, ABC):
 
 class AOIBaseGenerator(AOIForRasterBase, ABC):
     def __init__(self,
-                 aois_config: AOIGeneratorConfig):
+                 associated_raster: Raster,
+                 global_aoi: str or Path or gpd.GeoDataFrame or None,
+                 aois_config: AOIGeneratorConfig,
+                 **kwargs):
         """
         :param aois_config: An instanced AOIGeneratorConfig.
         """
+        super().__init__(associated_raster=associated_raster, global_aoi=global_aoi, **kwargs)
+
         self.aois_config = aois_config
+
+        if self.global_aoi is not None:
+            self.loaded_global_aoi = self._get_aoi_gdf('global', self.global_aoi)
+            self.loaded_global_aoi = self._align_aoi_gdf(self.loaded_global_aoi)
+        else:
+            self.loaded_global_aoi = None
 
 
 class AOIBaseFromPackage(AOIForRasterBase, ABC):
     def __init__(self,
                  associated_raster: Raster,
-                 aois_config: AOIFromPackageConfig):
+                 global_aoi: str or Path or gpd.GeoDataFrame or None,
+                 aois_config: AOIFromPackageConfig,
+                 **kwargs):
         """
         :param associated_raster: An instanced Raster.
         :param aois_config: An instanced AOIFromPackageConfig.
         """
+
+        super().__init__(associated_raster=associated_raster, global_aoi=global_aoi, **kwargs)
+
         self.aois_config = aois_config
-        self.associated_raster = associated_raster
-
-        self.loaded_aois = self._load_aois()
-
-    def _get_aoi_gdf(self, aoi_name):
-        if isinstance(self.aois_config.aois[aoi_name], (str, Path)):
-            aoi_gdf = gpd.read_file(self.aois_config.aois[aoi_name])
-        elif isinstance(self.aois_config.aois[aoi_name], gpd.GeoDataFrame):
-            aoi_gdf = self.aois_config.aois[aoi_name]
-        else:
-            raise ValueError(f"AOI {aoi_name} is not a string, pathlib.Path or GeoDataFrame.")
-
-        return aoi_gdf
+        self.loaded_aois, self.loaded_global_aoi = self._load_aois()
 
     def _load_aois(self):
         """
@@ -130,26 +172,36 @@ class AOIBaseFromPackage(AOIForRasterBase, ABC):
         loaded_aois = {}
         for aoi_name in self.aois_config.aois:
             # Load the AOI using geopandas
-            aoi_gdf = self._get_aoi_gdf(aoi_name)
-
-            # Ensure the geometry is a MultiPolygon
-            aoi_gdf['geometry'] = aoi_gdf['geometry'].astype(object).apply(
-                lambda geom: MultiPolygon([geom]) if isinstance(geom, Polygon) else geom
-            )
-
-            # Making sure the geometries have the same CRS as the raster
-            aoi_gdf = self.associated_raster.adjust_geometries_to_raster_crs_if_necessary(gdf=aoi_gdf)
-
-            # Scaling the geometries to pixel coordinates aligned with the Raster
-            aoi_gdf = self.associated_raster.adjust_geometries_to_raster_pixel_coordinates(gdf=aoi_gdf)
-
+            aoi_gdf = self._get_aoi_gdf(aoi_name, self.aois_config.aois[aoi_name])
             # Store the loaded data
-            loaded_aois[aoi_name] = aoi_gdf
+            loaded_aois[aoi_name] = self._align_aoi_gdf(aoi_gdf)
 
-        return loaded_aois
+        # Loading the global AOI if it exists
+        if self.global_aoi is not None:
+            global_aoi_gdf = self._get_aoi_gdf('global', self.global_aoi)
+            loaded_global_aoi_gdf = self._align_aoi_gdf(global_aoi_gdf)
+        else:
+            loaded_global_aoi_gdf = None
+
+        return loaded_aois, loaded_global_aoi_gdf
+
+    def _get_aois_gdf(self):
+        aois_frames = []
+        for aoi, gdf in self.loaded_aois.items():
+            gdf = gdf.copy()
+            gdf['aoi'] = aoi
+            aois_frames.append(gdf)
+
+        aois_gdf = gpd.GeoDataFrame(pd.concat(aois_frames, ignore_index=True)).reset_index()
+
+        # Intersecting with the global AOI if it was provided
+        if self.loaded_global_aoi is not None:
+            aois_gdf = gpd.overlay(aois_gdf, self.loaded_global_aoi, how='intersection')
+
+        return aois_gdf
 
 class AOIBaseFromGeoFileInCRS:
-    def __init__(self, aois_config: AOIFromPackageConfig):
+    def __init__(self, aois_config: AOIFromPackageConfig, **kwargs):
         
         self.aois_config = aois_config
         self.loaded_aois = self._load_aois()

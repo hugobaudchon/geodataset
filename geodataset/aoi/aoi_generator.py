@@ -1,16 +1,16 @@
 import random
+from pathlib import Path
 from typing import List
 
 import numpy as np
 import geopandas as gpd
 import pandas as pd
 from geopandas import GeoDataFrame
-from shapely import box
 
 from .aoi_disambiguator import AOIDisambiguator
 from .aoi_config import AOIGeneratorConfig
 from .aoi_base import AOIBaseForTiles, AOIBaseGenerator
-from geodataset.geodata import RasterTile
+from geodataset.geodata import RasterTile, Raster
 from ..utils import get_tiles_array
 
 
@@ -18,23 +18,59 @@ class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
     def __init__(self,
                  tiles: List[RasterTile],
                  tile_coordinate_step: int,
-                 aois_config: AOIGeneratorConfig):
+                 associated_raster: Raster,
+                 global_aoi: str or Path or gpd.GeoDataFrame or None,
+                 aois_config: AOIGeneratorConfig,
+                 ignore_black_white_alpha_tiles_threshold: float = False):
         """
         :param aois_config: An instanced AOIGeneratorConfig.
         """
 
         assert type(aois_config) is AOIGeneratorConfig
 
-        AOIBaseForTiles.__init__(self, tiles=tiles, tile_coordinate_step=tile_coordinate_step)
-        AOIBaseGenerator.__init__(self, aois_config=aois_config)
-
-        self.tiles_array = get_tiles_array(tiles=self.tiles, tile_coordinate_step=self.tile_coordinate_step)
-        self.n_tiles = len(tiles)
+        super().__init__(
+            tiles=tiles,
+            tile_coordinate_step=tile_coordinate_step,
+            associated_raster=associated_raster,
+            global_aoi=global_aoi,
+            aois_config=aois_config,
+            ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold
+        )
 
         self.aois = self.aois_config.aois
         self.aoi_type = self.aois_config.aoi_type
+        self.ignore_black_white_alpha_tiles_threshold = ignore_black_white_alpha_tiles_threshold
+
+        self.n_tiles = len(tiles)
+        self.tiles_array = get_tiles_array(
+            tiles=self.tiles,
+            tile_coordinate_step=self.tile_coordinate_step
+        )
 
     def get_aoi_tiles(self) -> (dict[str, List[RasterTile]], dict[str, gpd.GeoDataFrame]):
+        tiles_gdf = gpd.GeoDataFrame({'tile': self.tiles,
+                                      'tile_id': [tile.tile_id for tile in self.tiles],
+                                      'geometry': [tile.get_bbox() for tile in self.tiles],
+                                      'array_row_coord': [int(tile.row / self.tile_coordinate_step) for tile in self.tiles],
+                                      'array_col_coord': [int(tile.col / self.tile_coordinate_step) for tile in self.tiles]})
+
+        # Intersecting the tiles with the global AOI
+        if self.loaded_global_aoi is not None:
+            global_tiles_gdf = gpd.overlay(tiles_gdf, self.loaded_global_aoi, how='intersection')
+            global_tiles_gdf['intersection_area'] = global_tiles_gdf.geometry.area
+            # Removing tiles that have less than ignore_black_white_alpha_tiles_threshold of their area
+            # intersecting with the global AOI
+            if self.ignore_black_white_alpha_tiles_threshold:
+                global_tiles_gdf = global_tiles_gdf[global_tiles_gdf.intersection_area >= 0.1 * global_tiles_gdf.area]
+
+            for tile_id in set(tiles_gdf['tile_id']):
+                if tile_id not in set(global_tiles_gdf['tile_id']):
+                    # If the tile is not intersecting the global AOI (or not enough), set its value in the tiles_array
+                    # to 0, which means that it won't be assigned to any aoi and be ignored.
+                    array_row_coord = tiles_gdf[tiles_gdf['tile_id'] == tile_id]['array_row_coord'].values[0]
+                    array_col_coord = tiles_gdf[tiles_gdf['tile_id'] == tile_id]['array_col_coord'].values[0]
+                    self.tiles_array[array_row_coord, array_col_coord] = 0
+
         sorted_aois = {k: v for k, v in sorted(self.aois.items(), key=lambda item: (float('inf'),) if item[1]['position'] is None else (item[1]['position'],))}
         aois_tiles = {}
         for aoi in sorted_aois:
@@ -53,29 +89,28 @@ class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
                 raise Exception(f'aoi_type value \'{self.aoi_type}\' is not supported.')
 
             # Finding associated tile objects and storing them in a dict
-            aois_tiles[aoi] = []
+            actual_aoi_name = self.aois[aoi]['actual_name'] if 'actual_name' in self.aois[aoi] else aoi
+
+            if actual_aoi_name not in aois_tiles:
+                aois_tiles[actual_aoi_name] = []
             for tile in self.tiles:
                 if aoi_array[int(tile.row/self.tile_coordinate_step), int(tile.col/self.tile_coordinate_step)] == 2:
-                    tile = tile.copy_with_aoi_and_id(new_aoi=aoi, new_id=tile.tile_id)
-                    aois_tiles[aoi].append(tile)
+                    tile = tile.copy_with_aoi_and_id(new_aoi=actual_aoi_name, new_id=tile.tile_id)
+                    aois_tiles[actual_aoi_name].append(tile)
 
             # Setting tiles already assigned to an AOI as 0 so that they don't get assigned again.
             self.tiles_array[aoi_array == 2] = 0
 
         # Getting gdfs of the AOIs and the tiles.
         aois_gdfs = {}
-        for aoi, tiles in aois_tiles.items():
+        for actual_aoi_name, tiles in aois_tiles.items():
             aoi_tiles_gdf = GeoDataFrame({'tile': tiles,
                                           'tile_id': [tile.tile_id for tile in tiles],
-                                          'geometry': [box(tile.col,
-                                                           tile.row,
-                                                           tile.col + tile.metadata['width'],
-                                                           tile.row + tile.metadata['height']) for tile in tiles]})
-
-            aoi_tiles_gdf['aoi'] = aoi
+                                          'geometry': [tile.get_bbox() for tile in tiles]})
+            aoi_tiles_gdf['aoi'] = actual_aoi_name
             aoi_gdf = GeoDataFrame({'geometry': [aoi_tiles_gdf.geometry.unary_union]})
-            aoi_gdf['aoi'] = aoi
-            aois_gdfs[aoi] = aoi_gdf
+            aoi_gdf['aoi'] = actual_aoi_name
+            aois_gdfs[actual_aoi_name] = aoi_gdf
 
         # Blacking out the parts of the tiles that are not in their assigned AOI.
         tiles_gdf = self.duplicate_tiles_at_aoi_intersection(aois_tiles=aois_tiles)
@@ -89,7 +124,7 @@ class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
         aoi_disambiguator.redistribute_generated_aois_intersections(aois_config=self.aois_config)
         aoi_disambiguator.disambiguate_tiles()
 
-        aois_tiles, aois_gdf = self.use_actual_aois_names(self.aois_config, aois_tiles, aois_gdf)
+        # aois_tiles, aois_gdf = self.use_actual_aois_names(self.aois_config, aois_tiles, aois_gdf) # this is now handled above in this method
 
         return aois_tiles, aois_gdf
 

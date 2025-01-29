@@ -23,9 +23,10 @@ class RasterPolygonTilerizer:
                  use_variable_tile_size: bool,
                  variable_tile_size_pixel_buffer: int or None,
                  labels_gdf: gpd.GeoDataFrame,
-                 aois_config: AOIFromPackageConfig or None,
-                 ground_resolution: float or None,
-                 scale_factor: float or None,
+                 global_aoi: str or Path or gpd.GeoDataFrame = None,
+                 aois_config: AOIFromPackageConfig = None,
+                 ground_resolution: float = None,
+                 scale_factor: float = None,
                  output_name_suffix: str = None,
                  use_rle_for_labels: bool = True,
                  min_intersection_ratio: float = 0.5,
@@ -41,6 +42,7 @@ class RasterPolygonTilerizer:
         self.tile_size = tile_size
         self.use_variable_tile_size = use_variable_tile_size
         self.variable_tile_size_pixel_buffer = variable_tile_size_pixel_buffer
+        self.global_aoi = global_aoi
         self.aois_config = aois_config
         self.output_name_suffix = output_name_suffix
         self.use_rle_for_labels = use_rle_for_labels
@@ -105,7 +107,7 @@ class RasterPolygonTilerizer:
     def _generate_aois_polygons(self):
         if self.aois_config is not None:
             if type(self.aois_config) is AOIGeneratorConfig:
-                if len(self.aois_config.aois) > 1 or next(iter(self.aois_config.aois.values()))['percentage'] != 1:
+                if len(self.aois_config.aois) > 1 or next(iter(self.aois_config.aois.values()))['percentage'] != 1 or self.global_aoi is not None:
                     raise Exception("Currently only supports inference on whole raster.")
 
                 polygons = self.labels.geometries_gdf.copy()
@@ -120,6 +122,7 @@ class RasterPolygonTilerizer:
 
             elif type(self.aois_config) is AOIFromPackageConfig:
                 aoi_engine = AOIFromPackageForPolygons(labels=self.labels,
+                                                       global_aoi=self.global_aoi,
                                                        aois_config=cast(AOIFromPackageConfig, self.aois_config),
                                                        associated_raster=self.raster)
 

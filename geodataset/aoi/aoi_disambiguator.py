@@ -40,32 +40,38 @@ class AOIDisambiguator:
         self.aois_gdf['total_area'] = self.aois_gdf.geometry.area
         sorted_aois = self.aois_gdf.groupby('aoi').total_area.sum().sort_values().index.tolist()
 
-        for idx_1, aoi_1 in enumerate(sorted_aois):
-            for idx_2, aoi_2 in enumerate(sorted_aois):
+        percentages = {}
+        for aoi in aois_config.aois:
+            actual_aoi_name = aois_config.aois[aoi]['actual_name'] if 'actual_name' in aois_config.aois[aoi] else aoi
+            if actual_aoi_name not in percentages:
+                percentages[actual_aoi_name] = 0
+            percentages[actual_aoi_name] += aois_config.aois[aoi]['percentage']
+
+        for idx_1, actual_aoi_name_1 in enumerate(sorted_aois):
+            for idx_2, actual_aoi_name_2 in enumerate(sorted_aois):
                 if idx_1 <= idx_2:
                     continue
 
                 # Calculating percentage for area redistribution
-                percent_1 = aois_config.aois[aoi_1]['percentage'] / (
-                            aois_config.aois[aoi_1]['percentage'] + aois_config.aois[aoi_2]['percentage'])
+                percent_1 = percentages[actual_aoi_name_1] / (percentages[actual_aoi_name_1] + percentages[actual_aoi_name_2])
 
                 # Get the geometries for the two AOIs
-                aoi_1_polygon = self.aois_gdf[self.aois_gdf['aoi'] == aoi_1].geometry.values[0]
-                aoi_2_polygon = self.aois_gdf[self.aois_gdf['aoi'] == aoi_2].geometry.values[0]
+                aoi_1_polygon = self.aois_gdf[self.aois_gdf['aoi'] == actual_aoi_name_1].geometry.values[0]
+                aoi_2_polygon = self.aois_gdf[self.aois_gdf['aoi'] == actual_aoi_name_2].geometry.values[0]
 
                 # Redistribute intersection
                 aoi_1_polygon, aoi_2_polygon = self.redistribute_intersection(
                     aois_config=aois_config,
-                    aoi_name_1=aoi_1,
-                    aoi_name_2=aoi_2,
+                    aoi_name_1=actual_aoi_name_1,
+                    aoi_name_2=actual_aoi_name_2,
                     aoi_1_polygon=aoi_1_polygon,
                     aoi_2_polygon=aoi_2_polygon,
                     percent_1=percent_1
                 )
 
                 # Update the geometries in the original dataframe
-                self.aois_gdf.loc[self.aois_gdf['aoi'] == aoi_1, 'geometry'] = aoi_1_polygon
-                self.aois_gdf.loc[self.aois_gdf['aoi'] == aoi_2, 'geometry'] = aoi_2_polygon
+                self.aois_gdf.loc[self.aois_gdf['aoi'] == actual_aoi_name_1, 'geometry'] = aoi_1_polygon
+                self.aois_gdf.loc[self.aois_gdf['aoi'] == actual_aoi_name_2, 'geometry'] = aoi_2_polygon
 
     def redistribute_intersection(self,
                                   aois_config: AOIGeneratorConfig,
@@ -89,14 +95,22 @@ class AOIDisambiguator:
         """
         assert 0 <= percent_1 <= 1, "The percentage should be between 0 and 1."
 
+        actual_aoi_priority = {}
+        for aoi in aois_config.aois:
+            actual_aoi_name = aois_config.aois[aoi]['actual_name'] if 'actual_name' in aois_config.aois[aoi] else aoi
+            if actual_aoi_name not in actual_aoi_priority:
+                actual_aoi_priority[actual_aoi_name] = aois_config.aois[aoi].get('priority_aoi', False)
+            else:
+                actual_aoi_priority[actual_aoi_name] = actual_aoi_priority[actual_aoi_name] or aois_config.aois[aoi].get('priority_aoi', False)
+
         # Calculate the intersection
         intersection = aoi_1_polygon.intersection(aoi_2_polygon)
         if intersection.is_empty:
             pass
-        elif 'priority_aoi' in aois_config.aois[aoi_name_1] and aois_config.aois[aoi_name_1]['priority_aoi']:
+        elif actual_aoi_priority[aoi_name_1]:
             # keep aoi_1 unchanged and remove intersection from aoi_2
             aoi_2_polygon = aoi_2_polygon.difference(intersection)
-        elif 'priority_aoi' in aois_config.aois[aoi_name_2] and aois_config.aois[aoi_name_2]['priority_aoi']:
+        elif actual_aoi_priority[aoi_name_2]:
             # keep aoi_2 unchanged and remove intersection from aoi_1
             aoi_1_polygon = aoi_1_polygon.difference(intersection)
         else:

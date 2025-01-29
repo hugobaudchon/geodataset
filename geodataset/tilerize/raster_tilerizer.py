@@ -27,6 +27,22 @@ class BaseRasterTilerizer(ABC):
         The size of the tiles in pixels (tile_size, tile_size).
     tile_overlap : float
         The overlap between the tiles (0 <= overlap < 1).
+    global_aoi : str or pathlib.Path or geopandas.GeoDataFrame, optional
+        Path to the global AOI file, or directly a GeoDataFrame.
+        If provided, only the tiles intersecting this AOI will be kept, even if some tiles are inside one of the aois
+        in aois_config (if AOIFromPackageConfig).
+
+        This parameter can be really useful to create a kfold dataset in association with an AOIGeneratorConfig config like this:
+
+        aois_config = AOIGeneratorConfig(aois={
+                'zone1': {'percentage': 0.2, 'position': 1, 'actual_name': f'train{kfold_id}'},
+                'zone2': {'percentage': 0.2, 'position': 2, 'actual_name': f'train{kfold_id}'},
+                'zone3': {'percentage': 0.2, 'position': 3, 'actual_name': f'valid{kfold_id}'},
+                'zone4': {'percentage': 0.2, 'position': 4, 'actual_name': f'train{kfold_id}'},
+                'zone5': {'percentage': 0.2, 'position': 5, 'actual_name': f'train{kfold_id}'}
+            },
+            aoi_type='band'
+        )
     aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
         An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
     ground_resolution : float, optional
@@ -45,6 +61,7 @@ class BaseRasterTilerizer(ABC):
                  raster_path: str or Path,
                  tile_size: int,
                  tile_overlap: float,
+                 global_aoi: str or Path or GeoDataFrame = None,
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
@@ -55,6 +72,7 @@ class BaseRasterTilerizer(ABC):
         self.tile_size = tile_size
         self.tile_overlap = tile_overlap
         self.tile_coordinate_step = int((1 - self.tile_overlap) * self.tile_size)
+        self.global_aoi = global_aoi
         self.aois_config = aois_config
         self.output_name_suffix = output_name_suffix
         self.ignore_black_white_alpha_tiles_threshold = ignore_black_white_alpha_tiles_threshold
@@ -117,14 +135,18 @@ class BaseRasterTilerizer(ABC):
                 aoi_engine = AOIGeneratorForTiles(
                     tiles=tiles,
                     tile_coordinate_step=self.tile_coordinate_step,
-                    aois_config=cast(AOIGeneratorConfig, self.aois_config)
+                    associated_raster=self.raster,
+                    global_aoi=self.global_aoi,
+                    aois_config=cast(AOIGeneratorConfig, self.aois_config),
+                    ignore_black_white_alpha_tiles_threshold=self.ignore_black_white_alpha_tiles_threshold
                 )
             elif type(self.aois_config) is AOIFromPackageConfig:
                 aoi_engine = AOIFromPackageForTiles(
                     tiles=tiles,
                     tile_coordinate_step=self.tile_coordinate_step,
-                    aois_config=cast(AOIFromPackageConfig, self.aois_config),
                     associated_raster=self.raster,
+                    global_aoi=self.global_aoi,
+                    aois_config=cast(AOIFromPackageConfig, self.aois_config),
                     ground_resolution=self.ground_resolution,
                     scale_factor=self.scale_factor
                 )
@@ -184,6 +206,22 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
         The wanted size of the tiles (tile_size, tile_size).
     tile_overlap : float
         The overlap between the tiles (should be 0 <= overlap < 1).
+    global_aoi : str or pathlib.Path or geopandas.GeoDataFrame, optional
+        Path to the global AOI file, or directly a GeoDataFrame.
+        If provided, only the tiles intersecting this AOI will be kept, even if some tiles are inside one of the aois
+        in aois_config (if AOIFromPackageConfig).
+
+        This parameter can be really useful to create a kfold dataset in association with an AOIGeneratorConfig config like this:
+
+        aois_config = AOIGeneratorConfig(aois={
+                'zone1': {'percentage': 0.2, 'position': 1, 'actual_name': f'train{kfold_id}'},
+                'zone2': {'percentage': 0.2, 'position': 2, 'actual_name': f'train{kfold_id}'},
+                'zone3': {'percentage': 0.2, 'position': 3, 'actual_name': f'valid{kfold_id}'},
+                'zone4': {'percentage': 0.2, 'position': 4, 'actual_name': f'train{kfold_id}'},
+                'zone5': {'percentage': 0.2, 'position': 5, 'actual_name': f'train{kfold_id}'}
+            },
+            aoi_type='band'
+        )
     aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
         An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
     ground_resolution : float
@@ -203,6 +241,7 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
                  output_path: str,
                  tile_size: int,
                  tile_overlap: float,
+                 global_aoi: str or Path or GeoDataFrame = None,
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
@@ -212,6 +251,7 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
         super().__init__(raster_path=raster_path,
                          tile_size=tile_size,
                          tile_overlap=tile_overlap,
+                         global_aoi=global_aoi,
                          aois_config=aois_config,
                          ground_resolution=ground_resolution,
                          scale_factor=scale_factor,
@@ -260,6 +300,22 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
         The wanted size of the tiles (tile_size, tile_size).
     tile_overlap : float
         The overlap between the tiles (should be 0 <= overlap < 1).
+    global_aoi : str or pathlib.Path or geopandas.GeoDataFrame, optional
+        Path to the global AOI file, or directly a GeoDataFrame.
+        If provided, only the tiles intersecting this AOI will be kept, even if some tiles are inside one of the aois
+        in aois_config (if AOIFromPackageConfig).
+
+        This parameter can be really useful to create a kfold dataset in association with an AOIGeneratorConfig config like this:
+
+        aois_config = AOIGeneratorConfig(aois={
+                'zone1': {'percentage': 0.2, 'position': 1, 'actual_name': f'train{kfold_id}'},
+                'zone2': {'percentage': 0.2, 'position': 2, 'actual_name': f'train{kfold_id}'},
+                'zone3': {'percentage': 0.2, 'position': 3, 'actual_name': f'valid{kfold_id}'},
+                'zone4': {'percentage': 0.2, 'position': 4, 'actual_name': f'train{kfold_id}'},
+                'zone5': {'percentage': 0.2, 'position': 5, 'actual_name': f'train{kfold_id}'}
+            },
+            aoi_type='band'
+        )
     aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
         An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
     ground_resolution : float
@@ -279,6 +335,7 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                  output_path: str or Path,
                  tile_size: int,
                  tile_overlap: float,
+                 global_aoi: str or Path or GeoDataFrame = None,
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
@@ -289,6 +346,7 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                          output_path=output_path,
                          tile_size=tile_size,
                          tile_overlap=tile_overlap,
+                         global_aoi=global_aoi,
                          aois_config=aois_config,
                          ground_resolution=ground_resolution,
                          scale_factor=scale_factor,
