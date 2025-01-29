@@ -9,10 +9,11 @@ import rasterio
 import shapely
 from shapely import Polygon, MultiPolygon
 import geopandas as gpd
+from shapely.validation import make_valid
 from tqdm import tqdm
 
 from geodataset.utils import TileNameConvention, apply_affine_transform, COCOGenerator, apply_inverse_transform, \
-    decode_coco_segmentation
+    decode_coco_segmentation, fix_geometry_collection
 
 
 class Aggregator:
@@ -39,7 +40,8 @@ class Aggregator:
                  score_threshold: float = 0.1,
                  nms_threshold: float = 0.8,
                  nms_algorithm: str = 'iou',
-                 best_geom_keep_area_ratio: float = 0.5):
+                 best_geom_keep_area_ratio: float = 0.5,
+                 pre_aggregated_output_path: str or Path = None):
 
         self.output_path = Path(output_path)
         self.polygons_gdf = polygons_gdf
@@ -54,6 +56,10 @@ class Aggregator:
         self.nms_threshold = nms_threshold
         self.nms_algorithm = nms_algorithm
         self.best_geom_keep_area_ratio = best_geom_keep_area_ratio
+        self.pre_aggregated_output_path = pre_aggregated_output_path
+
+        if self.pre_aggregated_output_path:
+            self.polygons_gdf.to_file(self.pre_aggregated_output_path, driver='GPKG')
 
         # If only 1 set of scores is provided, we set the score_weight to 1.0
         if len(self.scores_weights) == 1: self.scores_weights = [1.0]
@@ -97,7 +103,8 @@ class Aggregator:
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
                   nms_algorithm: str = 'iou',
-                  best_geom_keep_area_ratio: float=0.5):
+                  best_geom_keep_area_ratio: float=0.5,
+                  pre_aggregated_output_path: str or Path = None):
 
         """
         Instanciate and run an Aggregator from a COCO JSON file.
@@ -183,6 +190,9 @@ class Aggregator:
             the intersection with another one, that polygon may end-up being cut into multiple smaller and disconnected
             geometries. The algorithm will only consider keeping the largest of those geometries, and only keep it if
             it makes up at least 'best_geom_keep_area_ratio' percent of the original polygon (in terms of area).
+        pre_aggregated_output_path: str or Path
+            If provided, the polygons will be saved in this file before applying the NMS algorithm.
+            This is useful to debug the polygons before the NMS algorithm is applied.
 
         Returns
         -------
@@ -219,7 +229,8 @@ class Aggregator:
                    nms_threshold=nms_threshold,
                    nms_algorithm=nms_algorithm,
                    tile_ids_to_path=tile_ids_to_path,
-                   best_geom_keep_area_ratio=best_geom_keep_area_ratio)
+                   best_geom_keep_area_ratio=best_geom_keep_area_ratio,
+                   pre_aggregated_output_path=pre_aggregated_output_path)
 
     @classmethod
     def from_polygons(cls,
@@ -234,7 +245,8 @@ class Aggregator:
                       score_threshold: float = 0.1,
                       nms_threshold: float = 0.8,
                       nms_algorithm: str = 'iou',
-                      best_geom_keep_area_ratio: float = 0.5):
+                      best_geom_keep_area_ratio: float = 0.5,
+                      pre_aggregated_output_path: str or Path = None):
 
         """
         Instanciate and run an Aggregator from a list of polygons for each tile.
@@ -306,6 +318,9 @@ class Aggregator:
             the intersection with another one, that polygon may end-up being cut into multiple smaller and disconnected
             geometries. The algorithm will only consider keeping the largest of those geometries, and only keep it if
             it makes up at least 'best_geom_keep_area_ratio' percent of the original polygon (in terms of area).
+        pre_aggregated_output_path: str or Path
+            If provided, the polygons will be saved in this file before applying the NMS algorithm.
+            This is useful to debug the polygons before the NMS algorithm is applied.
 
         Returns
         -------
@@ -356,7 +371,8 @@ class Aggregator:
                    nms_threshold=nms_threshold,
                    nms_algorithm=nms_algorithm,
                    tile_ids_to_path=tile_ids_to_path,
-                   best_geom_keep_area_ratio=best_geom_keep_area_ratio)
+                   best_geom_keep_area_ratio=best_geom_keep_area_ratio,
+                   pre_aggregated_output_path=pre_aggregated_output_path)
 
     @staticmethod
     def _from_coco(tiles_folder_path: str or Path,
@@ -478,7 +494,7 @@ class Aggregator:
     def _validate_polygons(self):
         def fix_geometry(geom):
             if not geom.is_valid:
-                fixed_geom = geom.buffer(0)
+                fixed_geom = make_valid(geom)
                 return fixed_geom
             return geom
 
@@ -619,7 +635,7 @@ class Aggregator:
         gdf = self.polygons_gdf.copy()
         gdf.sort_values(by='aggregator_score', ascending=False, inplace=True)
 
-        gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: self._check_geometry_collection(x))
+        gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: fix_geometry_collection(x))
         gdf['geometry'] = gdf['geometry'].astype(object).apply(lambda x: self._check_remove_bad_geometries(x))
         gdf = gdf[gdf['geometry'].notnull()]
 
@@ -629,7 +645,7 @@ class Aggregator:
 
         skip_ids = set()
         id_to_final_polygon = {}
-        progress = tqdm(total=len(gdf), desc="Applying NMS-iou algorithm")
+        progress = tqdm(total=len(gdf), desc="Applying NMS-iou-disambiguate algorithm")
         for current_id in gdf.index:
             current = gdf.loc[current_id]
             progress.update(1)
@@ -643,7 +659,7 @@ class Aggregator:
                     for g_id in intersecting_geometries_ids:
                         # We have to re-compute the IoA as intersect_gdf might not be up-to-date anymore after some polygons were modified in previous iterations.
                         with warnings.catch_warnings(record=True) as w:
-                            gdf.at[current_id, 'geometry'] = self._check_geometry_collection(
+                            gdf.at[current_id, 'geometry'] = fix_geometry_collection(
                                 gdf.at[current_id, 'geometry'])
                             try:
                                 intersection = gdf.at[current_id, 'geometry'].intersection(gdf.at[g_id, 'geometry'])
@@ -651,7 +667,7 @@ class Aggregator:
                                 # 'invalid value encountered in intersection'
                                 print('* Skipped polygon matching ids {}/{} for shapely intersection error. *'.format(current_id, g_id))
 
-                        intersection = self._check_geometry_collection(intersection)
+                        intersection = fix_geometry_collection(intersection)
 
                         if not self._check_remove_bad_geometries(intersection):
                             continue
@@ -670,10 +686,10 @@ class Aggregator:
                                 skip_ids.add(g_id)
                                 continue
 
-                            new_geometry = self._check_geometry_collection(new_geometry)
+                            new_geometry = fix_geometry_collection(new_geometry)
 
                             if not new_geometry.is_valid:
-                                new_geometry = new_geometry.buffer(0)
+                                new_geometry = make_valid(new_geometry)
 
                             if new_geometry.geom_type == 'MultiPolygon':
                                 # If the largest Polygon represent more than best_geom_keep_area_ratio% of the total area,
@@ -705,23 +721,6 @@ class Aggregator:
     def _check_remove_bad_geometries(geometry):
         if not geometry.is_valid or geometry.area == 0:
             return None
-        else:
-            return geometry
-
-    @staticmethod
-    def _check_geometry_collection(geometry: shapely.Geometry):
-        if geometry.geom_type == 'GeometryCollection':
-            final_geoms = []
-            # Iterate through each geometry in the collection
-            for geom in geometry.geoms:
-                if geom.geom_type == 'Polygon':
-                    final_geoms.append(geom)
-                elif geom.geom_type == 'LineString':
-                    # Check if the LineString is closed and can be considered a polygon
-                    if geom.is_ring:
-                        # Convert the LineString to a Polygon
-                        final_geoms.append(Polygon(geom))
-            return MultiPolygon(final_geoms)
         else:
             return geometry
 
