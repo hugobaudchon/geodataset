@@ -83,7 +83,12 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
     coco_categories_list : list of dict, optional
         A list of category dictionaries in COCO format. If a polygon has a category (label in
         'main_label_category_column_name') that is not in this list, its category_id will be set to None in its COCO
-        annotation. If 'coco_categories_list' is None, the categories ids will be automatically generated from the
+        annotation.
+
+        If 'main_label_category_column_name' is not provided, but 'coco_categories_list' is a single
+        coco category dictionary, then it will be used for all annotations automatically.
+
+        If 'coco_categories_list' is None, the categories ids will be automatically generated from the
         unique categories found in the 'main_label_category_column_name' column.
 
         .. raw:: html

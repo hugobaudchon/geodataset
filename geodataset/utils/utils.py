@@ -789,7 +789,11 @@ class COCOGenerator:
         if self.categories:
             assert len(self.tiles_paths) == len(self.categories), "The number of tiles and categories must be the same."
         else:
-            self.categories = [['NoCategory', ] * len(tile_polygons) for tile_polygons in self.polygons]
+            # If no categories are provided, set all categories to 'NoCategory', except if there is only one
+            # coco category provided, in which case we use that one for all annotations.
+            self.categories = [[coco_categories_list[0]['name']
+                                if (type(coco_categories_list) is list and len(coco_categories_list) == 1)
+                                else 'NoCategory', ] * len(tile_polygons) for tile_polygons in self.polygons]
         if self.other_attributes:
             assert len(self.tiles_paths) == len(
                 self.other_attributes), "The number of tiles and other_attributes must be the same."
