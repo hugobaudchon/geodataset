@@ -71,13 +71,11 @@ class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
                     array_col_coord = tiles_gdf[tiles_gdf['tile_id'] == tile_id]['array_col_coord'].values[0]
                     self.tiles_array[array_row_coord, array_col_coord] = 0
 
+        aois_n_tiles = self._allocate_tiles(n_tiles=self.n_tiles)
         sorted_aois = {k: v for k, v in sorted(self.aois.items(), key=lambda item: (float('inf'),) if item[1]['position'] is None else (item[1]['position'],))}
         aois_tiles = {}
         for aoi in sorted_aois:
-            max_n_tiles_in_aoi = np.round(sorted_aois[aoi]['percentage'] * self.n_tiles)
-            n_tiles_left = np.sum(self.tiles_array[self.tiles_array == 1])
-            if max_n_tiles_in_aoi > n_tiles_left:
-                max_n_tiles_in_aoi = n_tiles_left
+            max_n_tiles_in_aoi = aois_n_tiles[aoi]
 
             if self.aoi_type == "corner":
                 aoi_array = self._get_corner_aoi_array(max_n_tiles_in_aoi=max_n_tiles_in_aoi,
@@ -127,6 +125,45 @@ class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
         # aois_tiles, aois_gdf = self.use_actual_aois_names(self.aois_config, aois_tiles, aois_gdf) # this is now handled above in this method
 
         return aois_tiles, aois_gdf
+
+    def _allocate_tiles(self, n_tiles):
+        aois_n_tiles = {}
+
+        # Sort AOIs by percentage in descending order
+        sorted_aois = sorted(self.aois, key=lambda x: self.aois[x]['percentage'], reverse=True)
+
+        total_percentage = sum(self.aois[aoi]['percentage'] for aoi in self.aois)
+
+        # Initial allocation based on floor of (percentage * n_tiles)
+        remainders = {}
+        assigned_tiles = 0
+        for aoi in sorted_aois:
+            exact_allocation = (self.aois[aoi]['percentage'] / total_percentage) * n_tiles
+            allocated = int(exact_allocation)
+            aois_n_tiles[aoi] = allocated
+            assigned_tiles += allocated
+            remainders[aoi] = exact_allocation - allocated
+
+        # Calculate remaining tiles to assign
+        remaining_tiles = n_tiles - assigned_tiles
+
+        # Distribute remaining tiles based on largest remainders
+        while remaining_tiles > 0:
+            # Find the AOI with the largest remainder
+            aoi_to_assign = max(remainders, key=lambda x: remainders[x])
+            aois_n_tiles[aoi_to_assign] += 1
+            remainders[aoi_to_assign] = 0  # Set to zero to prevent re-selection
+            remaining_tiles -= 1
+
+        # Handle edge case where n_tiles is less than number of AOIs
+        if n_tiles < len(self.aois):
+            # Reset allocations
+            aois_n_tiles = {aoi: 0 for aoi in self.aois}
+            # Assign one tile to the top n_tiles AOIs based on percentage
+            for aoi in sorted_aois[:n_tiles]:
+                aois_n_tiles[aoi] = 1
+
+        return aois_n_tiles
 
     def _get_corner_aoi_array(self,
                               max_n_tiles_in_aoi: int,
