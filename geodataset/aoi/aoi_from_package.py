@@ -7,13 +7,13 @@ from pandas.core.computation.expr import intersection
 from .aoi_disambiguator import AOIDisambiguator
 from .aoi_config import AOIFromPackageConfig
 from .aoi_base import AOIBaseForTiles, AOIBaseForPolygons, AOIBaseFromPackage
-from geodataset.geodata import RasterTile, Raster
+from geodataset.geodata import RasterTileMetadata, Raster
 from ..labels import RasterPolygonLabels
 
 
 class AOIFromPackageForTiles(AOIBaseForTiles, AOIBaseFromPackage):
     def __init__(self,
-                 tiles: List[RasterTile],
+                 tiles: List[RasterTileMetadata],
                  tile_coordinate_step: int,
                  associated_raster: Raster,
                  global_aoi: str or Path or gpd.GeoDataFrame or None,
@@ -41,7 +41,7 @@ class AOIFromPackageForTiles(AOIBaseForTiles, AOIBaseFromPackage):
             "The specified scale_factor for the labels and Raster are different."
         assert type(aois_config) is AOIFromPackageConfig
 
-    def get_aoi_tiles(self) -> (dict[str, List[RasterTile]], dict[str, gpd.GeoDataFrame]):
+    def get_aoi_tiles(self) -> (dict[str, List[RasterTileMetadata]], dict[str, gpd.GeoDataFrame]):
         aois_gdf = self._get_aois_gdf()
 
         tiles_gdf = gpd.GeoDataFrame({'tile': self.tiles,

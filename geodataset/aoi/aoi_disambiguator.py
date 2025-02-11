@@ -6,14 +6,14 @@ from shapely import Polygon
 from shapely.affinity import translate
 
 from .aoi_config import AOIGeneratorConfig
-from geodataset.geodata import RasterTile
+from geodataset.geodata import RasterTileMetadata
 from ..utils import polygon_to_mask
 
 
 class AOIDisambiguator:
     def __init__(self,
                  tiles_gdf: gpd.GeoDataFrame,
-                 aois_tiles: Dict[str, List[RasterTile]],
+                 aois_tiles: Dict[str, List[RasterTileMetadata]],
                  aois_gdf: gpd.GeoDataFrame):
         self.tiles_gdf = tiles_gdf
         self.aois_tiles = aois_tiles
@@ -33,8 +33,7 @@ class AOIDisambiguator:
                 intersection_geometry = translate(list(intersection_tile_row.geometry)[0], -tile.col, -tile.row)
 
                 mask = polygon_to_mask(intersection_geometry, tile.metadata['height'], tile.metadata['width'])
-                # Black out the part of the tile which is not in its AOI by multiplying the tile by the mask
-                tile.data = tile.data * mask
+                tile.update_mask(mask)
 
     def redistribute_generated_aois_intersections(self, aois_config: AOIGeneratorConfig):
         self.aois_gdf['total_area'] = self.aois_gdf.geometry.area

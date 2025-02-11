@@ -7,8 +7,8 @@ from tqdm import tqdm
 
 from geodataset.aoi import AOIFromPackageConfig, AOIGeneratorConfig
 from geodataset.aoi.aoi_from_package import AOIFromPackageForPolygons
-from geodataset.geodata import Raster
-from geodataset.geodata.raster_tile import RasterTileSaver, RasterPolygonTile
+from geodataset.geodata import Raster, RasterPolygonTileMetadata
+from geodataset.geodata.raster import RasterTileSaver
 from geodataset.labels import RasterPolygonLabels
 from geodataset.utils import CocoNameConvention, COCOGenerator
 from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
@@ -22,7 +22,7 @@ class RasterPolygonTilerizer:
                  tile_size: int,
                  use_variable_tile_size: bool,
                  variable_tile_size_pixel_buffer: int or None,
-                 labels_gdf: gpd.GeoDataFrame,
+                 labels_gdf: gpd.GeoDataFrame = None,
                  global_aoi: str or Path or gpd.GeoDataFrame = None,
                  aois_config: AOIFromPackageConfig = None,
                  ground_resolution: float = None,
@@ -190,7 +190,7 @@ class RasterPolygonTilerizer:
 
         return final_aois_tiles_paths, final_aois_polygons
 
-    def _save_tiles_batch(self, tiles: List[RasterPolygonTile], aoi: str):
+    def _save_tiles_batch(self, tiles: List[RasterPolygonTileMetadata], aoi: str):
         (self.tiles_folder_path / aoi).mkdir(parents=True, exist_ok=True)
         tiles_paths = [self.tiles_folder_path / aoi / tile.generate_name() for tile in tiles]
         tile_saver = RasterTileSaver(tiles_path=self.tiles_folder_path / aoi, n_workers=self.coco_n_workers)

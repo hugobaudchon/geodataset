@@ -7,7 +7,7 @@ import geopandas as gpd
 import pandas as pd
 
 from .aoi_config import AOIFromPackageConfig, AOIGeneratorConfig, AOIConfig
-from geodataset.geodata import RasterTile, Raster
+from geodataset.geodata import RasterTileMetadata, Raster
 from ..labels import RasterPolygonLabels
 
 class AOIForRasterBase(ABC):
@@ -42,7 +42,7 @@ class AOIForRasterBase(ABC):
         return gdf
 
     @staticmethod
-    def use_actual_aois_names(aois_config: AOIConfig, aois_tiles: dict[str, List[RasterTile]], aois_gdf: gpd.GeoDataFrame):
+    def use_actual_aois_names(aois_config: AOIConfig, aois_tiles: dict[str, List[RasterTileMetadata]], aois_gdf: gpd.GeoDataFrame):
         if isinstance(aois_config, AOIGeneratorConfig):
             # If the AOI has an 'actual_name' field, use it to rename the AOI in the tiles and gdf
             # This is useful when the AOI is named 'train1', 'train2', 'valid'...
@@ -74,13 +74,13 @@ class AOIForRasterBase(ABC):
 
 class AOIBaseForTiles(AOIForRasterBase, ABC):
     def __init__(self,
-                 tiles: List[RasterTile],
+                 tiles: List[RasterTileMetadata],
                  tile_coordinate_step: int,
                  associated_raster: Raster,
                  global_aoi: str or Path or gpd.GeoDataFrame or None,
                  **kwargs):
         """
-        :param tiles: A list of instanced Tile.
+        :param tiles: A list of RasterTileMetadata.
         :param tile_coordinate_step: The step in pixels between each tile.
         """
         super().__init__(associated_raster=associated_raster, global_aoi=global_aoi, **kwargs)
@@ -91,9 +91,9 @@ class AOIBaseForTiles(AOIForRasterBase, ABC):
     def get_aoi_tiles(self, *args, **kwargs) -> dict[str, dict]:
         pass
 
-    def duplicate_tiles_at_aoi_intersection(self, aois_tiles: dict[str, List[RasterTile]]) -> gpd.GeoDataFrame:
+    def duplicate_tiles_at_aoi_intersection(self, aois_tiles: dict[str, List[RasterTileMetadata]]) -> gpd.GeoDataFrame:
         """
-        Duplicate each Tile object that is in multiple AOI into multiple Tile objects (one per AOI).
+        Duplicate each RasterTileMetadata object that is in multiple AOI into multiple Tile objects (one per AOI).
         """
         # adding aoi data info to each Tile, duplicating each Tile object that is in multiple aoi into multiple Tile objects (one per aoi)
         current_max_tile_id = max([tile.tile_id for tile in self.tiles])

@@ -12,7 +12,7 @@ from geodataset.aoi import AOIFromPackageConfig
 from geodataset.aoi.aoi_base import AOIBaseFromGeoFileInCRS
 from geodataset.utils import PointCloudCOCOGenerator, strip_all_extensions_and_path
 from geodataset.labels.base_labels import PolygonLabels
-from geodataset.geodata.point_cloud_tile import PointCloudTileMetadataCollection
+from geodataset.geodata.point_cloud import PointCloudTileMetadataCollection
 from geodataset.tilerize.point_cloud_tilerizer import PointCloudTilerizer
 from geodataset.utils.file_name_conventions import PointCloudCocoNameConvention, validate_and_convert_product_name
 from pathlib import Path

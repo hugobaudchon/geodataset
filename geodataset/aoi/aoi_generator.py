@@ -10,13 +10,13 @@ from geopandas import GeoDataFrame
 from .aoi_disambiguator import AOIDisambiguator
 from .aoi_config import AOIGeneratorConfig
 from .aoi_base import AOIBaseForTiles, AOIBaseGenerator
-from geodataset.geodata import RasterTile, Raster
+from geodataset.geodata import RasterTileMetadata, Raster
 from ..utils import get_tiles_array
 
 
 class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
     def __init__(self,
-                 tiles: List[RasterTile],
+                 tiles: List[RasterTileMetadata],
                  tile_coordinate_step: int,
                  associated_raster: Raster,
                  global_aoi: str or Path or gpd.GeoDataFrame or None,
@@ -47,7 +47,7 @@ class AOIGeneratorForTiles(AOIBaseForTiles, AOIBaseGenerator):
             tile_coordinate_step=self.tile_coordinate_step
         )
 
-    def get_aoi_tiles(self) -> (dict[str, List[RasterTile]], dict[str, gpd.GeoDataFrame]):
+    def get_aoi_tiles(self) -> (dict[str, List[RasterTileMetadata]], dict[str, gpd.GeoDataFrame]):
         tiles_gdf = gpd.GeoDataFrame({'tile': self.tiles,
                                       'tile_id': [tile.tile_id for tile in self.tiles],
                                       'geometry': [tile.get_bbox() for tile in self.tiles],

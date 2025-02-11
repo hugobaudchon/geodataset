@@ -1,22 +1,23 @@
+import concurrent
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, List
 
 import cv2
 import numpy as np
+import rasterio
 import rasterio.windows
 import geopandas as gpd
 from shapely import box
 from shapely.affinity import translate
 from shapely.geometry import Polygon
 
-from geodataset.geodata.base_geodata import BaseGeoData
-from geodataset.geodata.raster_tile import RasterTile, RasterPolygonTile
 from geodataset.utils import read_raster, apply_affine_transform, validate_and_convert_product_name, \
-    strip_all_extensions_and_path
+    strip_all_extensions_and_path, TileNameConvention, PolygonTileNameConvention
 
 
-class Raster(BaseGeoData):
+class Raster:
     """
     Class responsible for loading a .tif or .png raster with or without CRS/transform data,
     while resampling it to match a given ground_resolution or scale_factor.
@@ -76,7 +77,7 @@ class Raster(BaseGeoData):
 
         return data, metadata, x_scale_factor, y_scale_factor
 
-    def get_tile(self, window: rasterio.windows.Window, tile_id: int) -> RasterTile or None:
+    def create_tile_metadata(self, window: rasterio.windows.Window, tile_id: int) -> "RasterTileMetadata" or None:
 
         """
         Generates and returns a Tile from a window of the Raster.
@@ -91,20 +92,8 @@ class Raster(BaseGeoData):
 
         Returns
         -------
-        RasterTile
+        RasterTileMetadata or None
         """
-
-        tile_data = self.data[
-                    :,
-                    window.row_off:window.row_off + window.height,
-                    window.col_off:window.col_off + window.width]
-
-        pad_row = window.width - tile_data.shape[1]
-        pad_col = window.height - tile_data.shape[2]
-
-        if pad_row > 0 or pad_col > 0:
-            padding = ((0, 0), (0, pad_row), (0, pad_col))  # No padding for bands, pad rows and columns as needed
-            tile_data = np.pad(tile_data, padding, mode='constant', constant_values=0)
 
         window_transform = rasterio.windows.transform(window, self.metadata['transform'])
 
@@ -118,9 +107,11 @@ class Raster(BaseGeoData):
             'transform': window_transform
         }
 
-        tile = RasterTile(data=tile_data, metadata=tile_metadata, output_name=self.output_name,
-                          ground_resolution=self.ground_resolution, scale_factor=self.scale_factor,
-                          row=window.row_off, col=window.col_off, tile_id=tile_id)
+        tile = RasterTileMetadata(
+            associated_raster=self, mask=None, metadata=tile_metadata,
+            ground_resolution=self.ground_resolution, scale_factor=self.scale_factor,
+            row=window.row_off, col=window.col_off, tile_id=tile_id
+        )
 
         return tile
 
@@ -130,7 +121,7 @@ class Raster(BaseGeoData):
                          polygon_aoi: str,
                          tile_size: int,
                          use_variable_tile_size: bool,
-                         variable_tile_size_pixel_buffer: int) -> Tuple[RasterPolygonTile, Polygon]:
+                         variable_tile_size_pixel_buffer: int) -> Tuple["RasterPolygonTileMetadata", Polygon]:
 
         """
         Generates and returns a PolygonTile from a Polygon geometry, along with the possibly cropped original Polygon.
@@ -163,7 +154,7 @@ class Raster(BaseGeoData):
 
         Returns
         -------
-        Tuple[RasterPolygonTile, Polygon]
+        Tuple[RasterPolygonTileMetadata, Polygon]
         """
 
         x, y = polygon.centroid.coords[0]
@@ -218,16 +209,10 @@ class Raster(BaseGeoData):
         mask_bounds = [int(x) for x in mask_bounds]
 
         # Handling bounds outside the data
-        start_row = max(mask_bounds[1], 0)
-        end_row = min(mask_bounds[3], self.data.shape[1])
-        start_col = max(mask_bounds[0], 0)
-        end_col = min(mask_bounds[2], self.data.shape[2])
-
-        data = self.data[
-               :,
-               start_row:end_row,
-               start_col:end_col
-               ]
+        start_row = mask_bounds[1]
+        end_row = mask_bounds[3]
+        start_col = mask_bounds[0]
+        end_col = mask_bounds[2]
 
         # Padding to tile_size if necessary
         pre_row_pad = max(0, -mask_bounds[1])
@@ -235,25 +220,31 @@ class Raster(BaseGeoData):
         pre_col_pad = max(0, -mask_bounds[0])
         post_col_pad = max(0, mask_bounds[2] - self.data.shape[2])
 
-        if final_tile_size - (data.shape[1] + pre_row_pad + post_row_pad) == 1:
+        if final_tile_size - (end_row - start_row + pre_row_pad + post_row_pad) == 1:
             post_row_pad += 1
-        if final_tile_size - (data.shape[2] + pre_col_pad + post_col_pad) == 1:
+        if final_tile_size - (end_col - start_col + pre_col_pad + post_col_pad) == 1:
             post_col_pad += 1
 
-        data = np.pad(data, [(0, 0), (pre_row_pad, post_row_pad), (pre_col_pad, post_col_pad)],
-                      mode='constant', constant_values=0)
-
-        # Masking the pixels around the Polygon
-        masked_data = data * binary_mask
+        # Padding the mask to the final tile size
+        start_row = max(0, start_row - pre_row_pad)
+        end_row = min(self.data.shape[1], end_row + post_row_pad)
+        start_col = max(0, start_col - pre_col_pad)
+        end_col = min(self.data.shape[2], end_col + post_col_pad)
+        binary_mask = np.pad(binary_mask, ((pre_row_pad, post_row_pad), (pre_col_pad, post_col_pad)),
+                             mode='constant', constant_values=0)
 
         # Creating the PolygonTile, with the appropriate metadata
         window = rasterio.windows.Window(
-            mask_box.bounds[0],
-            mask_box.bounds[1],
-            width=final_tile_size,
-            height=final_tile_size
+            col_off=start_col,
+            row_off=start_row,
+            width=end_col - start_col,
+            height=end_row - start_row
         )
         window_transform = rasterio.windows.transform(window, self.metadata['transform'])
+
+        print(1111, translated_polygon_intersection.bounds)
+        print(2222, window)
+        print(3333, binary_mask.shape)
 
         tile_metadata = {
             'driver': 'GTiff',
@@ -265,12 +256,15 @@ class Raster(BaseGeoData):
             'transform': window_transform
         }
 
-        polygon_tile = RasterPolygonTile(
-            data=masked_data,
+        polygon_tile = RasterPolygonTileMetadata(
+            associated_raster=self,
+            mask=binary_mask,
             metadata=tile_metadata,
             output_name=self.output_name,
             ground_resolution=self.ground_resolution,
             scale_factor=self.scale_factor,
+            row=window.row_off,
+            col=window.col_off,
             polygon_id=polygon_id,
             aoi=polygon_aoi
         )
@@ -365,3 +359,363 @@ class Raster(BaseGeoData):
 
         return reverted_gdf
 
+
+class RasterTileMetadata:
+    """
+    Class to represent a tile of a raster image. Generally generated by a :class:`~geodataset.geodata.raster.Raster`.
+    Does not copy the tile data, only the metadata, in order to reduce memory consumption.
+
+    Parameters
+    ----------
+    associated_raster: Raster
+        The Raster object associated with the tile.
+    mask: np.ndarray or None
+        A binary mask to apply to the tile. If None, no mask will be applied.
+    metadata: dict
+        The metadata of the raster tile. Should be compatible with rasterio.open(...) function.
+        Examples of such metadata keys are 'crs', 'transform', 'width', 'height'...
+    ground_resolution : float, optional
+        The ground resolution in meter per pixel desired when loading the raster.
+        Only one of ground_resolution and scale_factor can be set at the same time.
+        Used for naming the .tif file when saving the tile.
+    scale_factor : float, optional
+        Scale factor for rescaling the data (change pixel resolution).
+        Only one of ground_resolution and scale_factor can be set at the same time.
+        Used for naming the .tif file when saving the tile
+    row: int
+        The row index of the tile in the raster (the top left pixel row).
+        Used for naming the .tif file when saving the tile.
+    col: int
+        The column index of the tile in the raster (the top left pixel row).
+        Used for naming the .tif file when saving the tile.
+    aoi: str, optional
+        The Area of Interest (AOI) the tile belongs to.
+        Used for naming the .tif file when saving the tile.
+    tile_id: int, optional
+        The id of the tile.
+        Used for naming the .tif file when saving the tile.
+    """
+    def __init__(self,
+                 associated_raster: Raster,
+                 mask: np.ndarray or None,
+                 metadata: dict,
+                 ground_resolution: float,
+                 scale_factor: float,
+                 row: int,
+                 col: int,
+                 aoi: str = None,
+                 tile_id: int = None):
+
+        self.associated_raster = associated_raster
+        self.mask = mask
+        self.metadata = metadata
+        self.row = row
+        self.col = col
+        self.aoi = aoi
+        self.tile_id = tile_id
+
+        assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
+                                                          " Please only specify one.")
+        self.scale_factor = scale_factor
+        self.ground_resolution = ground_resolution
+
+    def get_pixel_data(self):
+        tile_data = self.associated_raster.data[
+                    :,
+                    self.row:self.row + self.metadata['height'],
+                    self.col:self.col + self.metadata['width']]
+
+        pad_row = self.metadata['height'] - tile_data.shape[1]
+        pad_col = self.metadata['width'] - tile_data.shape[2]
+
+        if pad_row > 0 or pad_col > 0:
+            # RasterTileMetadata is always padded at the bottom and right because when tiled,
+            # the minimum possible row and col are 0, so the top and left are always within the Raster,
+            # but the bottom and right could go outside the Raster bounds.
+            padding = ((0, 0), (0, pad_row), (0, pad_col))
+            tile_data = np.pad(tile_data, padding, mode='constant', constant_values=0)
+
+        if self.mask is not None:
+            tile_data = tile_data * self.mask
+
+        return tile_data
+
+    def update_mask(self, additional_mask: np.ndarray):
+        """
+        Update the mask of the tile.
+
+        Parameters
+        ----------
+        additional_mask: np.ndarray
+            The additional, new mask to apply to the tile. Will be combined with the existing mask with an OR operation.
+        """
+        if self.mask is not None:
+            # combining masks
+            self.mask = self.mask | additional_mask
+        else:
+            self.mask = additional_mask
+
+    @staticmethod
+    def _load_tile(path: Path):
+        ext = path.suffix
+        if ext != '.tif':
+            raise Exception(f'The tile extension should be \'.tif\'.')
+
+        with rasterio.open(path) as src:
+            data = src.read()
+            metadata = src.profile
+
+        product_name, ground_resolution, scale_factor, row, col, aoi = TileNameConvention.parse_name(path.name)
+
+        return data, metadata, product_name, ground_resolution, scale_factor, row, col, aoi
+
+    def save(self, output_folder: str or Path):
+        """
+        Save the tile as a .tif file in the output_folder.
+
+        Parameters
+        ----------
+        output_folder: str or pathlib.Path
+            The path to the output folder where the tile should be saved.
+        """
+
+        output_folder = Path(output_folder)
+        assert output_folder.exists(), f"The output folder {output_folder} doesn't exist yet."
+
+        tile_name = self.generate_name()
+
+        with rasterio.open(
+                output_folder / tile_name,
+                'w',
+                **self.metadata) as tile_raster:
+            tile_raster.write(self.get_pixel_data())
+
+    def generate_name(self):
+        """
+        Generate the name of the tile based on its metadata.
+
+        Returns
+        -------
+        str
+            The name of the tile.
+        """
+        return TileNameConvention.create_name(product_name=self.associated_raster.output_name,
+                                              ground_resolution=self.ground_resolution,
+                                              scale_factor=self.scale_factor,
+                                              row=self.row,
+                                              col=self.col,
+                                              aoi=self.aoi)
+
+    def get_bbox(self):
+        """
+        Get the bounding box of the tile in its original Raster coordinates.
+
+        Returns
+        -------
+        shapely.geometry.box
+            The bounding box of the tile.
+        """
+        minx = self.col
+        maxx = self.col + self.metadata['width']
+        miny = self.row
+        maxy = self.row + self.metadata['height']
+        return box(minx, miny, maxx, maxy)
+
+    def copy_with_aoi_and_id(self, new_aoi: str, new_id: int):
+        """
+        Create a copy of the tile with a new AOI.
+
+        Parameters
+        ----------
+        new_aoi: str
+            The new AOI to assign to the tile.
+        new_id: int
+            The new ID to assign to the tile.
+
+        Returns
+        -------
+        RasterTileMetadata
+            The new tile with the new AOI.
+        """
+
+        return RasterTileMetadata(associated_raster=self.associated_raster,
+                                  mask=self.mask,
+                                  metadata=self.metadata,
+                                  ground_resolution=self.ground_resolution,
+                                  scale_factor=self.scale_factor,
+                                  row=self.row,
+                                  col=self.col,
+                                  aoi=new_aoi,
+                                  tile_id=new_id)
+
+
+class RasterPolygonTileMetadata:
+    """
+    Class to represent a single polygon label tile of a raster image. Generally generated by a :class:`~geodataset.geodata.raster.Raster`.
+
+    Parameters
+    ----------
+    metadata: dict
+        The metadata of the raster image. Should be compatible with rasterio.open(...) function.
+        Examples of such metadata keys are 'crs', 'transform', 'width', 'height'...
+    output_name: str
+        The name of the output product. Usually the same as the Raster name.
+        Used as the prefix for the final .tif file name when saving the tile.
+    ground_resolution : float, optional
+        The ground resolution in meter per pixel desired when loading the raster.
+        Only one of ground_resolution and scale_factor can be set at the same time.
+        Used for naming the .tif file when saving the tile.
+    scale_factor : float, optional
+        Scale factor for rescaling the data (change pixel resolution).
+        Only one of ground_resolution and scale_factor can be set at the same time.
+        Used for naming the .tif file when saving the tile.
+    polygon_id: int
+        The unique identifier of the polygon.
+    """
+    def __init__(self,
+                 associated_raster: Raster,
+                 mask: np.ndarray or None,
+                 metadata: dict,
+                 output_name: str,
+                 ground_resolution: float,
+                 scale_factor: float,
+                 row: int,
+                 col: int,
+                 aoi: str = None,
+                 polygon_id: int = None):
+
+        self.associated_raster = associated_raster
+        self.mask = mask
+        self.metadata = metadata
+        self.output_name = output_name
+        self.row = row
+        self.col = col
+        self.aoi = aoi
+        self.polygon_id = polygon_id
+
+        assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
+                                                          " Please only specify one.")
+        self.scale_factor = scale_factor
+        self.ground_resolution = ground_resolution
+
+    def get_pixel_data(self):
+        tile_data = self.associated_raster.data[
+                    :,
+                    self.row:self.row + self.metadata['height'],
+                    self.col:self.col + self.metadata['width']]
+
+        if self.mask is not None:
+            tile_data = tile_data * self.mask
+
+        return tile_data
+
+    def update_mask(self, additional_mask: np.ndarray):
+        """
+        Update the mask of the tile.
+
+        Parameters
+        ----------
+        additional_mask: np.ndarray
+            The additional, new mask to apply to the tile. Will be combined with the existing mask with an OR operation.
+        """
+        if self.mask is not None:
+            # combining masks
+            self.mask = self.mask | additional_mask
+        else:
+            self.mask = additional_mask
+
+    @staticmethod
+    def _load_tile(path: Path):
+        ext = path.suffix
+        if ext != '.tif':
+            raise Exception(f'The tile extension should be \'.tif\'.')
+
+        with rasterio.open(path) as src:
+            data = src.read()
+            metadata = src.profile
+
+        product_name, ground_resolution, scale_factor, polygon_id, aoi = PolygonTileNameConvention.parse_name(path.name)
+
+        return data, metadata, product_name, ground_resolution, scale_factor, polygon_id, aoi
+
+    def save(self, output_folder: Path):
+        """
+        Save the tile as a .tif file in the output_folder.
+        """
+        assert output_folder.exists(), f"The output folder {output_folder} doesn't exist yet."
+
+        tile_name = self.generate_name()
+
+        with rasterio.open(
+                output_folder / tile_name,
+                'w',
+                **self.metadata) as tile_raster:
+            tile_raster.write(self.get_pixel_data())
+
+    def generate_name(self):
+        """
+        Generate the name of the tile based on its metadata.
+
+        Returns
+        -------
+        str
+            The name of the tile.
+        """
+        return PolygonTileNameConvention.create_name(
+            product_name=self.output_name,
+            ground_resolution=self.ground_resolution,
+            scale_factor=self.scale_factor,
+            polygon_id=self.polygon_id,
+            aoi=self.aoi
+        )
+
+
+class RasterTileSaver:
+    """
+    Class to save multiple tiles in parallel using ThreadPoolExecutor.
+
+    Parameters
+    ----------
+    tiles_path: str or pathlib.Path
+        The path to the folder where the tiles should be saved.
+    n_workers: int
+        The number of workers to use for saving the tiles.
+    """
+    def __init__(self, tiles_path: Path, n_workers: int):
+        self.tiles_path = tiles_path
+        self.n_workers = n_workers
+
+    def save_tile(self, tile: RasterTileMetadata or RasterPolygonTileMetadata):
+        """
+        Save a single tile.
+
+        Parameters
+        ----------
+        tile: RasterTile or RasterPolygonTileMetadata
+            The tile to save.
+        """
+        try:
+            tile.save(output_folder=self.tiles_path)
+        except Exception as e:
+            print(f"Error saving tile {tile.generate_name()}: {str(e)}")
+
+    def save_all_tiles(self, tiles: List[RasterTileMetadata or RasterPolygonTileMetadata]):
+        """
+        Save all the tiles in parallel using ThreadPoolExecutor.
+
+        Parameters
+        ----------
+        tiles: List[RasterTileMetadata or RasterPolygonTileMetadata]
+            The list of tiles to save.
+        """
+        # Use ThreadPoolExecutor to manage threads
+        with ThreadPoolExecutor(max_workers=self.n_workers) as executor:
+            # Submit tasks to the executor
+            futures = [executor.submit(self.save_tile, tile) for tile in tiles]
+
+            # Optionally, you can wait for all futures to complete and handle exceptions
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()  # If there was any exception it will be re-raised here
+                except Exception as e:
+                    print(f"An error occurred: {e}")

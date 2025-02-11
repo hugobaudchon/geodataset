@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from geodataset.aoi import AOIGeneratorForTiles, AOIFromPackageForTiles
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
-from geodataset.geodata import Raster, RasterTile
+from geodataset.geodata import Raster, RasterTileMetadata
 from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention
 from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
 
@@ -104,7 +104,7 @@ class BaseRasterTilerizer(ABC):
                         scale_factor=self.scale_factor)
         return raster
 
-    def _create_tiles(self) -> List[RasterTile]:
+    def _create_tiles(self) -> List[RasterTileMetadata]:
         width = self.raster.metadata['width']
         height = self.raster.metadata['height']
 
@@ -117,7 +117,7 @@ class BaseRasterTilerizer(ABC):
         for row in tqdm(range(0, height, self.tile_coordinate_step), desc="Processing rows"):
             for col in range(0, width, self.tile_coordinate_step):
                 window = rasterio.windows.Window(col, row, width=self.tile_size, height=self.tile_size)
-                tile = self.raster.get_tile(window=window, tile_id=tile_id_counter)
+                tile = self.raster.create_tile_metadata(window=window, tile_id=tile_id_counter)
 
                 if self._check_skip_tile(tile=tile, tile_size=self.tile_size):
                     continue
@@ -127,7 +127,7 @@ class BaseRasterTilerizer(ABC):
 
         return tiles
 
-    def _get_tiles_per_aoi(self, tiles: List[RasterTile]):
+    def _get_tiles_per_aoi(self, tiles: List[RasterTileMetadata]):
         print('Assigning the tiles to the aois...')
 
         if self.aois_config is not None:
@@ -171,21 +171,22 @@ class BaseRasterTilerizer(ABC):
 
         return final_aois_tiles, aois_gdf
 
-    def _check_skip_tile(self, tile, tile_size):
+    def _check_skip_tile(self, tile: RasterTileMetadata, tile_size):
         is_rgb = self.raster.data.shape[0] == 3
         is_rgba = self.raster.data.shape[0] == 4
         skip_ratio = self.ignore_black_white_alpha_tiles_threshold
 
         # Checking if the tile has more than a certain ratio of white, black, or alpha pixels.
+        tile_data = tile.get_pixel_data()
         if is_rgb:
-            black = np.all(tile.data == 0, axis=0)
-            white = np.all(tile.data == 255, axis=0)
+            black = np.all(tile_data == 0, axis=0)
+            white = np.all(tile_data == 255, axis=0)
             if np.sum(black | white) / (tile_size * tile_size) >= skip_ratio:
                 return True
         elif is_rgba:
-            black = np.all(tile.data[:-1] == 0, axis=0)
-            white = np.all(tile.data[:-1] == 255, axis=0)
-            alpha = tile.data[-1] == 0
+            black = np.all(tile_data[:-1] == 0, axis=0)
+            white = np.all(tile_data[:-1] == 255, axis=0)
+            alpha = tile_data[-1] == 0
             if np.sum(black | white | alpha) / (tile_size * tile_size) >= skip_ratio:
                 return True
 
@@ -264,7 +265,7 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
         self.aois_tiles = None
         self.aois_gdf = None
 
-    def _get_tiles_per_aoi(self, tiles: List[RasterTile]):
+    def _get_tiles_per_aoi(self, tiles: List[RasterTileMetadata]):
         aois_tiles, aois_gdf = super()._get_tiles_per_aoi(tiles=tiles)
 
         # Saving the AOIs to disk

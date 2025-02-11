@@ -17,7 +17,7 @@ from tqdm import tqdm
 from geodataset.aoi import AOIFromPackageConfig
 from geodataset.aoi.aoi_base import AOIBaseFromGeoFileInCRS
 from geodataset.utils import strip_all_extensions_and_path
-from geodataset.geodata.point_cloud_tile import PointCloudTileMetadata, PointCloudTileMetadataCollection
+from geodataset.geodata.point_cloud import PointCloudTileMetadata, PointCloudTileMetadataCollection
 from geodataset.utils.file_name_conventions import (
     PointCloudTileNameConvention, validate_and_convert_product_name,
 )

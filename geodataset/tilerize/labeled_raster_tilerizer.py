@@ -7,7 +7,7 @@ from shapely import box, Polygon
 from shapely.affinity import translate
 
 from geodataset.aoi import AOIConfig
-from geodataset.geodata.raster_tile import RasterTile
+from geodataset.geodata import RasterTileMetadata
 from geodataset.labels.raster_labels import RasterPolygonLabels
 
 from geodataset.utils import save_aois_tiles_picture, CocoNameConvention, AoiTilesImageConvention, COCOGenerator
@@ -296,7 +296,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         significant_polygons_inter = inter_polygons[inter_polygons['intersection_ratio'] > self.min_intersection_ratio]
         significant_polygons_inter.reset_index()
 
-        def adjust_geometry(polygon: Polygon, tile: RasterTile):
+        def adjust_geometry(polygon: Polygon, tile: RasterTileMetadata):
             return translate(polygon, xoff=-tile.col, yoff=-tile.row)
 
         intersecting_labels_tiles_coords = significant_polygons_inter.copy()
@@ -314,7 +314,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
     def _save_aoi_data(self,
                        aoi: str,
-                       tiles: List[RasterTile],
+                       tiles: List[RasterTileMetadata],
                        tiles_paths_aoi: List[Path],
                        labels: list[gpd.GeoDataFrame],
                        save_tiles_folder: Path or None):

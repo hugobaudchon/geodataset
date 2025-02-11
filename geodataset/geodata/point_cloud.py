@@ -138,7 +138,7 @@ class PointCloudTileMetadataCollection:
 
     Parameters
     ----------
-    tile_metadata_list: List[geodataset.geodata.point_cloud_tile.PointCloudTileMetadata]
+    tile_metadata_list: List[geodataset.geodata.point_cloud.PointCloudTileMetadata]
         A list of tile metadata.
     """
 
