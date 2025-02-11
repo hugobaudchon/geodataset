@@ -242,10 +242,6 @@ class Raster:
         )
         window_transform = rasterio.windows.transform(window, self.metadata['transform'])
 
-        print(1111, translated_polygon_intersection.bounds)
-        print(2222, window)
-        print(3333, binary_mask.shape)
-
         tile_metadata = {
             'driver': 'GTiff',
             'height': window.height,
@@ -555,6 +551,10 @@ class RasterPolygonTileMetadata:
 
     Parameters
     ----------
+    associated_raster: Raster
+        The Raster object associated with the tile.
+    mask: np.ndarray or None
+        A binary mask to apply to the tile. If None, no mask will be applied.
     metadata: dict
         The metadata of the raster image. Should be compatible with rasterio.open(...) function.
         Examples of such metadata keys are 'crs', 'transform', 'width', 'height'...
@@ -568,6 +568,12 @@ class RasterPolygonTileMetadata:
     scale_factor : float, optional
         Scale factor for rescaling the data (change pixel resolution).
         Only one of ground_resolution and scale_factor can be set at the same time.
+        Used for naming the .tif file when saving the tile.
+    row: int
+        The row index of the tile in the raster (the top left pixel row).
+        Used for naming the .tif file when saving the tile.
+    col: int
+        The column index of the tile in the raster (the top left pixel row).
         Used for naming the .tif file when saving the tile.
     polygon_id: int
         The unique identifier of the polygon.
