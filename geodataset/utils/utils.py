@@ -4,6 +4,7 @@ import os
 
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import redirect_stdout
 from datetime import date
 from pathlib import Path
 import random
@@ -850,7 +851,8 @@ class COCOGenerator:
 
         print(f'Verifying COCO file integrity...')
         # Verify COCO file integrity
-        _ = COCO(self.output_path)
+        with open(os.devnull, 'w') as devnull, redirect_stdout(devnull):
+            _ = COCO(self.output_path)
         print(f'Saved COCO dataset to {self.output_path}.')
 
     @staticmethod
