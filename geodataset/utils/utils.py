@@ -818,7 +818,8 @@ class COCOGenerator:
                  output_path: Path,
                  use_rle_for_labels: bool,
                  n_workers: int,
-                 coco_categories_list: List[dict] or None):
+                 coco_categories_list: List[dict] or None,
+                 tiles_paths_order: List[Path] or None = None):
         """
         Instantiate a COCOGenerator from a GeoDataFrame.
 
@@ -850,6 +851,10 @@ class COCOGenerator:
             The number of workers to use for parallel processing.
         coco_categories_list : List[dict] or None, optional
             A list of COCO category dictionaries. If provided, category ids will be matched against this list.
+        tiles_paths_order : List[Path] or None, optional
+            The order in which the tiles should be stored in the COCO file. If None, the order will be determined by
+            the order in which the tiles are encountered in the GeoDataFrame. This parameter could be useful if you plan
+            to use the same order for multiple COCO datasets (e.g using pycocotools COCOEval between truth and preds).
 
         Returns
         -------
@@ -858,37 +863,39 @@ class COCOGenerator:
         """
 
         assert gdf.crs is None, "The GeoDataFrame must not have a CRS. Pixel coordinates for the polygons are expected."
-        # Group the GeoDataFrame by the tile/image path.
-        grouped = gdf.groupby(tiles_paths_column)
 
+        # Create a dictionary mapping tile paths (as Path objects) to their corresponding groups.
+        groups = {}
+        for key, group in gdf.groupby(tiles_paths_column):
+            tile_path = key if isinstance(key, Path) else Path(key)
+            groups[tile_path] = group
+
+        # Determine the order of groups.
+        if tiles_paths_order is not None:
+            # Use the provided order: only include those tiles that exist in the grouped results.
+            ordered_groups = [(tile, groups[tile]) for tile in tiles_paths_order if tile in groups]
+        else:
+            # Otherwise, use the natural order from the grouping.
+            ordered_groups = list(groups.items())
+
+        # Extract data from each group in the desired order.
         tiles_paths = []
         polygons_list = []
         scores_list = [] if scores_column is not None else None
         categories_list = [] if categories_column is not None else None
         other_attributes_list = [] if other_attributes_columns is not None else None
 
-        for tile_value, group in grouped:
-            # Convert tile_value to a Path object if it isn't already.
-            tile_path = tile_value if isinstance(tile_value, Path) else Path(tile_value)
+        for tile_path, group in ordered_groups:
             tiles_paths.append(tile_path)
+            polygons_list.append(group[polygons_column].tolist())
 
-            # Extract polygons for this tile.
-            polys = group[polygons_column].tolist()
-            polygons_list.append(polys)
-
-            # Extract scores if a scores column was provided.
             if scores_column is not None:
-                scores = group[scores_column].tolist()
-                scores_list.append(scores)
+                scores_list.append(group[scores_column].tolist())
 
-            # Extract categories if a categories column was provided.
             if categories_column is not None:
-                cats = group[categories_column].tolist()
-                categories_list.append(cats)
+                categories_list.append(group[categories_column].tolist())
 
-            # Extract other attributes if specified.
             if other_attributes_columns is not None:
-                # Create a dictionary for each row containing the desired additional attributes.
                 attrs = group[other_attributes_columns].to_dict(orient='records')
                 other_attributes_list.append(attrs)
 
@@ -904,6 +911,7 @@ class COCOGenerator:
             n_workers=n_workers,
             coco_categories_list=coco_categories_list
         )
+
 
 
     def generate_coco(self):
