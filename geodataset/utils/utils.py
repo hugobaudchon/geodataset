@@ -806,6 +806,106 @@ class COCOGenerator:
         elif self.scores:
             self.other_attributes = [[{'score': s} for s in tile_scores] for tile_scores in self.scores]
 
+    @classmethod
+    def from_gdf(cls,
+                 description: str,
+                 gdf: gpd.GeoDataFrame,
+                 tiles_paths_column: str,
+                 polygons_column: str,
+                 scores_column: str or None,
+                 categories_column: str or None,
+                 other_attributes_columns: List[str] or None,
+                 output_path: Path,
+                 use_rle_for_labels: bool,
+                 n_workers: int,
+                 coco_categories_list: List[dict] or None):
+        """
+        Instantiate a COCOGenerator from a GeoDataFrame.
+
+        Parameters
+        ----------
+        description : str
+            A description for the COCO dataset.
+        gdf : gpd.GeoDataFrame
+            A GeoDataFrame containing the annotations. Each row is expected to represent one polygon
+            associated with a tile/image.
+        tiles_paths_column : str
+            The name of the column in the GeoDataFrame that contains the tile/image path.
+        polygons_column : str
+            The name of the column in the GeoDataFrame that contains the polygon geometry.
+        scores_column : str or None, optional
+            The name of the column in the GeoDataFrame that contains the score for the polygon.
+            If None, scores will not be provided.
+        categories_column : str or None, optional
+            The name of the column in the GeoDataFrame that contains the category for the polygon.
+            If None, categories will not be provided.
+        other_attributes_columns : List[str] or None, optional
+            A list of column names in the GeoDataFrame whose values should be included as additional
+            attributes for each polygon. If None, no additional attributes will be provided.
+        output_path : Path
+            The path where the generated COCO JSON file will be saved.
+        use_rle_for_labels : bool
+            Whether to use RLE encoding for the labels or not.
+        n_workers : int
+            The number of workers to use for parallel processing.
+        coco_categories_list : List[dict] or None, optional
+            A list of COCO category dictionaries. If provided, category ids will be matched against this list.
+
+        Returns
+        -------
+        COCOGenerator
+            An instance of COCOGenerator initialized with data extracted from the GeoDataFrame.
+        """
+
+        assert gdf.crs is None, "The GeoDataFrame must not have a CRS. Pixel coordinates for the polygons are expected."
+        # Group the GeoDataFrame by the tile/image path.
+        grouped = gdf.groupby(tiles_paths_column)
+
+        tiles_paths = []
+        polygons_list = []
+        scores_list = [] if scores_column is not None else None
+        categories_list = [] if categories_column is not None else None
+        other_attributes_list = [] if other_attributes_columns is not None else None
+
+        for tile_value, group in grouped:
+            # Convert tile_value to a Path object if it isn't already.
+            tile_path = tile_value if isinstance(tile_value, Path) else Path(tile_value)
+            tiles_paths.append(tile_path)
+
+            # Extract polygons for this tile.
+            polys = group[polygons_column].tolist()
+            polygons_list.append(polys)
+
+            # Extract scores if a scores column was provided.
+            if scores_column is not None:
+                scores = group[scores_column].tolist()
+                scores_list.append(scores)
+
+            # Extract categories if a categories column was provided.
+            if categories_column is not None:
+                cats = group[categories_column].tolist()
+                categories_list.append(cats)
+
+            # Extract other attributes if specified.
+            if other_attributes_columns is not None:
+                # Create a dictionary for each row containing the desired additional attributes.
+                attrs = group[other_attributes_columns].to_dict(orient='records')
+                other_attributes_list.append(attrs)
+
+        return cls(
+            description=description,
+            tiles_paths=tiles_paths,
+            polygons=polygons_list,
+            scores=scores_list,
+            categories=categories_list,
+            other_attributes=other_attributes_list,
+            output_path=output_path,
+            use_rle_for_labels=use_rle_for_labels,
+            n_workers=n_workers,
+            coco_categories_list=coco_categories_list
+        )
+
+
     def generate_coco(self):
         """
         Generate the COCO dataset from the provided tiles, polygons, scores and other metadata.

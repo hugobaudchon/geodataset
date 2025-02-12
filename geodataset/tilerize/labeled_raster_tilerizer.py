@@ -3,6 +3,7 @@ from typing import List
 import geopandas as gpd
 from pathlib import Path
 
+import pandas as pd
 from shapely import box, Polygon
 from shapely.affinity import translate
 
@@ -326,16 +327,6 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             print(f"No tiles found for AOI {aoi}. Skipping...")
             return
 
-        polygons = [x['geometry'].to_list() for x in labels]
-        categories_list = [x[self.labels.main_label_category_column_name].to_list() for x in labels] \
-            if self.labels.main_label_category_column_name else None
-        other_attributes_dict_list = [{attribute: label[attribute].to_list() for attribute in
-                                       self.labels.other_labels_attributes_column_names if attribute in self.labels.geometries_gdf.columns} for label in labels] \
-            if self.labels.other_labels_attributes_column_names else None
-        other_attributes_dict_list = [[{k: d[k][i] for k in d} for i in range(len(next(iter(d.values()))))] for d in
-                                      other_attributes_dict_list] \
-            if self.labels.other_labels_attributes_column_names else None
-
         # Saving the tiles
         if save_tiles_folder:
             save_tiles_folder.mkdir(parents=True, exist_ok=True)
@@ -349,16 +340,26 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             fold=aoi
         )
 
-        coco_generator = COCOGenerator(
+        # Combine the list of GeoDataFrames into one GeoDataFrame,
+        # adding a 'tile_path' column from tiles_paths_aoi
+        combined_gdf_list = []
+        for tile_path, gdf_tile in zip(tiles_paths_aoi, labels):
+            temp_gdf = gdf_tile.copy()
+            temp_gdf['tile_path'] = str(tile_path)
+            combined_gdf_list.append(temp_gdf)
+        combined_gdf = gpd.GeoDataFrame(pd.concat(combined_gdf_list, ignore_index=True))
+
+        coco_generator = COCOGenerator.from_gdf(
             description=f"Dataset for the product {self.raster.output_name}"
                         f" with fold {aoi}"
                         f" and scale_factor {self.scale_factor}"
                         f" and ground_resolution {self.ground_resolution}.",
-            tiles_paths=tiles_paths_aoi,
-            polygons=polygons,
-            scores=None,
-            categories=categories_list,
-            other_attributes=other_attributes_dict_list,
+            gdf=combined_gdf,
+            tiles_paths_column='tile_path',
+            polygons_column='geometry',
+            scores_column=None,
+            categories_column=self.labels.main_label_category_column_name if self.labels.main_label_category_column_name else None,
+            other_attributes_columns=self.labels.other_labels_attributes_column_names if self.labels.other_labels_attributes_column_names else None,
             output_path=coco_output_file_path,
             use_rle_for_labels=self.use_rle_for_labels,
             n_workers=self.coco_n_workers,
@@ -367,6 +368,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
         coco_generator.generate_coco()
         return coco_output_file_path
+
 
     def generate_coco_dataset(self):
         """

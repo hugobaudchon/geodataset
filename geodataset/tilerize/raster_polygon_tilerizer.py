@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import List, cast
 
 import geopandas as gpd
+import pandas as pd
 from shapely import box
 from tqdm import tqdm
 
@@ -208,24 +209,20 @@ class RasterPolygonTilerizer:
                 continue
 
             tiles_paths = aois_tiles_paths[aoi]
-            polygons = aois_polygons[aoi]
+            polygons_gdfs = aois_polygons[aoi]
 
             if len(tiles_paths) == 0:
                 print(f"No tiles found for AOI {aoi}, skipping...")
                 continue
 
-            if len(tiles_paths) == 0:
-                print(f"No tiles found for AOI {aoi}. Skipping...")
-                continue
-
-            polygons_list = [x['geometry'].to_list() for x in polygons]
-            categories_list = [x[self.labels.main_label_category_column_name].to_list() for x in polygons]\
-                if self.labels.main_label_category_column_name else None
-            other_attributes_dict_list = [{attribute: label[attribute].to_list() for attribute in
-                                           self.labels.other_labels_attributes_column_names} for label in polygons]\
-                if self.labels.other_labels_attributes_column_names else None
-            other_attributes_dict_list = [[{k: d[k][i] for k in d} for i in range(len(next(iter(d.values()))))] for d in other_attributes_dict_list]\
-                if self.labels.other_labels_attributes_column_names else None
+            # Combine the list of GeoDataFrames into one GeoDataFrame,
+            # adding a 'tile_path' column from tiles_paths.
+            combined_gdf_list = []
+            for tile_path, gdf_tile in zip(tiles_paths, polygons_gdfs):
+                temp_gdf = gdf_tile.copy()
+                temp_gdf['tile_path'] = str(tile_path)
+                combined_gdf_list.append(temp_gdf)
+            combined_gdf = gpd.GeoDataFrame(pd.concat(combined_gdf_list, ignore_index=True))
 
             coco_output_file_path = self.output_path / CocoNameConvention.create_name(
                 product_name=self.raster.output_name,
@@ -236,16 +233,17 @@ class RasterPolygonTilerizer:
 
             print(f"Generating COCO dataset for AOI {aoi}... "
                   f"(it might take a little while to save tiles and encode masks)")
-            coco_generator = COCOGenerator(
+            coco_generator = COCOGenerator.from_gdf(
                 description=f"Dataset for the product {self.raster.output_name}"
                             f" with fold {aoi}"
                             f" and scale_factor {self.scale_factor}"
                             f" and ground_resolution {self.ground_resolution}.",
-                tiles_paths=tiles_paths,
-                polygons=polygons_list,
-                scores=None,
-                categories=categories_list,
-                other_attributes=other_attributes_dict_list,
+                gdf=combined_gdf,
+                tiles_paths_column='tile_path',
+                polygons_column='geometry',
+                scores_column=None,
+                categories_column=self.labels.main_label_category_column_name if self.labels.main_label_category_column_name else None,
+                other_attributes_columns=self.labels.other_labels_attributes_column_names if self.labels.other_labels_attributes_column_names else None,
                 output_path=coco_output_file_path,
                 use_rle_for_labels=self.use_rle_for_labels,
                 n_workers=self.coco_n_workers,
@@ -256,3 +254,4 @@ class RasterPolygonTilerizer:
             coco_paths[aoi] = coco_output_file_path
 
         return coco_paths
+

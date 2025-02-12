@@ -784,33 +784,33 @@ class Aggregator:
         elif self.output_path.suffix == '.gpkg':
             self.polygons_gdf.to_file(str(self.output_path), driver="GPKG")
         elif self.output_path.suffix == '.json':
-            tiles_ids = self.polygons_gdf['tile_id'].unique()
+            def transform_row(row):
+                tile_path = self.tile_ids_to_path[row['tile_id']]
+                row['tile_path'] = str(tile_path)
+                # Apply the inverse transform on the geometry for this row.
+                # Note: apply_inverse_transform expects a list of polygons.
+                row['geometry'] = apply_inverse_transform([row['geometry']], raster_path=tile_path)[0]
+                return row
 
-            attributes_names = self.scores_names + self.other_attributes_names
-            other_attributes = []
-            for tile_id in tiles_ids:
-                tile_attributes = []
-                for label_index in self.polygons_gdf[self.polygons_gdf['tile_id'] == tile_id].index:
-                    label_data = self.polygons_gdf.loc[label_index]
-                    label_attributes = {'aggregator_score': label_data['aggregator_score']}
-                    label_attributes.update({attribute_name: label_data[attribute_name].tolist() for attribute_name in attributes_names})
-                    tile_attributes.append(label_attributes)
+            coco_gdf = self.polygons_gdf.copy().apply(transform_row, axis=1)
 
-                other_attributes.append(tile_attributes)
+            # Determine the columns to be used as additional attributes.
+            # Here we combine the names of the score and other attribute columns.
+            other_attributes_columns = (self.scores_names + self.other_attributes_names) \
+                if (self.scores_names or self.other_attributes_names) else None
 
-            coco_generator = COCOGenerator(
-                description=f"Aggregated polygons from multiple tiles.",
-                tiles_paths=[self.tile_ids_to_path[tile_id] for tile_id in tiles_ids],
-                polygons=[apply_inverse_transform(
-                    polygons=self.polygons_gdf[self.polygons_gdf['tile_id'] == tile_id]['geometry'].tolist(),
-                    raster_path=self.tile_ids_to_path[tile_id]) for tile_id in tiles_ids],
-                scores=None,  # Using other_attributes instead
-                categories=None,  # TODO add support for categories
-                other_attributes=other_attributes,
+            coco_generator = COCOGenerator.from_gdf(
+                description="Aggregated polygons from multiple tiles.",
+                gdf=coco_gdf,
+                tiles_paths_column='tile_path',
+                polygons_column='geometry',
+                scores_column=None,
+                categories_column=None,  # TODO: add support for categories if needed
+                other_attributes_columns=other_attributes_columns,
                 output_path=self.output_path,
-                use_rle_for_labels=True,  # TODO make this a parameter to the class
-                n_workers=5,  # TODO make this a parameter to the class
-                coco_categories_list=None  # TODO make this a parameter to the class
+                use_rle_for_labels=True,  # TODO: make this a parameter to the class
+                n_workers=5,              # TODO: make this a parameter to the class
+                coco_categories_list=None  # TODO: make this a parameter to the class
             )
             coco_generator.generate_coco()
         else:
