@@ -58,14 +58,18 @@ class Aggregator:
         self.best_geom_keep_area_ratio = best_geom_keep_area_ratio
         self.pre_aggregated_output_path = pre_aggregated_output_path
 
-        if self.pre_aggregated_output_path:
-            self.polygons_gdf.to_file(self.pre_aggregated_output_path, driver='GPKG')
+        self.polygons_gdf['tile_path'] = self.polygons_gdf['tile_id'].map(self.tile_ids_to_path)
 
         # If only 1 set of scores is provided, we set the score_weight to 1.0
         if len(self.scores_weights) == 1: self.scores_weights = [1.0]
 
         self._check_parameters()
         self._validate_polygons()
+
+        if self.pre_aggregated_output_path:
+            self.polygons_gdf['area'] = self.polygons_gdf.geometry.area
+            self.polygons_gdf.to_file(self.pre_aggregated_output_path, driver='GPKG')
+
         self._prepare_scores()
         self._remove_low_score_polygons()
         self._apply_nms_algorithm()
@@ -770,6 +774,8 @@ class Aggregator:
             self.polygons_gdf.drop(columns=['tile_centroid'], inplace=True)
 
         self.polygons_gdf.set_geometry('geometry', inplace=True)
+        # Update the area of the polygons as it might have changed
+        self.polygons_gdf['area'] = self.polygons_gdf.geometry.area
 
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
 
