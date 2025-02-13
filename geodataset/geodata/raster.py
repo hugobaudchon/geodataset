@@ -7,7 +7,7 @@ from typing import Tuple, List
 import cv2
 import numpy as np
 import rasterio
-import rasterio.windows
+from rasterio.windows import Window
 import geopandas as gpd
 from shapely import box
 from shapely.affinity import translate
@@ -77,14 +77,14 @@ class Raster:
 
         return data, metadata, x_scale_factor, y_scale_factor
 
-    def create_tile_metadata(self, window: rasterio.windows.Window, tile_id: int) -> "RasterTileMetadata" or None:
+    def create_tile_metadata(self, window: Window, tile_id: int) -> "RasterTileMetadata" or None:
 
         """
         Generates and returns a Tile from a window of the Raster.
 
         Parameters
         ----------
-        window: rasterio.windows.Window
+        window: Window
             The window to generate the Tile from.
 
         tile_id: int
@@ -234,7 +234,7 @@ class Raster:
                              mode='constant', constant_values=0)
 
         # Creating the PolygonTile, with the appropriate metadata
-        window = rasterio.windows.Window(
+        window = Window(
             col_off=start_col,
             row_off=start_row,
             width=end_col - start_col,
@@ -403,7 +403,7 @@ class RasterTileMetadata:
                  tile_id: int = None):
 
         self.associated_raster = associated_raster
-        self.mask = mask
+        self.mask = None
         self.metadata = metadata
         self.row = row
         self.col = col
@@ -415,11 +415,13 @@ class RasterTileMetadata:
         self.scale_factor = scale_factor
         self.ground_resolution = ground_resolution
 
+        if mask is not None:
+            self.update_mask(mask)
+
     def get_pixel_data(self):
-        tile_data = self.associated_raster.data[
-                    :,
-                    self.row:self.row + self.metadata['height'],
-                    self.col:self.col + self.metadata['width']]
+        window = Window(self.col, self.row, self.metadata['width'], self.metadata['height'])
+
+        tile_data = self.associated_raster.data.read(window=window)
 
         pad_row = self.metadata['height'] - tile_data.shape[1]
         pad_col = self.metadata['width'] - tile_data.shape[2]
@@ -445,6 +447,9 @@ class RasterTileMetadata:
         additional_mask: np.ndarray
             The additional, new mask to apply to the tile. Will be combined with the existing mask with an OR operation.
         """
+
+        additional_mask = additional_mask.astype(np.bool_)
+
         if self.mask is not None:
             # combining masks
             self.mask = self.mask | additional_mask
@@ -483,7 +488,11 @@ class RasterTileMetadata:
         with rasterio.open(
                 output_folder / tile_name,
                 'w',
-                **self.metadata) as tile_raster:
+                **self.metadata,
+                # compress='zstd',  # Lossless compression
+                # predictor=2,  # For integer data; use predictor=3 for floating point if needed
+                # tiled=True  # Enables tiling, which can improve compression efficiency
+        ) as tile_raster:
             tile_raster.write(self.get_pixel_data())
 
     def generate_name(self):
@@ -605,10 +614,9 @@ class RasterPolygonTileMetadata:
         self.ground_resolution = ground_resolution
 
     def get_pixel_data(self):
-        tile_data = self.associated_raster.data[
-                    :,
-                    self.row:self.row + self.metadata['height'],
-                    self.col:self.col + self.metadata['width']]
+        window = Window(self.col, self.row, self.metadata['width'], self.metadata['height'])
+        
+        tile_data = self.associated_raster.data.read(window=window)
 
         if self.mask is not None:
             tile_data = tile_data * self.mask
@@ -655,7 +663,11 @@ class RasterPolygonTileMetadata:
         with rasterio.open(
                 output_folder / tile_name,
                 'w',
-                **self.metadata) as tile_raster:
+                **self.metadata,
+                # compress='zstd',  # Lossless compression
+                # predictor=2,  # For integer data; use predictor=3 for floating point if needed
+                # tiled=True  # Enables tiling, which can improve compression efficiency
+        ) as tile_raster:
             tile_raster.write(self.get_pixel_data())
 
     def generate_name(self):
@@ -687,11 +699,10 @@ class RasterTileSaver:
     n_workers: int
         The number of workers to use for saving the tiles.
     """
-    def __init__(self, tiles_path: Path, n_workers: int):
-        self.tiles_path = tiles_path
+    def __init__(self, n_workers: int):
         self.n_workers = n_workers
 
-    def save_tile(self, tile: RasterTileMetadata or RasterPolygonTileMetadata):
+    def save_tile(self, tile: RasterTileMetadata or RasterPolygonTileMetadata, output_folder: Path):
         """
         Save a single tile.
 
@@ -701,11 +712,11 @@ class RasterTileSaver:
             The tile to save.
         """
         try:
-            tile.save(output_folder=self.tiles_path)
+            tile.save(output_folder=output_folder)
         except Exception as e:
             print(f"Error saving tile {tile.generate_name()}: {str(e)}")
 
-    def save_all_tiles(self, tiles: List[RasterTileMetadata or RasterPolygonTileMetadata]):
+    def save_all_tiles(self, tiles: List[RasterTileMetadata or RasterPolygonTileMetadata], output_folder: Path):
         """
         Save all the tiles in parallel using ThreadPoolExecutor.
 
@@ -717,11 +728,10 @@ class RasterTileSaver:
         # Use ThreadPoolExecutor to manage threads
         with ThreadPoolExecutor(max_workers=self.n_workers) as executor:
             # Submit tasks to the executor
-            futures = [executor.submit(self.save_tile, tile) for tile in tiles]
+            futures = [executor.submit(self.save_tile, tile, output_folder) for tile in tiles]
 
-            # Optionally, you can wait for all futures to complete and handle exceptions
             for future in concurrent.futures.as_completed(futures):
                 try:
-                    future.result()  # If there was any exception it will be re-raised here
+                    future.result()
                 except Exception as e:
                     print(f"An error occurred: {e}")

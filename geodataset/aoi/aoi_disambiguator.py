@@ -29,10 +29,25 @@ class AOIDisambiguator:
 
             # For each tile relevant to this AOI
             for tile in tiles:
-                intersection_tile_row = aoi_intersections.loc[aoi_intersections['tile_id'] == tile.tile_id]  # Geometry of the intersection
-                intersection_geometry = translate(list(intersection_tile_row.geometry)[0], -tile.col, -tile.row)
+                # Retrieve the original tile geometry.
+                original_tile_row = self.tiles_gdf[self.tiles_gdf['tile_id'] == tile.tile_id]
+                original_tile_geom = original_tile_row.geometry.iloc[0]
 
-                mask = polygon_to_mask(intersection_geometry, tile.metadata['height'], tile.metadata['width'])
+                # Retrieve the intersection geometry.
+                intersection_tile_row = aoi_intersections.loc[aoi_intersections['tile_id'] == tile.tile_id]
+                intersection_geom = list(intersection_tile_row.geometry)[0]
+
+                # Check if the tile is completely within the AOI.
+                # Using 'almost_equals' to allow for minor floating point differences.
+                if original_tile_geom.equals(intersection_geom):
+                    # The tile is completely inside the AOI, so skip updating the mask.
+                    continue
+
+                # Otherwise, translate the intersection geometry into the tile coordinate system.
+                translated_geom = translate(intersection_geom, -tile.col, -tile.row)
+
+                # Create a mask from the translated geometry and update the tile.
+                mask = polygon_to_mask(translated_geom, tile.metadata['height'], tile.metadata['width'])
                 tile.update_mask(mask)
 
     def redistribute_generated_aois_intersections(self, aois_config: AOIGeneratorConfig):

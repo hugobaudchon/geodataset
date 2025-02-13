@@ -23,7 +23,9 @@ import geopandas as gpd
 from pycocotools.coco import COCO
 
 from rasterio.enums import Resampling
+from rasterio.vrt import WarpedVRT
 from shapely import Polygon, box, MultiPolygon, make_valid
+from shapely.affinity import affine_transform
 from shapely.ops import transform
 
 from geodataset.utils.file_name_conventions import CocoNameConvention
@@ -494,76 +496,83 @@ def try_cast_multipolygon_to_polygon(geometry):
 
 def read_raster(path: Path, ground_resolution: float = None, scale_factor: float = None):
     """
-    Read a raster file and rescale it if necessary.
+    Open a raster file and return a view (WarpedVRT) that applies the given scaling.
 
     Parameters
     ----------
     path: Path
         The path to the raster file.
-    ground_resolution: float
+    ground_resolution: float, optional
         The desired ground resolution in meters.
-    scale_factor: float
-        The desired scale factor to apply to the raster.
+    scale_factor: float, optional
+        The scale factor to apply to the raster.
 
     Returns
     -------
-    np.ndarray
-        The (possibly resampled) raster pixels data.
+    vrt: WarpedVRT
+        A virtual dataset that you can use to read windows on the fly.
+    profile: dict
+        An updated profile of the raster reflecting the scaling.
+    x_scale_factor, y_scale_factor: float
+        The scale factors applied in the x and y directions.
     """
-    assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
-                                                      " Please only specify one.")
 
-    ext = path.suffix
-    if ext in ['.tif', '.png', '.jpg']:
-        with rasterio.open(path) as src:
-            # Check if the CRS uses meters as units
-            crs = src.crs
-            if ground_resolution:
-                if crs:
-                    if crs.is_projected:
-                        current_x_resolution = src.transform[0]
-                        current_y_resolution = -src.transform[4]
-                        # Calculate scale factors to achieve the specified ground_resolution
-                        x_scale_factor = current_x_resolution / ground_resolution
-                        y_scale_factor = current_y_resolution / ground_resolution
-                        print(f'Rescaling the raster with x_scale_factor={x_scale_factor}'
-                              f' and y_scale_factor={y_scale_factor}'
-                              f' to match ground_resolution={ground_resolution}...')
-                    else:
-                        raise Exception("The CRS of the raster is not projected (in meter units),"
-                                        " so the ground_resolution cannot be applied.")
-                else:
-                    raise Exception("The raster doesn't have a CRS, so the ground_resolution cannot be applied.")
-            elif scale_factor:
-                x_scale_factor = scale_factor
-                y_scale_factor = scale_factor
-            else:
-                x_scale_factor = 1
-                y_scale_factor = 1
+    print("Reading raster...")
 
-            data = src.read(
-                out_shape=(src.count,
-                           int(src.height * y_scale_factor),
-                           int(src.width * x_scale_factor)),
-                resampling=Resampling.bilinear)
+    os.environ["GDAL_CACHEMAX"] = "10240" # Set a temporary 10 GB max cache size to avoid memory issues with very large rasters
 
-            if src.transform:
-                # scale image transform
-                new_transform = src.transform * src.transform.scale(
-                    (src.width / data.shape[-1]),
-                    (src.height / data.shape[-2]))
-            else:
-                new_transform = None
+    assert not (ground_resolution and scale_factor), (
+        "Both a ground_resolution and a scale_factor were provided. Please only specify one."
+    )
 
-            new_profile = src.profile
-            new_profile.update(transform=new_transform,
-                               driver='GTiff',
-                               height=data.shape[-2],
-                               width=data.shape[-1])
-    else:
+    ext = path.suffix.lower()
+    if ext not in ['.tif', '.png', '.jpg']:
         raise Exception(f'Data format {ext} not supported yet.')
 
-    return data, new_profile, x_scale_factor, y_scale_factor
+    src = rasterio.open(path)
+    crs = src.crs
+
+    # Determine the scale factors
+    if ground_resolution:
+        if crs and crs.is_projected:
+            current_x_resolution = src.transform[0]
+            current_y_resolution = -src.transform[4]
+            x_scale_factor = current_x_resolution / ground_resolution
+            y_scale_factor = current_y_resolution / ground_resolution
+            print(f'Rescaling the raster with x_scale_factor={x_scale_factor} '
+                  f'and y_scale_factor={y_scale_factor} to match ground_resolution={ground_resolution}...')
+        else:
+            src.close()
+            raise Exception(
+                "The raster's CRS is either missing or not projected, so ground_resolution cannot be applied.")
+    elif scale_factor:
+        x_scale_factor = scale_factor
+        y_scale_factor = scale_factor
+    else:
+        x_scale_factor = 1
+        y_scale_factor = 1
+
+    # Calculate new dimensions and transform if scaling is needed
+    new_width = int(src.width * x_scale_factor)
+    new_height = int(src.height * y_scale_factor)
+    new_transform = src.transform * src.transform.scale(
+        (src.width / new_width),
+        (src.height / new_height)
+    )
+
+    vrt = WarpedVRT(
+        src,
+        width=new_width,
+        height=new_height,
+        transform=new_transform,
+        resampling=Resampling.bilinear
+    )
+
+    dataset = vrt
+    profile = vrt.profile
+
+    # Note: The returned vrt (and src) should eventually be closed when no longer needed.
+    return dataset, profile, x_scale_factor, y_scale_factor
 
 
 def read_point_cloud(path: Path):
@@ -931,6 +940,9 @@ class COCOGenerator:
         COCOGenerator
             An instance of COCOGenerator initialized with data extracted from the GeoDataFrame.
         """
+
+        if gdf.crs is not None:
+            gdf = convert_polygons_to_pixel_coordinates(gdf, tiles_paths_column)
 
         assert gdf.crs is None, "The GeoDataFrame must not have a CRS. Pixel coordinates for the polygons are expected."
 
