@@ -684,6 +684,76 @@ def strip_all_extensions_and_path(path: str or Path):
     return p.name
 
 
+def convert_polygons_to_pixel_coordinates(gdf: gpd.GeoDataFrame, tiles_paths_column: str) -> gpd.GeoDataFrame:
+    """
+    Convert polygon geometries in a GeoDataFrame from CRS coordinates to pixel coordinates
+    using the affine transform of the associated raster tiles.
+
+    Parameters
+    ----------
+    gdf : geopandas.GeoDataFrame
+        GeoDataFrame containing polygon geometries. It must include a column with paths to
+        raster tiles.
+    tiles_paths_column : str
+        The name of the column in `gdf` that contains the file path for each tile.
+
+    Returns
+    -------
+    geopandas.GeoDataFrame
+        A new GeoDataFrame in which the polygon geometries have been transformed to the
+        pixel coordinate system of their respective tile. The CRS is set to None since pixel
+        coordinates are not georeferenced.
+    """
+
+    print('Converting polygons from CRS to pixel coordinates...')
+
+    processed_groups = []
+
+    # Process each unique tile path
+    for tile_path in gdf[tiles_paths_column].unique():
+        try:
+            with rasterio.open(tile_path) as src:
+                # Check for necessary spatial information
+                if not src.crs or not src.transform:
+                    warnings.warn(f"Tile {tile_path} is missing a CRS or transform. Skipping this tile.")
+                    continue
+
+                tile_crs = src.crs
+                # Compute the inverse transform to go from CRS -> pixel coordinates
+                inv_transform = ~src.transform
+                affine_params = [inv_transform.a, inv_transform.b, inv_transform.d, inv_transform.e,
+                                 inv_transform.c, inv_transform.f]
+
+                # Subset the GeoDataFrame rows corresponding to the current tile
+                tile_gdf = gdf[gdf[tiles_paths_column] == tile_path].copy()
+
+                # If the GeoDataFrame has a CRS and it does not match the tile's CRS,
+                # reproject the geometries to the tile's CRS.
+                if tile_gdf.crs and tile_gdf.crs != tile_crs:
+                    tile_gdf = tile_gdf.to_crs(tile_crs)
+
+                # Apply the inverse affine transform to each geometry
+                tile_gdf['geometry'] = tile_gdf['geometry'].apply(
+                    lambda geom: affine_transform(geom, affine_params)
+                )
+
+                # Pixel coordinates are not georeferenced, so we remove the CRS.
+                tile_gdf.set_crs(None, inplace=True, allow_override=True)
+
+                processed_groups.append(tile_gdf)
+        except Exception as e:
+            warnings.warn(f"Error processing tile {tile_path}: {e}")
+
+    # Concatenate the processed groups into a single GeoDataFrame
+    if processed_groups:
+        result_gdf = gpd.GeoDataFrame(pd.concat(processed_groups, ignore_index=True))
+        result_gdf.crs = None
+    else:
+        result_gdf = gpd.GeoDataFrame(columns=gdf.columns)
+
+    return result_gdf
+
+
 class COCOGenerator:
     """
     A class to generate a COCO dataset from a list of tiles and their associated polygons.
