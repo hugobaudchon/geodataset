@@ -592,15 +592,6 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
         new_height = src.height
         new_transform = src.transform
 
-    vrt = WarpedVRT(
-        src,
-        crs=target_crs,
-        width=new_width,
-        height=new_height,
-        transform=new_transform,
-        resampling=Resampling.bilinear
-    )
-
     profile = src.profile.copy()
     profile.update({
         "driver": "GTiff",
@@ -622,15 +613,28 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
     # otherwise, write to a temporary file.
     if expected_bytes < max_in_mem_bytes:
         print("Loading raster in memory (while resampling to scale_factor/ground_resolution)...")
-        data = vrt.read()  # Read the full dataset
+        data = src.read(
+            out_shape=(src.count,
+                       int(src.height * y_scale_factor),
+                       int(src.width * x_scale_factor)),
+            resampling=Resampling.bilinear
+        )
         memfile = MemoryFile()
         with memfile.open(**profile) as mem_ds:
             mem_ds.write(data)
-        # Reopen the MemoryFile to return a dataset that remains open.
         dataset = memfile.open()
         temp_path = None
     else:
         print("Raster too large for in-memory load, writing to temporary file...")
+        vrt = WarpedVRT(
+            src,
+            crs=target_crs,
+            width=new_width,
+            height=new_height,
+            transform=new_transform,
+            resampling=Resampling.bilinear
+        )
+
         Path(temp_dir).mkdir(exist_ok=True, parents=True)
         temp = tempfile.NamedTemporaryFile(suffix=".tif", prefix="resampled_raster_", delete=False, dir=temp_dir)
         temp_path = temp.name
