@@ -613,12 +613,23 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
     # otherwise, write to a temporary file.
     if expected_bytes < max_in_mem_bytes:
         print("Loading raster in memory (while resampling to scale_factor/ground_resolution)...")
-        data = src.read(
-            out_shape=(src.count,
-                       int(src.height * y_scale_factor),
-                       int(src.width * x_scale_factor)),
-            resampling=Resampling.bilinear
-        )
+        if crs != target_crs:
+            data = WarpedVRT(
+                src,
+                crs=target_crs,
+                width=new_width,
+                height=new_height,
+                transform=new_transform,
+                resampling=Resampling.bilinear
+            ).read()
+        else:
+            # Faster, but only works if CRS is kept the same
+            data = src.read(
+                out_shape=(src.count,
+                           int(src.height * y_scale_factor),
+                           int(src.width * x_scale_factor)),
+                resampling=Resampling.bilinear
+            )
         memfile = MemoryFile()
         with memfile.open(**profile) as mem_ds:
             mem_ds.write(data)
@@ -640,9 +651,13 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
         temp_path = temp.name
         temp.close()
 
-        # Define the target chunk size in bytes (5GB)
+        # Adjust the profile: disable tiling and enable BIGTIFF for large files.
+        profile.pop("blockxsize", None)
+        profile.pop("blockysize", None)
+        profile.update({"tiled": False, "BIGTIFF": "YES"})
+
+        # Define the target chunk size in bytes (e.g. 1GB)
         chunk_bytes = 1 * 1024 ** 3
-        # Calculate how many rows (of full width) fit in ~5GB:
         bytes_per_row = new_width * nbands * itemsize
         rows_per_chunk = max(1, int(chunk_bytes // bytes_per_row))
         print(f"Processing {rows_per_chunk} rows per chunk "
@@ -654,6 +669,11 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
                 window = Window(col_off=0, row_off=row, width=new_width, height=h)
                 data_block = vrt.read(window=window)
                 dst.write(data_block, window=window)
+                # Try to flush the cache; if not available, ignore.
+                try:
+                    dst.flush_cache()
+                except AttributeError:
+                    pass
         dataset = rasterio.open(temp_path)
         warnings.warn(f"Raster too large for in-memory load. Temporary file created at {temp_path}. You might want to delete it after use.")
 
