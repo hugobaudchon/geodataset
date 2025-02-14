@@ -21,9 +21,11 @@ from matplotlib.colors import ListedColormap
 from pycocotools import mask as mask_utils
 import geopandas as gpd
 from pycocotools.coco import COCO
+from rasterio import CRS
 
 from rasterio.enums import Resampling
 from rasterio.vrt import WarpedVRT
+from rasterio.warp import calculate_default_transform
 from shapely import Polygon, box, MultiPolygon, make_valid
 from shapely.affinity import affine_transform
 from shapely.ops import transform
@@ -494,6 +496,17 @@ def try_cast_multipolygon_to_polygon(geometry):
         return None
 
 
+def get_utm_crs(lon, lat):
+    """
+    Determine the UTM CRS for a given longitude and latitude.
+    """
+    zone = int((lon + 180) / 6) + 1
+    if lat >= 0:
+        return CRS.from_epsg(code=32600 + zone)  # Northern Hemisphere
+    else:
+        return CRS.from_epsg(code=32700 + zone)  # Southern Hemisphere
+
+
 def read_raster(path: Path, ground_resolution: float = None, scale_factor: float = None):
     """
     Open a raster file and return a view (WarpedVRT) that applies the given scaling.
@@ -534,34 +547,51 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
 
     # Determine the scale factors
     if ground_resolution:
-        if crs and crs.is_projected:
-            current_x_resolution = src.transform[0]
-            current_y_resolution = -src.transform[4]
-            x_scale_factor = current_x_resolution / ground_resolution
-            y_scale_factor = current_y_resolution / ground_resolution
-            print(f'Rescaling the raster with x_scale_factor={x_scale_factor} '
-                  f'and y_scale_factor={y_scale_factor} to match ground_resolution={ground_resolution}...')
+        if crs is not None and not crs.is_projected:
+            # Calculate the centroid of the raster
+            bounds = src.bounds
+            centroid_lon = (bounds.left + bounds.right) / 2.0
+            centroid_lat = (bounds.top + bounds.bottom) / 2.0
+
+            # Determine a suitable UTM CRS based on the centroid
+            target_crs = get_utm_crs(centroid_lon, centroid_lat)
+            print(f"Raster is not projected. Reprojecting to {target_crs.to_string()} based on Raster centroid ({centroid_lon}, {centroid_lat}).")
+        elif crs is not None:
+            target_crs = crs
         else:
-            src.close()
-            raise Exception(
-                "The raster's CRS is either missing or not projected, so ground_resolution cannot be applied.")
+            raise ValueError("The Raster doesn't have a CRS, please use scale_factor instead of ground_resolution.")
+
+        new_transform, new_width, new_height = calculate_default_transform(
+            crs, target_crs, src.width, src.height, *src.bounds, resolution=ground_resolution
+        )
+
+        # Determine current resolution (assumed equal in x and y for simplicity)
+        x_scale_factor = new_width / src.width
+        y_scale_factor = new_height / src.height
+
+        print(f'Rescaling the raster with x_scale_factor={x_scale_factor} '
+              f'and y_scale_factor={y_scale_factor} to match ground_resolution={ground_resolution}...')
     elif scale_factor:
         x_scale_factor = scale_factor
         y_scale_factor = scale_factor
+        target_crs = crs
+        new_width = int(src.width * x_scale_factor)
+        new_height = int(src.height * y_scale_factor)
+        new_transform = src.transform * src.transform.scale(
+            (src.width / new_width),
+            (src.height / new_height)
+        )
     else:
         x_scale_factor = 1
         y_scale_factor = 1
-
-    # Calculate new dimensions and transform if scaling is needed
-    new_width = int(src.width * x_scale_factor)
-    new_height = int(src.height * y_scale_factor)
-    new_transform = src.transform * src.transform.scale(
-        (src.width / new_width),
-        (src.height / new_height)
-    )
+        target_crs = crs
+        new_width = src.width
+        new_height = src.height
+        new_transform = src.transform
 
     vrt = WarpedVRT(
         src,
+        crs=target_crs,
         width=new_width,
         height=new_height,
         transform=new_transform,
@@ -569,9 +599,15 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
     )
 
     dataset = vrt
-    profile = vrt.profile
+    profile = src.profile.copy()
+    profile.update({
+        "driver": "GTiff",
+        "height": new_height,
+        "width": new_width,
+        "transform": new_transform,
+        "crs": target_crs
+    })
 
-    # Note: The returned vrt (and src) should eventually be closed when no longer needed.
     return dataset, profile, x_scale_factor, y_scale_factor
 
 
