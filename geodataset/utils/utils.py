@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import tempfile
 
 import warnings
 from concurrent.futures import ThreadPoolExecutor
@@ -21,14 +22,16 @@ from matplotlib.colors import ListedColormap
 from pycocotools import mask as mask_utils
 import geopandas as gpd
 from pycocotools.coco import COCO
-from rasterio import CRS
+from rasterio import CRS, MemoryFile
 
 from rasterio.enums import Resampling
 from rasterio.vrt import WarpedVRT
 from rasterio.warp import calculate_default_transform
+from rasterio.windows import Window
 from shapely import Polygon, box, MultiPolygon, make_valid
 from shapely.affinity import affine_transform
 from shapely.ops import transform
+from tqdm import tqdm
 
 from geodataset.utils.file_name_conventions import CocoNameConvention
 
@@ -507,7 +510,7 @@ def get_utm_crs(lon, lat):
         return CRS.from_epsg(code=32700 + zone)  # Southern Hemisphere
 
 
-def read_raster(path: Path, ground_resolution: float = None, scale_factor: float = None):
+def read_raster(path: Path, ground_resolution: float = None, scale_factor: float = None, temp_dir: Path = './tmp'):
     """
     Open a raster file and return a view (WarpedVRT) that applies the given scaling.
 
@@ -598,7 +601,6 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
         resampling=Resampling.bilinear
     )
 
-    dataset = vrt
     profile = src.profile.copy()
     profile.update({
         "driver": "GTiff",
@@ -608,7 +610,50 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
         "crs": target_crs
     })
 
-    return dataset, profile, x_scale_factor, y_scale_factor
+    # Estimate memory footprint
+    itemsize = np.dtype(profile['dtype']).itemsize
+    nbands = profile.get('count', 1)
+    expected_bytes = new_width * new_height * nbands * itemsize
+    max_in_mem_bytes = 10 * 1024 ** 3  # 10GB
+
+    print(f"Expected raster size in memory: {expected_bytes / (1024 ** 3):.2f} GB.")
+
+    # If the expected size is less than 10GB, load into memory using a MemoryFile;
+    # otherwise, write to a temporary file.
+    if expected_bytes < max_in_mem_bytes:
+        print("Loading raster in memory (while resampling to scale_factor/ground_resolution)...")
+        data = vrt.read()  # Read the full dataset
+        memfile = MemoryFile()
+        with memfile.open(**profile) as mem_ds:
+            mem_ds.write(data)
+        # Reopen the MemoryFile to return a dataset that remains open.
+        dataset = memfile.open()
+        temp_path = None
+    else:
+        print("Raster too large for in-memory load, writing to temporary file...")
+        Path(temp_dir).mkdir(exist_ok=True, parents=True)
+        temp = tempfile.NamedTemporaryFile(suffix=".tif", prefix="resampled_raster_", delete=False, dir=temp_dir)
+        temp_path = temp.name
+        temp.close()
+
+        # Define the target chunk size in bytes (5GB)
+        chunk_bytes = 1 * 1024 ** 3
+        # Calculate how many rows (of full width) fit in ~5GB:
+        bytes_per_row = new_width * nbands * itemsize
+        rows_per_chunk = max(1, int(chunk_bytes // bytes_per_row))
+        print(f"Processing {rows_per_chunk} rows per chunk "
+              f"(each chunk ≈{rows_per_chunk * bytes_per_row / (1024 ** 3):.2f} GB).")
+
+        with rasterio.open(temp_path, "w", **profile) as dst:
+            for row in tqdm(range(0, new_height, rows_per_chunk), desc="Writing chunks to temp file"):
+                h = min(rows_per_chunk, new_height - row)
+                window = Window(col_off=0, row_off=row, width=new_width, height=h)
+                data_block = vrt.read(window=window)
+                dst.write(data_block, window=window)
+        dataset = rasterio.open(temp_path)
+        warnings.warn(f"Raster too large for in-memory load. Temporary file created at {temp_path}. You might want to delete it after use.")
+
+    return dataset, profile, x_scale_factor, y_scale_factor, temp_path
 
 
 def read_point_cloud(path: Path):

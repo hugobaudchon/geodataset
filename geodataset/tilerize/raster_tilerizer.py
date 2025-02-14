@@ -11,7 +11,6 @@ from tqdm import tqdm
 from geodataset.aoi import AOIGeneratorForTiles, AOIFromPackageForTiles
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
 from geodataset.geodata import Raster, RasterTileMetadata
-from geodataset.geodata.raster import RasterTileSaver
 from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention
 from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
 
@@ -56,6 +55,8 @@ class BaseRasterTilerizer(ABC):
         Suffix to add to the output file names.
     ignore_black_white_alpha_tiles_threshold : float, optional
         Threshold ratio of black or white pixels in a tile to skip it.
+    temp_dir : str or pathlib.Path
+        Temporary directory to store the resampled Raster, if it is too big to fit in memory.
     """
 
     def __init__(self,
@@ -67,7 +68,8 @@ class BaseRasterTilerizer(ABC):
                  ground_resolution: float = None,
                  scale_factor: float = None,
                  output_name_suffix: str = None,
-                 ignore_black_white_alpha_tiles_threshold: float = 0.8):
+                 ignore_black_white_alpha_tiles_threshold: float = 0.8,
+                 temp_dir: str or Path = './tmp'):
 
         self.raster_path = Path(raster_path)
         self.tile_size = tile_size
@@ -77,6 +79,8 @@ class BaseRasterTilerizer(ABC):
         self.aois_config = aois_config
         self.output_name_suffix = output_name_suffix
         self.ignore_black_white_alpha_tiles_threshold = ignore_black_white_alpha_tiles_threshold
+        self.temp_dir = Path(temp_dir)
+
         self.scale_factor = scale_factor
         self.ground_resolution = ground_resolution
 
@@ -102,7 +106,8 @@ class BaseRasterTilerizer(ABC):
         raster = Raster(path=self.raster_path,
                         output_name_suffix=self.output_name_suffix,
                         ground_resolution=self.ground_resolution,
-                        scale_factor=self.scale_factor)
+                        scale_factor=self.scale_factor,
+                        temp_dir=self.temp_dir)
         return raster
 
     def _create_tiles(self) -> List[RasterTileMetadata]:

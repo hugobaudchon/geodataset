@@ -36,17 +36,21 @@ class Raster:
     scale_factor : float
         Scale factor for rescaling the data (change pixel resolution).
         Only one of ground_resolution and scale_factor can be set at the same time.
+    temp_dir: str or pathlib.Path
+        Temporary directory to store the resampled Raster, if it is too big to fit in memory.
     """
     def __init__(self,
                  path: str or Path,
                  output_name_suffix: str = None,
                  ground_resolution: float = None,
-                 scale_factor: float = None):
+                 scale_factor: float = None,
+                 temp_dir: str or Path = './tmp'):
         self.path = Path(path)
         self.name = self.path.name
         self.ext = self.path.suffix
         self.product_name = validate_and_convert_product_name(strip_all_extensions_and_path(self.path))
         self.output_name = self.product_name + (f"_{output_name_suffix}" if output_name_suffix else "")
+        self.temp_dir = Path(temp_dir)
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
                                                           " Please only specify one.")
@@ -56,13 +60,15 @@ class Raster:
         (self.data,
          self.metadata,
          self.x_scale_factor,
-         self.y_scale_factor) = self._load_data()
+         self.y_scale_factor,
+         self.temp_path) = self._load_data()
 
     def _load_data(self):
-        data, metadata, x_scale_factor, y_scale_factor = read_raster(
+        data, metadata, x_scale_factor, y_scale_factor, temp_path = read_raster(
             path=self.path,
             ground_resolution=self.ground_resolution,
-            scale_factor=self.scale_factor
+            scale_factor=self.scale_factor,
+            temp_dir=self.temp_dir
         )
 
         if 'crs' not in metadata:
@@ -75,7 +81,7 @@ class Raster:
         if not metadata['transform']:
             warnings.warn(f'Could not find a transform in the raster file {self.name}.')
 
-        return data, metadata, x_scale_factor, y_scale_factor
+        return data, metadata, x_scale_factor, y_scale_factor, temp_path
 
     def create_tile_metadata(self, window: Window, tile_id: int) -> "RasterTileMetadata" or None:
 
@@ -420,7 +426,6 @@ class RasterTileMetadata:
 
     def get_pixel_data(self):
         window = Window(self.col, self.row, self.metadata['width'], self.metadata['height'])
-
         tile_data = self.associated_raster.data.read(window=window)
 
         pad_row = self.metadata['height'] - tile_data.shape[1]

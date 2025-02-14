@@ -36,7 +36,8 @@ class RasterPolygonTilerizer:
                  other_labels_attributes_column_names: List[str] = None,
                  coco_n_workers: int = 5,
                  coco_categories_list: list[dict] = None,
-                 tile_batch_size: int = 1000):
+                 tile_batch_size: int = 1000,
+                 temp_dir: str or Path = './tmp'):
 
         self.raster_path = Path(raster_path)
         self.labels_path = Path(labels_path)
@@ -51,6 +52,7 @@ class RasterPolygonTilerizer:
         self.coco_n_workers = coco_n_workers
         self.coco_categories_list = coco_categories_list
         self.tile_batch_size = tile_batch_size
+        self.temp_dir = Path(temp_dir)
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
                                                           " Please only specify one.")
@@ -77,7 +79,8 @@ class RasterPolygonTilerizer:
         raster = Raster(path=self.raster_path,
                         output_name_suffix=self.output_name_suffix,
                         ground_resolution=self.ground_resolution,
-                        scale_factor=self.scale_factor)
+                        scale_factor=self.scale_factor,
+                        temp_dir=self.temp_dir)
         return raster
 
     def _load_labels(self,
@@ -194,8 +197,8 @@ class RasterPolygonTilerizer:
     def _save_tiles_batch(self, tiles: List[RasterPolygonTileMetadata], aoi: str):
         (self.tiles_folder_path / aoi).mkdir(parents=True, exist_ok=True)
         tiles_paths = [self.tiles_folder_path / aoi / tile.generate_name() for tile in tiles]
-        tile_saver = RasterTileSaver(tiles_path=self.tiles_folder_path / aoi, n_workers=self.coco_n_workers)
-        tile_saver.save_all_tiles(tiles)
+        tile_saver = RasterTileSaver(n_workers=self.coco_n_workers)
+        tile_saver.save_all_tiles(tiles, output_folder=self.tiles_folder_path / aoi)
 
         return tiles_paths
 
