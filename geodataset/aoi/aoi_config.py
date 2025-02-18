@@ -1,4 +1,5 @@
 import re
+import geopandas as gpd
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -14,7 +15,7 @@ class AOIConfig(ABC):
             assert re.match(r'^[a-zA-Z0-9]+$', aoi_name), (
                 "The AOI name should only contain alphanumeric characters like 'train', 'test1', 'test2'... "
             )
-            if 'actual_name' in self.aois[aoi_name]:
+            if isinstance(self.aois[aoi_name], dict) and 'actual_name' in self.aois[aoi_name]:
                 actual_name = self.aois[aoi_name]['actual_name']
                 assert re.match(r'^[a-zA-Z0-9]+$', actual_name), (
                     f"The AOI {aoi_name}'s 'actual_name={actual_name}' should only contain alphanumeric characters like 'train', 'test1', 'test2'... "
@@ -52,10 +53,11 @@ class AOIFromPackageConfig(AOIConfig):
             assert isinstance(aoi_name, str), (
                 f"The keys in aois should be string, for the name of the aoi (train, valid, test...)."
                 f" Found {aoi_name} which is not a string.")
-            assert isinstance(aoi_path, (str, Path)), \
+            assert isinstance(aoi_path, (str, Path, gpd.GeoDataFrame)), \
                 f"The value associated to aoi {aoi_name} is not a string or pathlib.Path. Got value {type(aoi_path)}."
 
-            self.aois[aoi_name] = Path(aoi_path)
+            if isinstance(aoi_path, str):
+                self.aois[aoi_name] = Path(aoi_path)
 
 
 class AOIGeneratorConfig(AOIConfig):

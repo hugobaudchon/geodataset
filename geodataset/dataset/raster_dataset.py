@@ -7,9 +7,7 @@ import rasterio
 from shapely import box
 
 from geodataset.dataset.base_dataset import BaseDataset, BaseLabeledRasterCocoDataset
-from geodataset.utils import coco_rle_segmentation_to_bbox, coco_coordinates_segmentation_to_bbox, \
-    coco_rle_segmentation_to_mask, find_tiles_paths, polygon_to_mask
-
+from geodataset.utils import decode_coco_segmentation
 
 
 class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
@@ -44,8 +42,6 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         self.box_padding_percentage = box_padding_percentage
         self.force_binary_class = force_binary_class
 
-        assert 0 <= self.box_padding_percentage <= 1
-
     def __getitem__(self, idx: int):
         """
         Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,
@@ -77,13 +73,7 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         bboxes = []
 
         for label in labels:
-            if 'bbox' in label:
-                # Directly use the provided bbox
-                bbox_coco = label['bbox']
-                bbox = box(*[bbox_coco[0], bbox_coco[1], bbox_coco[0] + bbox_coco[2], bbox_coco[1] + bbox_coco[3]])
-            else:
-                segmentation = label['segmentation']
-                bbox = coco_rle_segmentation_to_bbox(segmentation)
+            bbox = decode_coco_segmentation(label, 'bbox')
 
             if self.box_padding_percentage:
                 minx, miny, maxx, maxy = bbox.bounds
@@ -94,8 +84,8 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
 
                 new_minx = max(0, minx - padding_x)
                 new_miny = max(0, miny - padding_y)
-                new_maxx = min(tile.shape[0], maxx + padding_x)
-                new_maxy = min(tile.shape[1], maxy + padding_y)
+                new_maxx = min(tile.shape[1], maxx + padding_x)
+                new_maxy = min(tile.shape[2], maxy + padding_y)
 
                 bbox = box(new_minx, new_miny, new_maxx, new_maxy)
 
@@ -160,6 +150,7 @@ class SegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
                  transform: albumentations.core.composition.Compose = None,
                  force_binary_class=None):
         super().__init__(fold=fold, root_path=root_path, transform=transform)
+        self.force_binary_class = force_binary_class
 
     def __getitem__(self, idx: int):
         """
@@ -193,9 +184,7 @@ class SegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
 
         for label in labels:
             if 'segmentation' in label:
-                rle_segmentation = label['segmentation']
-                mask = coco_rle_segmentation_to_mask(rle_segmentation)
-
+                mask = decode_coco_segmentation(label, 'mask')
                 masks.append(mask)
 
         if self.force_binary_class:
@@ -293,9 +282,8 @@ class InstanceSegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset)
         bboxes = []
 
         for label in labels:
-            rle_segmentation = label['segmentation']
-            bbox = coco_rle_segmentation_to_bbox(rle_segmentation)
-            mask = coco_rle_segmentation_to_mask(rle_segmentation)
+            bbox = decode_coco_segmentation(label, 'bbox')
+            mask = decode_coco_segmentation(label, 'mask')
 
             if self.box_padding_percentage:
                 minx, miny, maxx, maxy = bbox.bounds
@@ -389,18 +377,26 @@ class UnlabeledRasterDataset(BaseDataset):
 
     def _find_tiles_paths(self, directories: List[Path]):
         """
-        Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
+        Loads the dataset by traversing the directory tree and loading relevant tiles metadata.
         """
 
         for directory in directories:
-            if directory.is_dir() and directory.name == 'tiles':
-                fold_directory = (directory / self.fold)
-                # Datasets may not contain all splits
-                if fold_directory.exists():
-                    for path in fold_directory.iterdir():
-                        # Iterate within the corresponding split folder
-                        if path.suffix == ".tif":
-                            self.tile_paths.append(path)
+            if self.fold is not None:
+                # If a fold is specified, load only the tiles for that fold
+                if directory.is_dir() and directory.name == 'tiles':
+                    fold_directory = (directory / self.fold)
+                    # Datasets may not contain all splits
+                    if fold_directory.exists():
+                        for path in fold_directory.iterdir():
+                            # Iterate within the corresponding split folder
+                            if path.suffix == ".tif":
+                                self.tile_paths.append(path)
+            else:
+                # If no fold is specified, load all tiles
+                for path in directory.iterdir():
+                    # Iterate within the corresponding split folder
+                    if path.suffix == ".tif":
+                        self.tile_paths.append(path)
 
             if directory.is_dir():
                 for path in directory.iterdir():

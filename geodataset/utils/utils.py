@@ -1,12 +1,14 @@
-import base64
 import glob
 import json
 import os
+import tempfile
 
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import redirect_stdout
 from datetime import date
 from pathlib import Path
+import random
 from typing import List, Union, Dict
 
 import cv2
@@ -19,11 +21,19 @@ from matplotlib import pyplot as plt, patches as patches
 from matplotlib.colors import ListedColormap
 from pycocotools import mask as mask_utils
 import geopandas as gpd
+from pycocotools.coco import COCO
+from rasterio import CRS, MemoryFile
 
 from rasterio.enums import Resampling
-from shapely import Polygon, box, MultiPolygon
+from rasterio.vrt import WarpedVRT
+from rasterio.warp import calculate_default_transform
+from rasterio.windows import Window
+from shapely import Polygon, box, MultiPolygon, make_valid
+from shapely.affinity import affine_transform
 from shapely.ops import transform
-from skimage.measure import find_contours
+from tqdm import tqdm
+
+from geodataset.utils.file_name_conventions import CocoNameConvention
 
 
 def polygon_to_coco_coordinates_segmentation(polygon: Polygon or MultiPolygon):
@@ -115,7 +125,7 @@ def polygon_to_coco_rle_segmentation(polygon: Polygon or MultiPolygon,
     elif isinstance(polygon, MultiPolygon):
         polygons = list(polygon.geoms)
     else:
-        raise ValueError("Input must be a Shapely Polygon or MultiPolygon")
+        raise ValueError(f"Input must be a Shapely Polygon or MultiPolygon, not {type(polygon)}.")
 
         # Convert each polygon to COCO format [x1,y1,x2,y2,...]
     coco_coords = []
@@ -182,54 +192,131 @@ def coco_rle_segmentation_to_bbox(rle_segmentation: dict) -> box:
     return box(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
 
 
-def mask_to_polygon(mask: np.ndarray, simplify_tolerance: float = 1.0) -> Polygon:
+def mask_to_polygon(
+        mask: np.ndarray,
+        simplify_tolerance: float = 1.0,
+        min_contour_points: int = 3,
+        remove_rings: bool = False,
+        remove_small_geoms: int or None = 10) -> Union[Polygon, MultiPolygon]:
     """
-    Converts a 1HW mask to a simplified shapely Polygon by finding the contours of the mask
-    and simplifying it.
+    Converts a binary mask to simplified shapely Polygon(s).
 
     Parameters
     ----------
     mask: np.ndarray
-        The mask to convert, in 1HW format.
+        The mask to convert, in HW format
     simplify_tolerance: float
-        The tolerance for simplifying the polygon. Higher values result in more simplified shapes.
+        The tolerance for simplifying polygons
+    min_contour_points: int
+        Minimum number of points required for a valid contour
+    remove_rings: bool
+        Whether to remove inner rings (holes) from the polygons
+    remove_small_geoms: int or None
+        Remove small geoms with less than this area from the MultiPolygon
 
     Returns
     -------
-    Polygon
-     A simplified shapely Polygon object representing the outer boundary of the mask.
+    Union[Polygon, MultiPolygon]
+        Simplified polygon(s) representing the mask
     """
-    # Ensure mask is 2D
     if mask.ndim != 2:
         raise ValueError("Mask must be in HW format (2D array).")
 
-    # Pad the mask to avoid boundary issues
+    # Pad the mask
     padded_mask = np.pad(mask, pad_width=1, mode='constant', constant_values=0)
 
-    # Find contours on the mask, assuming mask is binary
-    contours = find_contours(padded_mask, 0.5)
+    # Find contours
+    contours, _ = cv2.findContours(
+        padded_mask.astype(np.uint8),
+        cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_SIMPLE
+    )
 
-    if len(contours) == 0:
-        # returning empty, dummy polygon at 0,0
-        return Polygon([(0, 0), (0, 0), (0, 0)])
+    polygons = []
 
-    # Take the longest contour as the main outline of the object
-    longest_contour = max(contours, key=len)
+    for contour in contours:
+        if len(contour) >= min_contour_points:
+            # Convert to (x,y) format and adjust for padding
+            points = [(x[0][0] - 1, x[0][1] - 1) for x in contour]
+            poly = Polygon(points)
 
-    # Convert contour coordinates from (row, column) to (x, y)
-    # and revert the padding added to the mask
-    longest_contour_adjusted_xy = [(y - 1, x - 1) for x, y in longest_contour]
+            # Simplify if requested
+            if simplify_tolerance > 0:
+                poly = poly.simplify(
+                    tolerance=simplify_tolerance,
+                    preserve_topology=True
+                )
 
-    # Convert contour to Polygon
-    polygon = Polygon(longest_contour_adjusted_xy)
+            if not poly.is_empty:
+                polygons.append(poly)
 
-    # Simplify the polygon
-    simplified_polygon = polygon.simplify(tolerance=simplify_tolerance, preserve_topology=True)
+    if not polygons:
+        return Polygon()
+    elif len(polygons) == 1:
+        polygon = polygons[0]
+    else:
+        polygon = MultiPolygon(polygons)
+        if remove_small_geoms:
+            polygon = remove_small_geoms_from_multipolygon(polygon, remove_small_geoms)
 
-    return simplified_polygon
+    if remove_rings:
+        polygon = remove_rings_from_polygon(polygon)
+    if not polygon.is_valid:
+        polygon = make_valid(polygon)
+
+    polygon = fix_geometry_collection(polygon)
+
+    if not isinstance(polygon, (Polygon, MultiPolygon)):
+        # If everything failed, return an empty Polygon
+        return Polygon()
+    else:
+        return polygon
 
 
-def coco_coordinates_segmentation_to_polygon(segmentation: list) -> Polygon:
+def remove_small_geoms_from_multipolygon(multi_polygon: MultiPolygon, min_area: int):
+    """
+    Removes small geometries from a MultiPolygon.
+
+    Parameters
+    ----------
+    multi_polygon: MultiPolygon
+        The MultiPolygon to process.
+    min_area: int
+        The minimum area for a geometry to be kept.
+
+    Returns
+    -------
+    MultiPolygon
+        The MultiPolygon with small geometries removed.
+    """
+    geoms = [geom for geom in multi_polygon.geoms if geom.area >= min_area]
+    return MultiPolygon(geoms)
+
+
+def remove_rings_from_polygon(polygon: Polygon or MultiPolygon):
+    """
+    Removes inner rings (holes) from a polygon.
+
+    Parameters
+    ----------
+    polygon: Polygon or MultiPolygon
+        The polygon to process.
+
+    Returns
+    -------
+    Polygon or MultiPolygon
+        The polygon with inner rings removed.
+    """
+    if isinstance(polygon, Polygon):
+        return Polygon(polygon.exterior)
+    elif isinstance(polygon, MultiPolygon):
+        geoms = [Polygon(geom.exterior) for geom in polygon.geoms]
+        return MultiPolygon(geoms)
+    else:
+        raise ValueError("Input must be a Polygon or MultiPolygon.")
+
+
+def coco_coordinates_segmentation_to_polygon(segmentation: list) -> Polygon or MultiPolygon:
     """
     Converts a list of polygon coordinates in COCO format to a shapely Polygon or MultiPolygon.
 
@@ -257,6 +344,28 @@ def coco_coordinates_segmentation_to_polygon(segmentation: list) -> Polygon:
         return MultiPolygon(geoms)
 
 
+def fix_geometry_collection(geometry: shapely.Geometry):
+    """
+    Fixes a GeometryCollection into a Polygon or MultiPolygon by converting LineStrings to Polygons if they are closed.
+    """
+    if geometry.geom_type == 'GeometryCollection':
+        final_geoms = []
+        # Iterate through each geometry in the collection
+        for geom in geometry.geoms:
+            if geom.geom_type == 'Polygon':
+                final_geoms.append(geom)
+            elif geom.geom_type == 'MultiPolygon':
+                final_geoms.extend(geom.geoms)
+            elif geom.geom_type == 'LineString':
+                # Check if the LineString is closed and can be considered a polygon
+                if geom.is_ring:
+                    # Convert the LineString to a Polygon
+                    final_geoms.append(Polygon(geom))
+        return MultiPolygon(final_geoms)
+    else:
+        return geometry
+
+
 def coco_coordinates_segmentation_to_bbox(segmentation: list) -> box:
     """
     Calculates the bounding box from a polygon list of coordinates in COCO format.
@@ -275,7 +384,10 @@ def coco_coordinates_segmentation_to_bbox(segmentation: list) -> box:
     return box(*polygon.bounds)
 
 
-def coco_rle_segmentation_to_polygon(rle_segmentation):
+def coco_rle_segmentation_to_polygon(
+        rle_segmentation,
+        simplify_tolerance: float = 1.0,
+        min_contour_points: int = 3):
     """
     Decodes a COCO annotation RLE segmentation into a shapely Polygon or MultiPolygon.
 
@@ -283,6 +395,10 @@ def coco_rle_segmentation_to_polygon(rle_segmentation):
     ----------
     rle_segmentation: dict
         The RLE segmentation to decode.
+    simplify_tolerance: float
+        The tolerance for simplifying polygons.
+    min_contour_points: int
+        Minimum number of points required for a valid contour.
 
     Returns
     -------
@@ -291,30 +407,65 @@ def coco_rle_segmentation_to_polygon(rle_segmentation):
     """
     # Decode the RLE
     mask = coco_rle_segmentation_to_mask(rle_segmentation)
+    return mask_to_polygon(mask, simplify_tolerance, min_contour_points)
 
-    # Find contours in the binary mask
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+def decode_coco_segmentation(coco_annotation: dict, output_type: str):
+    """
+    Decodes a COCO annotation segmentation into a shapely Polygon or MultiPolygon.
 
-    # Initialize an empty list to hold the exterior coordinates of the polygons
-    polygons = []
+    Parameters
+    ----------
+    coco_annotation: dict
+        The segmentation to decode.
+    output_type: str
+        The desired output type. Can be 'polygon', 'bbox' or 'mask'.
 
-    for contour in contours:
-        # Ensure the contour is of a significant size
-        if len(contour) > 2:
-            # Flatten the array and convert to a list of tuples
-            contour = contour.flatten().tolist()
-            # Reshape the contour to obtain a sequence of coordinates
-            points = list(zip(contour[::2], contour[1::2]))
-            polygons.append(Polygon(points))
+    Returns
+    -------
+    Polygon or MultiPolygon or box or np.ndarray
+        The decoded segmentation.
+    """
+    segmentation = coco_annotation['segmentation']
 
-    # Return the polygons (Note: This might be a list of polygons if there are multiple disconnected regions)
-    if len(polygons) == 1:
-        return polygons[0]  # Return the single polygon directly if there's only one
+    if ('is_rle_format' in coco_annotation and coco_annotation['is_rle_format']) or isinstance(segmentation, dict):
+        # Compressed RLE format
+        if output_type == 'polygon':
+            return coco_rle_segmentation_to_polygon(segmentation)
+        elif output_type == 'bbox':
+            if 'bbox' in coco_annotation:
+                # Directly use the provided bbox
+                bbox_coco = coco_annotation['bbox']
+                bbox = box(*[bbox_coco[0], bbox_coco[1], bbox_coco[0] + bbox_coco[2], bbox_coco[1] + bbox_coco[3]])
+            else:
+                bbox = coco_rle_segmentation_to_bbox(segmentation)
+            return bbox
+        elif output_type == 'mask':
+            return coco_rle_segmentation_to_mask(segmentation)
+        else:
+            raise ValueError(f"Output type '{output_type}' not supported. Must be 'polygon', 'bbox' or 'mask'.")
+    elif ('is_rle_format' in coco_annotation and not coco_annotation['is_rle_format']) or isinstance(segmentation, list):
+        # Coordinates format
+        if output_type == 'polygon':
+            return coco_coordinates_segmentation_to_polygon(segmentation)
+        elif output_type == 'bbox':
+            if 'bbox' in coco_annotation:
+                # Directly use the provided bbox
+                bbox_coco = coco_annotation['bbox']
+                bbox = box(*[bbox_coco[0], bbox_coco[1], bbox_coco[0] + bbox_coco[2], bbox_coco[1] + bbox_coco[3]])
+            else:
+                bbox = coco_coordinates_segmentation_to_bbox(segmentation)
+            return bbox
+        elif output_type == 'mask':
+            polygon = coco_coordinates_segmentation_to_polygon(segmentation)
+            return polygon_to_mask(polygon, coco_annotation['height'], coco_annotation['width'])
+        else:
+            raise ValueError(f"Output type '{output_type}' not supported. Must be 'polygon', 'bbox' or 'mask'.")
     else:
-        return MultiPolygon(polygons)  # Return a GeoSeries of Polygons if there are multiple
+        raise NotImplementedError("Could not find the segmentation type (RLE vs polygon coordinates).")
 
 
-def get_tiles_array(tiles: list, tile_coordinate_step: int):
+def get_tiles_array(tiles: list,
+                    tile_coordinate_step: int):
     numpy_coordinates = [(int(tile.row / tile_coordinate_step),
                           int(tile.col / tile_coordinate_step)) for tile in tiles]
 
@@ -348,78 +499,185 @@ def try_cast_multipolygon_to_polygon(geometry):
         return None
 
 
-def read_raster(path: Path, ground_resolution: float = None, scale_factor: float = None):
+def get_utm_crs(lon, lat):
     """
-    Read a raster file and rescale it if necessary.
+    Determine the UTM CRS for a given longitude and latitude.
+    """
+    zone = int((lon + 180) / 6) + 1
+    if lat >= 0:
+        return CRS.from_epsg(code=32600 + zone)  # Northern Hemisphere
+    else:
+        return CRS.from_epsg(code=32700 + zone)  # Southern Hemisphere
+
+
+def read_raster(path: Path, ground_resolution: float = None, scale_factor: float = None, temp_dir: Path = './tmp'):
+    """
+    Open a raster file and return a view (WarpedVRT) that applies the given scaling.
 
     Parameters
     ----------
     path: Path
         The path to the raster file.
-    ground_resolution: float
+    ground_resolution: float, optional
         The desired ground resolution in meters.
-    scale_factor: float
-        The desired scale factor to apply to the raster.
+    scale_factor: float, optional
+        The scale factor to apply to the raster.
 
     Returns
     -------
-    np.ndarray
-        The (possibly resampled) raster pixels data.
+    vrt: WarpedVRT
+        A virtual dataset that you can use to read windows on the fly.
+    profile: dict
+        An updated profile of the raster reflecting the scaling.
+    x_scale_factor, y_scale_factor: float
+        The scale factors applied in the x and y directions.
     """
-    assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
-                                                      " Please only specify one.")
 
-    ext = path.suffix
-    if ext in ['.tif', '.png', '.jpg']:
-        with rasterio.open(path) as src:
-            # Check if the CRS uses meters as units
-            crs = src.crs
-            if ground_resolution:
-                if crs:
-                    if crs.is_projected:
-                        current_x_resolution = src.transform[0]
-                        current_y_resolution = -src.transform[4]
-                        # Calculate scale factors to achieve the specified ground_resolution
-                        x_scale_factor = current_x_resolution / ground_resolution
-                        y_scale_factor = current_y_resolution / ground_resolution
-                        print(f'Rescaling the raster with x_scale_factor={x_scale_factor}'
-                              f' and y_scale_factor={y_scale_factor}'
-                              f' to match ground_resolution={ground_resolution}...')
-                    else:
-                        raise Exception("The CRS of the raster is not projected (in meter units),"
-                                        " so the ground_resolution cannot be applied.")
-                else:
-                    raise Exception("The raster doesn't have a CRS, so the ground_resolution cannot be applied.")
-            elif scale_factor:
-                x_scale_factor = scale_factor
-                y_scale_factor = scale_factor
-            else:
-                x_scale_factor = 1
-                y_scale_factor = 1
+    print("Reading raster...")
 
+    os.environ["GDAL_CACHEMAX"] = "10240" # Set a temporary 10 GB max cache size to avoid memory issues with very large rasters
+
+    assert not (ground_resolution and scale_factor), (
+        "Both a ground_resolution and a scale_factor were provided. Please only specify one."
+    )
+
+    ext = path.suffix.lower()
+    if ext not in ['.tif', '.png', '.jpg']:
+        raise Exception(f'Data format {ext} not supported yet.')
+
+    src = rasterio.open(path)
+    crs = src.crs
+
+    # Determine the scale factors
+    if ground_resolution:
+        if crs is not None and not crs.is_projected:
+            # Calculate the centroid of the raster
+            bounds = src.bounds
+            centroid_lon = (bounds.left + bounds.right) / 2.0
+            centroid_lat = (bounds.top + bounds.bottom) / 2.0
+
+            # Determine a suitable UTM CRS based on the centroid
+            target_crs = get_utm_crs(centroid_lon, centroid_lat)
+            print(f"Raster is not projected. Reprojecting to {target_crs.to_string()} based on Raster centroid ({centroid_lon}, {centroid_lat}).")
+        elif crs is not None:
+            target_crs = crs
+        else:
+            raise ValueError("The Raster doesn't have a CRS, please use scale_factor instead of ground_resolution.")
+
+        new_transform, new_width, new_height = calculate_default_transform(
+            crs, target_crs, src.width, src.height, *src.bounds, resolution=ground_resolution
+        )
+
+        # Determine current resolution (assumed equal in x and y for simplicity)
+        x_scale_factor = new_width / src.width
+        y_scale_factor = new_height / src.height
+
+        print(f'Rescaling the raster with x_scale_factor={x_scale_factor} '
+              f'and y_scale_factor={y_scale_factor} to match ground_resolution={ground_resolution}...')
+    elif scale_factor:
+        x_scale_factor = scale_factor
+        y_scale_factor = scale_factor
+        target_crs = crs
+        new_width = int(src.width * x_scale_factor)
+        new_height = int(src.height * y_scale_factor)
+        new_transform = src.transform * src.transform.scale(
+            (src.width / new_width),
+            (src.height / new_height)
+        )
+    else:
+        x_scale_factor = 1
+        y_scale_factor = 1
+        target_crs = crs
+        new_width = src.width
+        new_height = src.height
+        new_transform = src.transform
+
+    profile = src.profile.copy()
+    profile.update({
+        "driver": "GTiff",
+        "height": new_height,
+        "width": new_width,
+        "transform": new_transform,
+        "crs": target_crs
+    })
+
+    # Estimate memory footprint
+    itemsize = np.dtype(profile['dtype']).itemsize
+    nbands = profile.get('count', 1)
+    expected_bytes = new_width * new_height * nbands * itemsize
+    max_in_mem_bytes = 10 * 1024 ** 3  # 10GB
+
+    print(f"Expected raster size in memory: {expected_bytes / (1024 ** 3):.2f} GB.")
+
+    # If the expected size is less than 10GB, load into memory using a MemoryFile;
+    # otherwise, write to a temporary file.
+    if expected_bytes < max_in_mem_bytes:
+        print("Loading raster in memory (while resampling to scale_factor/ground_resolution)...")
+        if crs != target_crs:
+            data = WarpedVRT(
+                src,
+                crs=target_crs,
+                width=new_width,
+                height=new_height,
+                transform=new_transform,
+                resampling=Resampling.bilinear
+            ).read()
+        else:
+            # Faster, but only works if CRS is kept the same
             data = src.read(
                 out_shape=(src.count,
                            int(src.height * y_scale_factor),
                            int(src.width * x_scale_factor)),
-                resampling=Resampling.bilinear)
-
-            if src.transform:
-                # scale image transform
-                new_transform = src.transform * src.transform.scale(
-                    (src.width / data.shape[-1]),
-                    (src.height / data.shape[-2]))
-            else:
-                new_transform = None
-
-            new_profile = src.profile
-            new_profile.update(transform=new_transform,
-                               driver='GTiff',
-                               height=data.shape[-2],
-                               width=data.shape[-1])
+                resampling=Resampling.bilinear
+            )
+        memfile = MemoryFile()
+        with memfile.open(**profile) as mem_ds:
+            mem_ds.write(data)
+        dataset = memfile.open()
+        temp_path = None
     else:
-        raise Exception(f'Data format {ext} not supported yet.')
+        print("Raster too large for in-memory load, writing to temporary file...")
+        vrt = WarpedVRT(
+            src,
+            crs=target_crs,
+            width=new_width,
+            height=new_height,
+            transform=new_transform,
+            resampling=Resampling.bilinear
+        )
 
-    return data, new_profile, x_scale_factor, y_scale_factor
+        Path(temp_dir).mkdir(exist_ok=True, parents=True)
+        temp = tempfile.NamedTemporaryFile(suffix=".tif", prefix="resampled_raster_", delete=False, dir=temp_dir)
+        temp_path = temp.name
+        temp.close()
+
+        # Adjust the profile: disable tiling and enable BIGTIFF for large files.
+        profile.pop("blockxsize", None)
+        profile.pop("blockysize", None)
+        profile.update({"tiled": False, "BIGTIFF": "YES"})
+
+        # Define the target chunk size in bytes (e.g. 1GB)
+        chunk_bytes = 1 * 1024 ** 3
+        bytes_per_row = new_width * nbands * itemsize
+        rows_per_chunk = max(1, int(chunk_bytes // bytes_per_row))
+        print(f"Processing {rows_per_chunk} rows per chunk "
+              f"(each chunk ≈{rows_per_chunk * bytes_per_row / (1024 ** 3):.2f} GB).")
+
+        with rasterio.open(temp_path, "w", **profile) as dst:
+            for row in tqdm(range(0, new_height, rows_per_chunk), desc="Writing chunks to temp file"):
+                h = min(rows_per_chunk, new_height - row)
+                window = Window(col_off=0, row_off=row, width=new_width, height=h)
+                data_block = vrt.read(window=window)
+                dst.write(data_block, window=window)
+                # Try to flush the cache; if not available, ignore.
+                try:
+                    dst.flush_cache()
+                except AttributeError:
+                    pass
+        dataset = rasterio.open(temp_path)
+        warnings.warn(f"Raster too large for in-memory load. Temporary file created at {temp_path}. You might want to delete it after use.")
+
+    return dataset, profile, x_scale_factor, y_scale_factor, temp_path
 
 
 def read_point_cloud(path: Path):
@@ -540,6 +798,76 @@ def strip_all_extensions_and_path(path: str or Path):
     return p.name
 
 
+def convert_polygons_to_pixel_coordinates(gdf: gpd.GeoDataFrame, tiles_paths_column: str) -> gpd.GeoDataFrame:
+    """
+    Convert polygon geometries in a GeoDataFrame from CRS coordinates to pixel coordinates
+    using the affine transform of the associated raster tiles.
+
+    Parameters
+    ----------
+    gdf : geopandas.GeoDataFrame
+        GeoDataFrame containing polygon geometries. It must include a column with paths to
+        raster tiles.
+    tiles_paths_column : str
+        The name of the column in `gdf` that contains the file path for each tile.
+
+    Returns
+    -------
+    geopandas.GeoDataFrame
+        A new GeoDataFrame in which the polygon geometries have been transformed to the
+        pixel coordinate system of their respective tile. The CRS is set to None since pixel
+        coordinates are not georeferenced.
+    """
+
+    print('Converting polygons from CRS to pixel coordinates...')
+
+    processed_groups = []
+
+    # Process each unique tile path
+    for tile_path in gdf[tiles_paths_column].unique():
+        try:
+            with rasterio.open(tile_path) as src:
+                # Check for necessary spatial information
+                if not src.crs or not src.transform:
+                    warnings.warn(f"Tile {tile_path} is missing a CRS or transform. Skipping this tile.")
+                    continue
+
+                tile_crs = src.crs
+                # Compute the inverse transform to go from CRS -> pixel coordinates
+                inv_transform = ~src.transform
+                affine_params = [inv_transform.a, inv_transform.b, inv_transform.d, inv_transform.e,
+                                 inv_transform.c, inv_transform.f]
+
+                # Subset the GeoDataFrame rows corresponding to the current tile
+                tile_gdf = gdf[gdf[tiles_paths_column] == tile_path].copy()
+
+                # If the GeoDataFrame has a CRS and it does not match the tile's CRS,
+                # reproject the geometries to the tile's CRS.
+                if tile_gdf.crs and tile_gdf.crs != tile_crs:
+                    tile_gdf = tile_gdf.to_crs(tile_crs)
+
+                # Apply the inverse affine transform to each geometry
+                tile_gdf['geometry'] = tile_gdf['geometry'].apply(
+                    lambda geom: affine_transform(geom, affine_params)
+                )
+
+                # Pixel coordinates are not georeferenced, so we remove the CRS.
+                tile_gdf.set_crs(None, inplace=True, allow_override=True)
+
+                processed_groups.append(tile_gdf)
+        except Exception as e:
+            warnings.warn(f"Error processing tile {tile_path}: {e}")
+
+    # Concatenate the processed groups into a single GeoDataFrame
+    if processed_groups:
+        result_gdf = gpd.GeoDataFrame(pd.concat(processed_groups, ignore_index=True))
+        result_gdf.crs = None
+    else:
+        result_gdf = gpd.GeoDataFrame(columns=gdf.columns)
+
+    return result_gdf
+
+
 class COCOGenerator:
     """
     A class to generate a COCO dataset from a list of tiles and their associated polygons.
@@ -554,9 +882,9 @@ class COCOGenerator:
         A list of paths to the tiles/images.
     polygons: List[List[Polygon]]
         A list of lists of polygons associated with each tile.
-    scores: List[List[float]] or None
+    scores: List[List[float or None]] or None
         A list of lists of scores associated with each polygon.
-    categories: List[List[Union[str, int]]] or None
+    categories: List[List[str or int]] or None
         A list of lists of categories (str or int) associated with each polygon.
     other_attributes: List[List[Dict]] or None
         A list of lists of dictionaries of other attributes associated with each polygon.
@@ -574,6 +902,9 @@ class COCOGenerator:
         **IMPORTANT**: the 'score' attribute is reserved for the score associated with the polygon.
     output_path: Path
         The path to save the COCO dataset JSON file (should have .json extension).
+    use_rle_for_labels: bool
+        Whether to use RLE encoding for the labels or not. If False, the polygon's exterior coordinates will be used.
+        RLE Encoding takes less space on disk but takes more time to encode.
     n_workers: int
         The number of workers to use for parallel processing.
     coco_categories_list: List[dict] or None
@@ -617,10 +948,11 @@ class COCOGenerator:
                  description: str,
                  tiles_paths: List[Path],
                  polygons: List[List[Polygon]],
-                 scores: List[List[float]] or None,
-                 categories: List[List[Union[str, int]]] or None,
+                 scores: List[List[float or None]] or None,
+                 categories: List[List[str or int]] or None,
                  other_attributes: List[List[Dict]] or None,
                  output_path: Path,
+                 use_rle_for_labels: bool,
                  n_workers: int,
                  coco_categories_list: List[dict] or None):
         self.description = description
@@ -630,14 +962,23 @@ class COCOGenerator:
         self.categories = categories
         self.other_attributes = other_attributes
         self.output_path = output_path
+        self.use_rle_for_labels = use_rle_for_labels
         self.n_workers = n_workers
         self.coco_categories_list = coco_categories_list
 
         assert len(self.tiles_paths) == len(self.polygons), "The number of tiles and polygons must be the same."
         if self.scores:
             assert len(self.tiles_paths) == len(self.scores), "The number of tiles and scores must be the same."
+        else:
+            self.scores = [[None, ] * len(tile_polygons) for tile_polygons in self.polygons]
         if self.categories:
             assert len(self.tiles_paths) == len(self.categories), "The number of tiles and categories must be the same."
+        else:
+            # If no categories are provided, set all categories to 'NoCategory', except if there is only one
+            # coco category provided, in which case we use that one for all annotations.
+            self.categories = [[coco_categories_list[0]['name']
+                                if (type(coco_categories_list) is list and len(coco_categories_list) == 1)
+                                else 'NoCategory', ] * len(tile_polygons) for tile_polygons in self.polygons]
         if self.other_attributes:
             assert len(self.tiles_paths) == len(
                 self.other_attributes), "The number of tiles and other_attributes must be the same."
@@ -648,6 +989,117 @@ class COCOGenerator:
 
         elif self.scores:
             self.other_attributes = [[{'score': s} for s in tile_scores] for tile_scores in self.scores]
+
+    @classmethod
+    def from_gdf(cls,
+                 description: str,
+                 gdf: gpd.GeoDataFrame,
+                 tiles_paths_column: str,
+                 polygons_column: str,
+                 scores_column: str or None,
+                 categories_column: str or None,
+                 other_attributes_columns: List[str] or None,
+                 output_path: Path,
+                 use_rle_for_labels: bool,
+                 n_workers: int,
+                 coco_categories_list: List[dict] or None,
+                 tiles_paths_order: List[Path] or None = None):
+        """
+        Instantiate a COCOGenerator from a GeoDataFrame.
+
+        Parameters
+        ----------
+        description : str
+            A description for the COCO dataset.
+        gdf : gpd.GeoDataFrame
+            A GeoDataFrame containing the annotations. Each row is expected to represent one polygon
+            associated with a tile/image.
+        tiles_paths_column : str
+            The name of the column in the GeoDataFrame that contains the tile/image path.
+        polygons_column : str
+            The name of the column in the GeoDataFrame that contains the polygon geometry.
+        scores_column : str or None, optional
+            The name of the column in the GeoDataFrame that contains the score for the polygon.
+            If None, scores will not be provided.
+        categories_column : str or None, optional
+            The name of the column in the GeoDataFrame that contains the category for the polygon.
+            If None, categories will not be provided.
+        other_attributes_columns : List[str] or None, optional
+            A list of column names in the GeoDataFrame whose values should be included as additional
+            attributes for each polygon. If None, no additional attributes will be provided.
+        output_path : Path
+            The path where the generated COCO JSON file will be saved.
+        use_rle_for_labels : bool
+            Whether to use RLE encoding for the labels or not.
+        n_workers : int
+            The number of workers to use for parallel processing.
+        coco_categories_list : List[dict] or None, optional
+            A list of COCO category dictionaries. If provided, category ids will be matched against this list.
+        tiles_paths_order : List[Path] or None, optional
+            The order in which the tiles should be stored in the COCO file. If None, the order will be determined by
+            the order in which the tiles are encountered in the GeoDataFrame. This parameter could be useful if you plan
+            to use the same order for multiple COCO datasets (e.g using pycocotools COCOEval between truth and preds).
+
+        Returns
+        -------
+        COCOGenerator
+            An instance of COCOGenerator initialized with data extracted from the GeoDataFrame.
+        """
+
+        if gdf.crs is not None:
+            gdf = convert_polygons_to_pixel_coordinates(gdf, tiles_paths_column)
+
+        assert gdf.crs is None, "The GeoDataFrame must not have a CRS. Pixel coordinates for the polygons are expected."
+
+        # Create a dictionary mapping tile paths (as Path objects) to their corresponding groups.
+        groups = {}
+        for key, group in gdf.groupby(tiles_paths_column):
+            tile_path = key if isinstance(key, Path) else Path(key)
+            groups[tile_path] = group
+
+        # Determine the order of groups.
+        if tiles_paths_order is not None:
+            # Use the provided order: only include those tiles that exist in the grouped results.
+            ordered_groups = [(tile, groups[tile]) for tile in tiles_paths_order if tile in groups]
+        else:
+            # Otherwise, use the natural order from the grouping.
+            ordered_groups = list(groups.items())
+
+        # Extract data from each group in the desired order.
+        tiles_paths = []
+        polygons_list = []
+        scores_list = [] if scores_column is not None else None
+        categories_list = [] if categories_column is not None else None
+        other_attributes_list = [] if other_attributes_columns is not None else None
+
+        for tile_path, group in ordered_groups:
+            tiles_paths.append(tile_path)
+            polygons_list.append(group[polygons_column].tolist())
+
+            if scores_column is not None:
+                scores_list.append(group[scores_column].tolist())
+
+            if categories_column is not None:
+                categories_list.append(group[categories_column].tolist())
+
+            if other_attributes_columns is not None:
+                attrs = group[other_attributes_columns].to_dict(orient='records')
+                other_attributes_list.append(attrs)
+
+        return cls(
+            description=description,
+            tiles_paths=tiles_paths,
+            polygons=polygons_list,
+            scores=scores_list,
+            categories=categories_list,
+            other_attributes=other_attributes_list,
+            output_path=output_path,
+            use_rle_for_labels=use_rle_for_labels,
+            n_workers=n_workers,
+            coco_categories_list=coco_categories_list
+        )
+
+
 
     def generate_coco(self):
         """
@@ -662,9 +1114,10 @@ class COCOGenerator:
                 zip(self.tiles_paths,
                     self.polygons,
                     polygons_ids,
-                    [[category_to_id_map[c] if c in category_to_id_map else None for c in cs] for cs in self.categories]
-                    if self.categories else [None, ]*len(self.tiles_paths),
-                    self.other_attributes if self.other_attributes else [None, ] * len(self.tiles_paths)
+                    self.scores,
+                    [[category_to_id_map[c] if c in category_to_id_map else -1 for c in cs] for cs in self.categories],
+                    self.other_attributes if self.other_attributes else [None, ] * len(self.tiles_paths),
+                    [self.use_rle_for_labels, ] * len(self.tiles_paths)
                     )
             )))
 
@@ -691,6 +1144,10 @@ class COCOGenerator:
                 "categories": categories_coco
             }, f, ensure_ascii=False, indent=2)
 
+        print(f'Verifying COCO file integrity...')
+        # Verify COCO file integrity
+        with open(os.devnull, 'w') as devnull, redirect_stdout(devnull):
+            _ = COCO(self.output_path)
         print(f'Saved COCO dataset to {self.output_path}.')
 
     @staticmethod
@@ -700,14 +1157,15 @@ class COCOGenerator:
         for tile_polygons in polygons:
             tile_polygons_ids = list(range(start_id, start_id + len(tile_polygons)))
             polygon_ids.append(tile_polygons_ids)
-            start_id = tile_polygons_ids[-1] + 1
+            if tile_polygons_ids:
+                start_id = tile_polygons_ids[-1] + 1
 
         return polygon_ids
 
     def _generate_tile_coco(self, tile_data):
         (tile_id,
-         (tile_path, tile_polygons, tile_polygons_ids, tiles_polygons_category_ids,
-          tiles_polygons_other_attributes)) = tile_data
+         (tile_path, tile_polygons, tile_polygons_ids, tile_polygons_scores,
+          tiles_polygons_category_ids, tiles_polygons_other_attributes, use_rle_for_labels)) = tile_data
 
         local_detections_coco = []
 
@@ -720,9 +1178,11 @@ class COCOGenerator:
             detection = self._generate_label_coco(
                 polygon=tile_polygons[i],
                 polygon_id=tile_polygons_ids[i],
+                score=tile_polygons_scores[i],
                 tile_height=tile_height,
                 tile_width=tile_width,
                 tile_id=tile_id,
+                use_rle_for_labels=use_rle_for_labels,
                 category_id=tiles_polygons_category_ids[i] if tiles_polygons_category_ids else None,
                 other_attributes_dict=tiles_polygons_other_attributes[i] if tiles_polygons_other_attributes else None
             )
@@ -740,16 +1200,21 @@ class COCOGenerator:
     @staticmethod
     def _generate_label_coco(polygon: shapely.Polygon,
                              polygon_id: int,
+                             score: float,
                              tile_height: int,
                              tile_width: int,
                              tile_id: int,
+                             use_rle_for_labels: bool,
                              category_id: int or None,
                              other_attributes_dict: dict or None) -> dict:
-
-        segmentation = polygon_to_coco_rle_segmentation(polygon=polygon,
-                                                        tile_height=tile_height,
-                                                        tile_width=tile_width)
-
+        if use_rle_for_labels:
+            # Convert the polygon to a COCO RLE mask
+            segmentation = polygon_to_coco_rle_segmentation(polygon=polygon,
+                                                            tile_height=tile_height,
+                                                            tile_width=tile_width)
+        else:
+            # Convert the polygon's exterior coordinates to the format expected by COCO
+            segmentation = polygon_to_coco_coordinates_segmentation(polygon=polygon)
 
         # Calculate the area of the polygon
         area = polygon.area
@@ -758,11 +1223,12 @@ class COCOGenerator:
         bbox = list(polygon.bounds)
         bbox_coco_format = [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]]
 
-
         # Generate COCO annotation data from each associated label
         coco_annotation = {
             "id": polygon_id,
             "segmentation": segmentation,
+            "is_rle_format": use_rle_for_labels,
+            "score": score,
             "area": area,
             "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
             "image_id": tile_id,
@@ -859,6 +1325,9 @@ class PointCloudCOCOGenerator:
         **IMPORTANT**: the 'score' attribute is reserved for the score associated with the polygon.
     output_path: Path
         The path to save the COCO dataset JSON file (should have .json extension).
+    use_rle_for_labels: bool
+        Whether to use RLE encoding for the labels or not. If False, the polygon's exterior coordinates will be used.
+        RLE Encoding takes less space on disk but takes more time to encode.
     n_workers: int
         The number of workers to use for parallel processing.
     coco_categories_list: List[dict] or None
@@ -907,6 +1376,7 @@ class PointCloudCOCOGenerator:
                  scores: List[List[float]] or None = None,
                  categories: List[List[Union[str, int]]] or None = None,
                  other_attributes: List[List[Dict]] or None = None,
+                 use_rle_for_labels: bool = True,
                  n_workers: int = 1,
                  coco_categories_list: List[dict] or None = None):
 
@@ -917,6 +1387,7 @@ class PointCloudCOCOGenerator:
         self.categories = categories
         self.other_attributes = other_attributes
         self.output_path = output_path
+        self.use_rle_for_labels = use_rle_for_labels
         self.n_workers = n_workers
         self.coco_categories_list = coco_categories_list
 
@@ -952,7 +1423,8 @@ class PointCloudCOCOGenerator:
                     polygons_ids,
                     [[category_to_id_map[c] if c in category_to_id_map else None for c in cs] for cs in self.categories]
                     if self.categories else [None, ] * len(self.tiles_metadata),
-                    self.other_attributes if self.other_attributes else [None, ] * len(self.tiles_metadata)
+                    self.other_attributes if self.other_attributes else [None, ] * len(self.tiles_metadata),
+                    [self.use_rle_for_labels, ] * len(self.tiles_metadata)
                     )
             )))
 
@@ -979,6 +1451,9 @@ class PointCloudCOCOGenerator:
                 "categories": categories_coco
             }, f, ensure_ascii=False, indent=2)
 
+        print(f'Verifying COCO file integrity...')
+        # Verify COCO file integrity
+        _ = COCO(self.output_path)
         print(f'Saved COCO dataset to {self.output_path}.')
 
         return categories_coco, category_to_id_map
@@ -997,7 +1472,7 @@ class PointCloudCOCOGenerator:
     def _generate_tile_coco(self, tile_data):
         (tile_id,
          (tile_metadata, tile_polygons, tile_polygons_ids,
-          tiles_polygons_category_ids, tiles_polygons_other_attributes)) = tile_data
+          tiles_polygons_category_ids, tiles_polygons_other_attributes, use_rle_for_labels)) = tile_data
 
         local_detections_coco = []
 
@@ -1010,6 +1485,7 @@ class PointCloudCOCOGenerator:
                 tile_height=tile_height,
                 tile_width=tile_width,
                 tile_id=tile_id,
+                use_rle_for_labels=use_rle_for_labels,
                 category_id=tiles_polygons_category_ids[i] if tiles_polygons_category_ids else None,
                 other_attributes_dict=tiles_polygons_other_attributes[i] if tiles_polygons_other_attributes else None
             )
@@ -1034,13 +1510,18 @@ class PointCloudCOCOGenerator:
                              tile_height: int,
                              tile_width: int,
                              tile_id: int,
+                             use_rle_for_labels: bool,
                              category_id: int or None,
                              other_attributes_dict: dict or None) -> dict:
 
-        # Convert the polygon to a COCO RLE mask
-        segmentation = polygon_to_coco_rle_segmentation(polygon=polygon,
-                                                        tile_height=tile_height,
-                                                        tile_width=tile_width)
+        if use_rle_for_labels:
+            # Convert the polygon to a COCO RLE mask
+            segmentation = polygon_to_coco_rle_segmentation(polygon=polygon,
+                                                            tile_height=tile_height,
+                                                            tile_width=tile_width)
+        else:
+            # Convert the polygon's exterior coordinates to the format expected by COCO
+            segmentation = polygon_to_coco_coordinates_segmentation(polygon=polygon)
 
         # Calculate the area of the polygon
         area = polygon.area
@@ -1053,6 +1534,7 @@ class PointCloudCOCOGenerator:
         coco_annotation = {
             "polygon_id": polygon_id,
             "segmentation": segmentation,
+            "is_rle_format": use_rle_for_labels,
             "area": area,
             "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
             "image_id": tile_id,
@@ -1113,6 +1595,110 @@ class PointCloudCOCOGenerator:
                               " so labels won't have categories.")
 
         return categories_coco, category_name_to_id_map
+
+
+def create_coco_folds(train_coco_path: str or Path, output_dir: str or Path, num_folds=5, seed=0, predefined_image_folds=None):
+    """
+    Create folds for a COCO dataset by splitting the images randomly or using predefined folds.
+
+    Parameters
+    ----------
+    train_coco_path: str or Path
+        The path to the train COCO JSON file.
+    output_dir: str or Path
+        The directory where the folds will be saved.
+    num_folds: int
+        The number of folds to create.
+    seed: int or None
+        The random seed for shuffling image IDs if predefined_image_folds is None.
+    predefined_image_folds: dict or None
+        A dictionary mapping image ids to fold IDs. If provided, this overrides random splitting.
+    """
+
+    # Set the random seed
+    if seed is not None:
+        random.seed(seed)
+
+    train_coco_path = Path(train_coco_path)
+
+    # Load the train COCO JSON file
+    with open(train_coco_path, 'r') as f:
+        train_coco = json.load(f)
+
+    product_name, scale_factor, ground_resolution, _ = CocoNameConvention.parse_name(train_coco_path.name)
+
+    # Get the list of images
+    images = train_coco['images']
+
+    # Assign images to folds
+    if predefined_image_folds:
+        folds = [[] for _ in range(num_folds)]
+        for img in images:
+            fold_id = predefined_image_folds.get(img['id'])
+            if fold_id is not None and 0 <= fold_id < num_folds:
+                folds[fold_id].append(img['id'])
+            else:
+                raise ValueError(f"Invalid fold ID for image {img['id']}: {fold_id}")
+    else:
+        # Shuffle the image IDs randomly
+        image_ids = [img['id'] for img in images]
+        random.shuffle(image_ids)
+
+        # Split the images into folds
+        folds = [[] for _ in range(num_folds)]
+        for idx, img_id in enumerate(image_ids):
+            folds[idx % num_folds].append(img_id)
+
+    # Create the output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    output_dir = Path(output_dir)
+
+    for fold in range(num_folds):
+        # Get the image IDs for the current fold
+        valid_image_ids = folds[fold]
+        train_image_ids = [img_id for f in folds if f != valid_image_ids for img_id in f]
+
+        # Create the train and valid COCO datasets for the current fold
+        train_coco_fold = {
+            'categories': train_coco['categories'],
+            'images': [img for img in train_coco['images'] if img['id'] in train_image_ids],
+            'annotations': [ann for ann in train_coco['annotations'] if ann['image_id'] in train_image_ids]
+        }
+        valid_coco_fold = {
+            'categories': train_coco['categories'],
+            'images': [img for img in train_coco['images'] if img['id'] in valid_image_ids],
+            'annotations': [ann for ann in train_coco['annotations'] if ann['image_id'] in valid_image_ids]
+        }
+
+        if 'info' in train_coco:
+            train_coco_fold['info'] = train_coco['info']
+            valid_coco_fold['info'] = train_coco['info']
+        if 'licenses' in train_coco:
+            train_coco_fold['licenses'] = train_coco['licenses']
+            valid_coco_fold['licenses'] = train_coco['licenses']
+
+        train_fold_coco_name = CocoNameConvention.create_name(
+            product_name=product_name,
+            fold=f'train{fold}',
+            scale_factor=scale_factor,
+            ground_resolution=ground_resolution
+        )
+
+        valid_fold_coco_name = CocoNameConvention.create_name(
+            product_name=product_name,
+            fold=f'valid{fold}',
+            scale_factor=scale_factor,
+            ground_resolution=ground_resolution
+        )
+
+        # Save the train and valid COCO JSON files for the current fold
+        with open(output_dir / train_fold_coco_name, 'w') as f:
+            json.dump(train_coco_fold, f, ensure_ascii=False, indent=2)
+        with open(output_dir / valid_fold_coco_name, 'w') as f:
+            json.dump(valid_coco_fold, f, ensure_ascii=False, indent=2)
+
+    print(f"Created {num_folds} folds in {output_dir}.")
+    return output_dir
 
 
 def apply_affine_transform(geom: shapely.geometry, affine: rasterio.Affine):
@@ -1214,7 +1800,7 @@ def coco_to_geopackage(coco_json_path: str,
 
         polygons = []
         for annotation in tile_annotations:
-            polygon = coco_rle_segmentation_to_polygon(rle_segmentation=annotation['segmentation'])
+            polygon = decode_coco_segmentation(annotation, 'polygon')
             polygons.append(polygon)
 
         gdf = gpd.GeoDataFrame({
@@ -1303,6 +1889,7 @@ def tiles_polygons_gdf_to_crs_gdf(dataframe: gpd.GeoDataFrame):
     all_tiles_gdf.crs = common_crs
 
     return all_tiles_gdf
+
 
 def find_tiles_paths(directories: List[Path], extensions: List[str]) -> dict[str, Path]:
     """

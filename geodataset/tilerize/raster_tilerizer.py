@@ -1,16 +1,16 @@
 from abc import ABC
 from typing import List
 import numpy as np
-import rasterio
 from pathlib import Path
 from typing import cast
 
 from geopandas import GeoDataFrame
+from rasterio.windows import Window
 from tqdm import tqdm
 
 from geodataset.aoi import AOIGeneratorForTiles, AOIFromPackageForTiles
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
-from geodataset.geodata import Raster, RasterTile
+from geodataset.geodata import Raster, RasterTileMetadata
 from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention
 from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
 
@@ -27,6 +27,22 @@ class BaseRasterTilerizer(ABC):
         The size of the tiles in pixels (tile_size, tile_size).
     tile_overlap : float
         The overlap between the tiles (0 <= overlap < 1).
+    global_aoi : str or pathlib.Path or geopandas.GeoDataFrame, optional
+        Path to the global AOI file, or directly a GeoDataFrame.
+        If provided, only the tiles intersecting this AOI will be kept, even if some tiles are inside one of the aois
+        in aois_config (if AOIFromPackageConfig).
+
+        This parameter can be really useful to create a kfold dataset in association with an AOIGeneratorConfig config like this:
+
+        aois_config = AOIGeneratorConfig(aois={
+                'zone1': {'percentage': 0.2, 'position': 1, 'actual_name': f'train{kfold_id}'},
+                'zone2': {'percentage': 0.2, 'position': 2, 'actual_name': f'train{kfold_id}'},
+                'zone3': {'percentage': 0.2, 'position': 3, 'actual_name': f'valid{kfold_id}'},
+                'zone4': {'percentage': 0.2, 'position': 4, 'actual_name': f'train{kfold_id}'},
+                'zone5': {'percentage': 0.2, 'position': 5, 'actual_name': f'train{kfold_id}'}
+            },
+            aoi_type='band'
+        )
     aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
         An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
     ground_resolution : float, optional
@@ -39,25 +55,32 @@ class BaseRasterTilerizer(ABC):
         Suffix to add to the output file names.
     ignore_black_white_alpha_tiles_threshold : float, optional
         Threshold ratio of black or white pixels in a tile to skip it.
+    temp_dir : str or pathlib.Path
+        Temporary directory to store the resampled Raster, if it is too big to fit in memory.
     """
 
     def __init__(self,
                  raster_path: str or Path,
                  tile_size: int,
                  tile_overlap: float,
+                 global_aoi: str or Path or GeoDataFrame = None,
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
                  output_name_suffix: str = None,
-                 ignore_black_white_alpha_tiles_threshold: float = 0.8):
+                 ignore_black_white_alpha_tiles_threshold: float = 0.8,
+                 temp_dir: str or Path = './tmp'):
 
         self.raster_path = Path(raster_path)
         self.tile_size = tile_size
         self.tile_overlap = tile_overlap
         self.tile_coordinate_step = int((1 - self.tile_overlap) * self.tile_size)
+        self.global_aoi = global_aoi
         self.aois_config = aois_config
         self.output_name_suffix = output_name_suffix
         self.ignore_black_white_alpha_tiles_threshold = ignore_black_white_alpha_tiles_threshold
+        self.temp_dir = Path(temp_dir)
+
         self.scale_factor = scale_factor
         self.ground_resolution = ground_resolution
 
@@ -83,10 +106,11 @@ class BaseRasterTilerizer(ABC):
         raster = Raster(path=self.raster_path,
                         output_name_suffix=self.output_name_suffix,
                         ground_resolution=self.ground_resolution,
-                        scale_factor=self.scale_factor)
+                        scale_factor=self.scale_factor,
+                        temp_dir=self.temp_dir)
         return raster
 
-    def _create_tiles(self) -> List[RasterTile]:
+    def _create_tiles(self) -> List[RasterTileMetadata]:
         width = self.raster.metadata['width']
         height = self.raster.metadata['height']
 
@@ -98,8 +122,8 @@ class BaseRasterTilerizer(ABC):
         tiles = []
         for row in tqdm(range(0, height, self.tile_coordinate_step), desc="Processing rows"):
             for col in range(0, width, self.tile_coordinate_step):
-                window = rasterio.windows.Window(col, row, width=self.tile_size, height=self.tile_size)
-                tile = self.raster.get_tile(window=window, tile_id=tile_id_counter)
+                window = Window(col, row, width=self.tile_size, height=self.tile_size)
+                tile = self.raster.create_tile_metadata(window=window, tile_id=tile_id_counter)
 
                 if self._check_skip_tile(tile=tile, tile_size=self.tile_size):
                     continue
@@ -109,7 +133,7 @@ class BaseRasterTilerizer(ABC):
 
         return tiles
 
-    def _get_tiles_per_aoi(self, tiles: List[RasterTile]):
+    def _get_tiles_per_aoi(self, tiles: List[RasterTileMetadata]):
         print('Assigning the tiles to the aois...')
 
         if self.aois_config is not None:
@@ -117,14 +141,18 @@ class BaseRasterTilerizer(ABC):
                 aoi_engine = AOIGeneratorForTiles(
                     tiles=tiles,
                     tile_coordinate_step=self.tile_coordinate_step,
-                    aois_config=cast(AOIGeneratorConfig, self.aois_config)
+                    associated_raster=self.raster,
+                    global_aoi=self.global_aoi,
+                    aois_config=cast(AOIGeneratorConfig, self.aois_config),
+                    ignore_black_white_alpha_tiles_threshold=self.ignore_black_white_alpha_tiles_threshold
                 )
             elif type(self.aois_config) is AOIFromPackageConfig:
                 aoi_engine = AOIFromPackageForTiles(
                     tiles=tiles,
                     tile_coordinate_step=self.tile_coordinate_step,
-                    aois_config=cast(AOIFromPackageConfig, self.aois_config),
                     associated_raster=self.raster,
+                    global_aoi=self.global_aoi,
+                    aois_config=cast(AOIFromPackageConfig, self.aois_config),
                     ground_resolution=self.ground_resolution,
                     scale_factor=self.scale_factor
                 )
@@ -139,7 +167,7 @@ class BaseRasterTilerizer(ABC):
             final_aois_tiles = {aoi: [] for aoi in aois_tiles}
             for aoi in aois_tiles:
                 for tile in aois_tiles[aoi]:
-                    if self._check_skip_tile(tile=tile, tile_size=self.tile_size):
+                    if tile.mask is not None and self._check_skip_tile(tile=tile, tile_size=self.tile_size):
                         continue
                     else:
                         final_aois_tiles[aoi].append(tile)
@@ -149,21 +177,20 @@ class BaseRasterTilerizer(ABC):
 
         return final_aois_tiles, aois_gdf
 
-    def _check_skip_tile(self, tile, tile_size):
-        is_rgb = self.raster.data.shape[0] == 3
-        is_rgba = self.raster.data.shape[0] == 4
+    def _check_skip_tile(self, tile: RasterTileMetadata, tile_size):
         skip_ratio = self.ignore_black_white_alpha_tiles_threshold
 
         # Checking if the tile has more than a certain ratio of white, black, or alpha pixels.
-        if is_rgb:
-            black = np.all(tile.data == 0, axis=0)
-            white = np.all(tile.data == 255, axis=0)
+        tile_data = tile.get_pixel_data()
+        if self.raster.data.count == 3:
+            black = np.all(tile_data == 0, axis=0)
+            white = np.all(tile_data == 255, axis=0)
             if np.sum(black | white) / (tile_size * tile_size) >= skip_ratio:
                 return True
-        elif is_rgba:
-            black = np.all(tile.data[:-1] == 0, axis=0)
-            white = np.all(tile.data[:-1] == 255, axis=0)
-            alpha = tile.data[-1] == 0
+        elif self.raster.data.count == 4:
+            black = np.all(tile_data[:-1] == 0, axis=0)
+            white = np.all(tile_data[:-1] == 255, axis=0)
+            alpha = tile_data[-1] == 0
             if np.sum(black | white | alpha) / (tile_size * tile_size) >= skip_ratio:
                 return True
 
@@ -184,6 +211,22 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
         The wanted size of the tiles (tile_size, tile_size).
     tile_overlap : float
         The overlap between the tiles (should be 0 <= overlap < 1).
+    global_aoi : str or pathlib.Path or geopandas.GeoDataFrame, optional
+        Path to the global AOI file, or directly a GeoDataFrame.
+        If provided, only the tiles intersecting this AOI will be kept, even if some tiles are inside one of the aois
+        in aois_config (if AOIFromPackageConfig).
+
+        This parameter can be really useful to create a kfold dataset in association with an AOIGeneratorConfig config like this:
+
+        aois_config = AOIGeneratorConfig(aois={
+                'zone1': {'percentage': 0.2, 'position': 1, 'actual_name': f'train{kfold_id}'},
+                'zone2': {'percentage': 0.2, 'position': 2, 'actual_name': f'train{kfold_id}'},
+                'zone3': {'percentage': 0.2, 'position': 3, 'actual_name': f'valid{kfold_id}'},
+                'zone4': {'percentage': 0.2, 'position': 4, 'actual_name': f'train{kfold_id}'},
+                'zone5': {'percentage': 0.2, 'position': 5, 'actual_name': f'train{kfold_id}'}
+            },
+            aoi_type='band'
+        )
     aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
         An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
     ground_resolution : float
@@ -203,6 +246,7 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
                  output_path: str,
                  tile_size: int,
                  tile_overlap: float,
+                 global_aoi: str or Path or GeoDataFrame = None,
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
@@ -212,6 +256,7 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
         super().__init__(raster_path=raster_path,
                          tile_size=tile_size,
                          tile_overlap=tile_overlap,
+                         global_aoi=global_aoi,
                          aois_config=aois_config,
                          ground_resolution=ground_resolution,
                          scale_factor=scale_factor,
@@ -221,8 +266,10 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
         self.output_path = Path(output_path) / self.raster.output_name
         self.tiles_path = self.output_path / 'tiles'
         self.tiles_path.mkdir(parents=True, exist_ok=True)
+        self.aois_tiles = None
+        self.aois_gdf = None
 
-    def _get_tiles_per_aoi(self, tiles: List[RasterTile]):
+    def _get_tiles_per_aoi(self, tiles: List[RasterTileMetadata]):
         aois_tiles, aois_gdf = super()._get_tiles_per_aoi(tiles=tiles)
 
         # Saving the AOIs to disk
@@ -240,7 +287,8 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
                 aoi_gdf.to_file(self.output_path / aoi_file_name, driver='GPKG')
                 print(f"Final AOI '{aoi}' saved to {self.output_path / aoi_file_name}.")
 
-        return aois_tiles, aois_gdf
+        self.aois_tiles = aois_tiles
+        self.aois_gdf = aois_gdf
 
 
 class RasterTilerizer(BaseDiskRasterTilerizer):
@@ -257,6 +305,22 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
         The wanted size of the tiles (tile_size, tile_size).
     tile_overlap : float
         The overlap between the tiles (should be 0 <= overlap < 1).
+    global_aoi : str or pathlib.Path or geopandas.GeoDataFrame, optional
+        Path to the global AOI file, or directly a GeoDataFrame.
+        If provided, only the tiles intersecting this AOI will be kept, even if some tiles are inside one of the aois
+        in aois_config (if AOIFromPackageConfig).
+
+        This parameter can be really useful to create a kfold dataset in association with an AOIGeneratorConfig config like this:
+
+        aois_config = AOIGeneratorConfig(aois={
+                'zone1': {'percentage': 0.2, 'position': 1, 'actual_name': f'train{kfold_id}'},
+                'zone2': {'percentage': 0.2, 'position': 2, 'actual_name': f'train{kfold_id}'},
+                'zone3': {'percentage': 0.2, 'position': 3, 'actual_name': f'valid{kfold_id}'},
+                'zone4': {'percentage': 0.2, 'position': 4, 'actual_name': f'train{kfold_id}'},
+                'zone5': {'percentage': 0.2, 'position': 5, 'actual_name': f'train{kfold_id}'}
+            },
+            aoi_type='band'
+        )
     aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
         An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
     ground_resolution : float
@@ -276,6 +340,7 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                  output_path: str or Path,
                  tile_size: int,
                  tile_overlap: float,
+                 global_aoi: str or Path or GeoDataFrame = None,
                  aois_config: AOIConfig = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
@@ -286,6 +351,7 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                          output_path=output_path,
                          tile_size=tile_size,
                          tile_overlap=tile_overlap,
+                         global_aoi=global_aoi,
                          aois_config=aois_config,
                          ground_resolution=ground_resolution,
                          scale_factor=scale_factor,
@@ -298,10 +364,10 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
         """
 
         tiles = self._create_tiles()
-        aois_tiles, _ = self._get_tiles_per_aoi(tiles=tiles)
-        aois_tiles['all'] = [tile for tile_list in aois_tiles.values() for tile in tile_list]
+        self._get_tiles_per_aoi(tiles=tiles)
+        self.aois_tiles['all'] = [tile for tile_list in self.aois_tiles.values() for tile in tile_list]
 
-        save_aois_tiles_picture(aois_tiles=aois_tiles,
+        save_aois_tiles_picture(aois_tiles=self.aois_tiles,
                                 save_path=self.output_path / AoiTilesImageConvention.create_name(
                                     product_name=self.raster.output_name,
                                     ground_resolution=self.ground_resolution,
@@ -310,18 +376,19 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                                 tile_coordinate_step=self.tile_coordinate_step)
 
         [print(f'No tiles found for AOI {aoi}.') for aoi in self.aois_config.actual_names
-         if aoi not in aois_tiles or len(aois_tiles[aoi]) == 0]
+         if aoi not in self.aois_tiles or len(self.aois_tiles[aoi]) == 0]
 
         print("Saving tiles...")
-        for aoi in aois_tiles:
-            if aoi == 'all' and len(aois_tiles.keys()) > 1:
+        for aoi in self.aois_tiles:
+            if aoi == 'all' and len(self.aois_tiles.keys()) > 1:
                 # don't save the 'all' tiles if aois were provided.
                 continue
 
             # Save the tile images
-            for tile in aois_tiles[aoi]:
-                tiles_path_aoi = self.tiles_path / aoi
-                tiles_path_aoi.mkdir(parents=True, exist_ok=True)
+            tiles_path_aoi = self.tiles_path / aoi
+            tiles_path_aoi.mkdir(parents=True, exist_ok=True)
+
+            for tile in self.aois_tiles[aoi]:
                 tile.save(output_folder=tiles_path_aoi)
 
         print(f"The tiles have been saved to {self.tiles_path}.")

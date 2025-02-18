@@ -37,34 +37,47 @@ class RasterPolygonLabels:
         The names of the columns in the labels file that contains other attributes of the labels, which should be kept
         as a dictionary in the COCO annotations data.
     """
+
     def __init__(self,
-                 path: str or Path,
+                 path: str or Path or None,
                  associated_raster: Raster,
+                 labels_gdf: gpd.GeoDataFrame = None,
                  geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None):
+        if path:
+            self.path = Path(path)
+            self.ext = self.path.suffix
+        else:
+            self.path = path
+            self.ext = None
 
-        self.path = Path(path)
-        self.ext = self.path.suffix
         self.associated_raster = associated_raster
+        self.labels_gdf = labels_gdf
         self.geopackage_layer_name = geopackage_layer_name
         self.ground_resolution = self.associated_raster.ground_resolution
         self.scale_factor = self.associated_raster.scale_factor
         self.main_label_category_column_name = main_label_category_column_name
         self.other_labels_attributes_column_names = other_labels_attributes_column_names
 
+        assert not (self.path and self.labels_gdf is not None) and (self.path or self.labels_gdf is not None),\
+            'Either path or labels_gdf must be passed to RasterPolygonLabels, but not both.'
+
         self.geometries_gdf = self._load_labels()
 
     def _load_labels(self):
         # Loading the labels into a GeoDataFrame
-        if self.ext.lower() == '.xml':
-            labels_gdf = self._load_xml_labels()
-        elif self.ext == '.csv':
-            labels_gdf = self._load_csv_labels()
-        elif self.ext in ['.geojson', '.gpkg', '.shp', ".json"]:
-            labels_gdf = self._load_geopandas_labels()
+        if self.labels_gdf is not None:
+            labels_gdf = self.labels_gdf
         else:
-            raise Exception(f'Annotation format {self.ext} is not yet supported.')
+            if self.ext.lower() == '.xml':
+                labels_gdf = self._load_xml_labels()
+            elif self.ext == '.csv':
+                labels_gdf = self._load_csv_labels()
+            elif self.ext in ['.geojson', '.gpkg', '.shp', ".json"]:
+                labels_gdf = self._load_geopandas_labels()
+            else:
+                raise Exception(f'Annotation format {self.ext} is not yet supported.')
 
         # Making sure we are working with Polygons and not Multipolygons
         if (labels_gdf['geometry'].type == 'MultiPolygon').any():
