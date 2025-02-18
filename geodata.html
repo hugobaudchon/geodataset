@@ -5,7 +5,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Geodata &mdash; GeoDataset  documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
       <link rel="stylesheet" type="text/css" href="_static/css/custom.css?v=0ab8baea" />
 
@@ -56,8 +56,8 @@
 <li class="toctree-l3"><a class="reference internal" href="#geodataset.geodata.Raster"><code class="docutils literal notranslate"><span class="pre">Raster</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Raster.adjust_geometries_to_raster_crs_if_necessary"><code class="docutils literal notranslate"><span class="pre">Raster.adjust_geometries_to_raster_crs_if_necessary()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Raster.adjust_geometries_to_raster_pixel_coordinates"><code class="docutils literal notranslate"><span class="pre">Raster.adjust_geometries_to_raster_pixel_coordinates()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Raster.create_tile_metadata"><code class="docutils literal notranslate"><span class="pre">Raster.create_tile_metadata()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Raster.get_polygon_tile"><code class="docutils literal notranslate"><span class="pre">Raster.get_polygon_tile()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Raster.get_tile"><code class="docutils literal notranslate"><span class="pre">Raster.get_tile()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#geodataset.geodata.Raster.revert_polygons_pixels_coordinates_to_crs"><code class="docutils literal notranslate"><span class="pre">Raster.revert_polygons_pixels_coordinates_to_crs()</span></code></a></li>
 </ul>
 </li>
@@ -98,8 +98,8 @@
 <h1>Geodata<a class="headerlink" href="#geodata" title="Link to this heading"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="geodataset.geodata.Raster">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.geodata.</span></span><span class="sig-name descname"><span class="pre">Raster</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_name_suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ground_resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale_factor</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/raster.html#Raster"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.Raster" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseGeoData</span></code></p>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">geodataset.geodata.</span></span><span class="sig-name descname"><span class="pre">Raster</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_name_suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ground_resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale_factor</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temp_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./tmp'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/raster.html#Raster"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.Raster" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Class responsible for loading a .tif or .png raster with or without CRS/transform data,
 while resampling it to match a given ground_resolution or scale_factor.
 It contains methods to align geometries in GeoDataFrame objects in a given CRS to the resampled raster’s
@@ -113,6 +113,7 @@ CRS or pixel coordinate system.</p>
 Only one of ground_resolution and scale_factor can be set at the same time.</p></li>
 <li><p><strong>scale_factor</strong> (<em>float</em>) – Scale factor for rescaling the data (change pixel resolution).
 Only one of ground_resolution and scale_factor can be set at the same time.</p></li>
+<li><p><strong>temp_dir</strong> (<em>str</em><em> or </em><em>pathlib.Path</em>) – Temporary directory to store the resampled Raster, if it is too big to fit in memory.</p></li>
 </ul>
 </dd>
 </dl>
@@ -146,6 +147,23 @@ This should be called after calling the method adjust_geometries_to_raster_crs_i
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="geodataset.geodata.Raster.create_tile_metadata">
+<span class="sig-name descname"><span class="pre">create_tile_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">window</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_id</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/raster.html#Raster.create_tile_metadata"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.Raster.create_tile_metadata" title="Link to this definition"></a></dt>
+<dd><p>Generates and returns a Tile from a window of the Raster.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>window</strong> (<em>Window</em>) – The window to generate the Tile from.</p></li>
+<li><p><strong>tile_id</strong> (<em>int</em>) – The id of the tile.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>RasterTileMetadata or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="geodataset.geodata.Raster.get_polygon_tile">
 <span class="sig-name descname"><span class="pre">get_polygon_tile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">polygon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_aoi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_variable_tile_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_tile_size_pixel_buffer</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/raster.html#Raster.get_polygon_tile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.Raster.get_polygon_tile" title="Link to this definition"></a></dt>
 <dd><p>Generates and returns a PolygonTile from a Polygon geometry, along with the possibly cropped original Polygon.
@@ -172,24 +190,7 @@ Only used when use_variable_tile_size is set to ‘True’.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>Tuple[RasterPolygonTile, Polygon]</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="geodataset.geodata.Raster.get_tile">
-<span class="sig-name descname"><span class="pre">get_tile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">window</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_id</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/raster.html#Raster.get_tile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.Raster.get_tile" title="Link to this definition"></a></dt>
-<dd><p>Generates and returns a Tile from a window of the Raster.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>window</strong> (<em>rasterio.windows.Window</em>) – The window to generate the Tile from.</p></li>
-<li><p><strong>tile_id</strong> (<em>int</em>) – The id of the tile.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>RasterTile</p>
+<dd class="field-even"><p>Tuple[RasterPolygonTileMetadata, Polygon]</p>
 </dd>
 </dl>
 </dd></dl>

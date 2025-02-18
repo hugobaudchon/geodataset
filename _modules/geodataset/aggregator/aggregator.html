@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>geodataset.aggregator.aggregator &mdash; GeoDataset  documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/custom.css?v=0ab8baea" />
 
@@ -72,26 +72,27 @@
            <div itemprop="articleBody">
              
   <h1>Source code for geodataset.aggregator.aggregator</h1><div class="highlight"><pre>
-<span></span><span class="kn">import</span> <span class="nn">json</span>
-<span class="kn">import</span> <span class="nn">warnings</span>
-<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Dict</span>
-<span class="kn">from</span> <span class="nn">warnings</span> <span class="kn">import</span> <span class="n">warn</span>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Dict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">warnings</span><span class="w"> </span><span class="kn">import</span> <span class="n">warn</span>
 
-<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
-<span class="kn">import</span> <span class="nn">rasterio</span>
-<span class="kn">import</span> <span class="nn">shapely</span>
-<span class="kn">from</span> <span class="nn">shapely</span> <span class="kn">import</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span>
-<span class="kn">import</span> <span class="nn">geopandas</span> <span class="k">as</span> <span class="nn">gpd</span>
-<span class="kn">from</span> <span class="nn">tqdm</span> <span class="kn">import</span> <span class="n">tqdm</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">rasterio</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">shapely</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">shapely</span><span class="w"> </span><span class="kn">import</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">shapely.validation</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_valid</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tqdm</span><span class="w"> </span><span class="kn">import</span> <span class="n">tqdm</span>
 
-<span class="kn">from</span> <span class="nn">geodataset.utils</span> <span class="kn">import</span> <span class="n">TileNameConvention</span><span class="p">,</span> <span class="n">apply_affine_transform</span><span class="p">,</span> <span class="n">COCOGenerator</span><span class="p">,</span> \
-    <span class="n">coco_rle_segmentation_to_polygon</span><span class="p">,</span> <span class="n">apply_inverse_transform</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">TileNameConvention</span><span class="p">,</span> <span class="n">apply_affine_transform</span><span class="p">,</span> <span class="n">COCOGenerator</span><span class="p">,</span> <span class="n">apply_inverse_transform</span><span class="p">,</span> \
+    <span class="n">decode_coco_segmentation</span><span class="p">,</span> <span class="n">fix_geometry_collection</span>
 
 
 <div class="viewcode-block" id="Aggregator">
 <a class="viewcode-back" href="../../../aggregator.html#geodataset.aggregator.Aggregator">[docs]</a>
-<span class="k">class</span> <span class="nc">Aggregator</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Aggregator</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Class to aggregate polygons from multiple tiles, with different pixel coordinate systems,</span>
 <span class="sd">    into a single GeoDataFrame with a common CRS, applying the Non-Maximum Suppression (NMS) algorithm.</span>
@@ -100,41 +101,57 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">SUPPORTED_NMS_ALGORITHMS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;iou&#39;</span><span class="p">,</span> <span class="s1">&#39;ioa-disambiguate&#39;</span><span class="p">]</span>  <span class="c1"># &#39;diou&#39;</span>
+    <span class="n">SUPPORTED_SCORE_WEIGHTING_METHODS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;weighted_arithmetic_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;weighted_geometric_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;weighted_harmonic_mean&#39;</span><span class="p">]</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                  <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
                  <span class="n">polygons_gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span>
                  <span class="n">scores_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
-                 <span class="n">classes_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+                 <span class="n">other_attributes_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
                  <span class="n">scores_weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
                  <span class="n">tiles_extent_gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span>
                  <span class="n">tile_ids_to_path</span><span class="p">:</span> <span class="nb">dict</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">scores_weighting_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;weighted_geometric_mean&#39;</span><span class="p">,</span>
+                 <span class="n">min_centroid_distance_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">score_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
                  <span class="n">nms_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
                  <span class="n">nms_algorithm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;iou&#39;</span><span class="p">,</span>
-                 <span class="n">best_geom_keep_area_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">):</span>
+                 <span class="n">best_geom_keep_area_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+                 <span class="n">pre_aggregated_output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span> <span class="o">=</span> <span class="n">polygons_gdf</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span> <span class="o">=</span> <span class="n">scores_names</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">classes_names</span> <span class="o">=</span> <span class="n">classes_names</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names</span> <span class="o">=</span> <span class="n">other_attributes_names</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scores_weights</span> <span class="o">=</span> <span class="n">scores_weights</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tiles_extent_gdf</span> <span class="o">=</span> <span class="n">tiles_extent_gdf</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tile_ids_to_path</span> <span class="o">=</span> <span class="n">tile_ids_to_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scores_weighting_method</span> <span class="o">=</span> <span class="n">scores_weighting_method</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">min_centroid_distance_weight</span> <span class="o">=</span> <span class="n">min_centroid_distance_weight</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">score_threshold</span> <span class="o">=</span> <span class="n">score_threshold</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nms_threshold</span> <span class="o">=</span> <span class="n">nms_threshold</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nms_algorithm</span> <span class="o">=</span> <span class="n">nms_algorithm</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">best_geom_keep_area_ratio</span> <span class="o">=</span> <span class="n">best_geom_keep_area_ratio</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pre_aggregated_output_path</span> <span class="o">=</span> <span class="n">pre_aggregated_output_path</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;tile_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_ids_to_path</span><span class="p">)</span>
+
+        <span class="c1"># If only 1 set of scores is provided, we set the score_weight to 1.0</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_weights</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores_weights</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">]</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_check_parameters</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_validate_polygons</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_aggregated_output_path</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;area&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">area</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">to_file</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_aggregated_output_path</span><span class="p">,</span> <span class="n">driver</span><span class="o">=</span><span class="s1">&#39;GPKG&#39;</span><span class="p">)</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_scores</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_classes</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_remove_low_score_polygons</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_apply_nms_algorithm</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_save_polygons</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="nf">_check_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">crs</span><span class="p">,</span> <span class="s2">&quot;The provided polygons_gdf doesn&#39;t have a CRS.&quot;</span>
         <span class="k">assert</span> <span class="s1">&#39;tile_id&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">,</span> <span class="s2">&quot;The provided polygons_gdf doesn&#39;t have a &#39;tile_id&#39; column.&quot;</span>
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">tiles_extent_gdf</span><span class="o">.</span><span class="n">crs</span><span class="p">,</span> <span class="s2">&quot;The provided tiles_extent_gdf doesn&#39;t have a CRS.&quot;</span>
@@ -142,27 +159,34 @@
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">nms_algorithm</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">SUPPORTED_NMS_ALGORITHMS</span><span class="p">,</span> \
             <span class="sa">f</span><span class="s2">&quot;The nms_algorithm must be one of </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">SUPPORTED_NMS_ALGORITHMS</span><span class="si">}</span><span class="s2">. Got </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">nms_algorithm</span><span class="si">}</span><span class="s2">.&quot;</span>
 
-        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;.json&#39;</span><span class="p">,</span> <span class="s1">&#39;.geojson&#39;</span><span class="p">],</span> <span class="p">(</span><span class="s2">&quot;The output_path needs to end with either .json&quot;</span>
-                                                                  <span class="s2">&quot; (coco output) or .geojson (geopackage output).&quot;</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;.json&#39;</span><span class="p">,</span> <span class="s1">&#39;.geojson&#39;</span><span class="p">,</span> <span class="s1">&#39;.gpkg&#39;</span><span class="p">],</span> \
+            <span class="s2">&quot;The output_path needs to end with either .json (coco output) or .geojson/.gpkg (geopackage output).&quot;</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s1">&#39;.json&#39;</span><span class="p">:</span>
             <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_ids_to_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> \
                 <span class="s2">&quot;The tile_ids_to_path must be provided to save the polygons in COCO format.&quot;</span>
 
+        <span class="k">assert</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_weights</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;The sum of the scores_weights values must be equal to 1.&quot;</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores_weighting_method</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">SUPPORTED_SCORE_WEIGHTING_METHODS</span><span class="p">,</span> \
+            <span class="sa">f</span><span class="s2">&quot;The score_weighting_method must be one of </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">SUPPORTED_SCORE_WEIGHTING_METHODS</span><span class="si">}</span><span class="s2">. &quot;</span> \
+
 <div class="viewcode-block" id="Aggregator.from_coco">
 <a class="viewcode-back" href="../../../aggregator.html#geodataset.aggregator.Aggregator.from_coco">[docs]</a>
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">from_coco</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_coco</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span>
                   <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
                   <span class="n">tiles_folder_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
                   <span class="n">coco_json_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
                   <span class="n">scores_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                  <span class="n">classes_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                  <span class="n">other_attributes_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                   <span class="n">scores_weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                  <span class="n">scores_weighting_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;weighted_geometric_mean&#39;</span><span class="p">,</span>
+                  <span class="n">min_centroid_distance_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                   <span class="n">score_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
                   <span class="n">nms_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
                   <span class="n">nms_algorithm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;iou&#39;</span><span class="p">,</span>
-                  <span class="n">best_geom_keep_area_ratio</span><span class="p">:</span> <span class="nb">float</span><span class="o">=</span><span class="mf">0.5</span><span class="p">):</span>
+                  <span class="n">best_geom_keep_area_ratio</span><span class="p">:</span> <span class="nb">float</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+                  <span class="n">pre_aggregated_output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Instanciate and run an Aggregator from a COCO JSON file.</span>
@@ -204,16 +228,23 @@
 <span class="sd">                    },</span>
 <span class="sd">                    ...</span>
 <span class="sd">                ]</span>
-<span class="sd">        classes_names: List[str]</span>
-<span class="sd">            The names of the attributes in the COCO file annotations which should be used as classes.</span>
-<span class="sd">            Same structure than &quot;scores_names&quot;.</span>
+<span class="sd">        other_attributes_names: List[str]</span>
+<span class="sd">            The names of the attributes in the COCO file annotations which should be kept in the output result</span>
+<span class="sd">            (but won&#39;t be used by the Aggregator itself). Same structure than &quot;scores_names&quot;.</span>
 <span class="sd">        scores_weights: List[float]</span>
-<span class="sd">            The weights to apply to each score column in the polygons_gdf. Weights are exponents.</span>
-<span class="sd">            There should be as many weights as there are scores_names.</span>
+<span class="sd">            The weights to apply to each score set. The scores_weights should sum to 1 and there should be as many</span>
+<span class="sd">             weights as there are scores_names. See the &#39;scores_weighting_method&#39; parameter for more details.</span>
+<span class="sd">        scores_weighting_method: str</span>
+<span class="sd">            The method to use to weight the different sets of scores. Supported values are [&#39;weighted_arithmetic_mean&#39;,</span>
+<span class="sd">            &#39;weighted_geometric_mean&#39;, &#39;weighted_harmonic_mean&#39;].</span>
 
-<span class="sd">            The equation is::</span>
-
-<span class="sd">                score = (score1 ** weight1) * (score2 ** weight2) * ...</span>
+<span class="sd">                - &#39;weighted_arithmetic_mean&#39;: The scores are simply averaged, but each score is weighted by its weight.</span>
+<span class="sd">                - &#39;weighted_geometric_mean&#39;: The scores are multiplied, but each score is weighted by its weight.</span>
+<span class="sd">                - &#39;weighted_harmonic_mean&#39;: The scores are averaged, but each score is weighted by its reciprocal.</span>
+<span class="sd">        min_centroid_distance_weight: float or None</span>
+<span class="sd">            The weight to apply to the polygon scores (after applying the scores_weights) based on the distance</span>
+<span class="sd">             between the polygon centroid and its tile centroid. The smaller the value of min_centroid_distance_weight,</span>
+<span class="sd">             the smaller the score will be for polygons at the edge of the tile.</span>
 <span class="sd">        score_threshold: float</span>
 <span class="sd">            The score threshold under which polygons will be removed, before applying the NMS algorithm.</span>
 <span class="sd">        nms_threshold: float</span>
@@ -241,6 +272,9 @@
 <span class="sd">            the intersection with another one, that polygon may end-up being cut into multiple smaller and disconnected</span>
 <span class="sd">            geometries. The algorithm will only consider keeping the largest of those geometries, and only keep it if</span>
 <span class="sd">            it makes up at least &#39;best_geom_keep_area_ratio&#39; percent of the original polygon (in terms of area).</span>
+<span class="sd">        pre_aggregated_output_path: str or Path</span>
+<span class="sd">            If provided, the polygons will be saved in this file before applying the NMS algorithm.</span>
+<span class="sd">            This is useful to debug the polygons before the NMS algorithm is applied.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
@@ -250,49 +284,54 @@
         <span class="k">if</span> <span class="n">scores_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">scores_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span>  <span class="c1"># will try to find a &#39;score&#39; attribute as it&#39;s required for NMS algorithm.</span>
 
-        <span class="k">if</span> <span class="n">classes_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">classes_names</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># by default classes are not mandatory</span>
+        <span class="k">if</span> <span class="n">other_attributes_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">other_attributes_names</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># by default other attributes are not mandatory</span>
 
         <span class="k">if</span> <span class="n">scores_weights</span><span class="p">:</span>
             <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">scores_names</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">scores_weights</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;The scores_weights must have &quot;</span>
                                                               <span class="s2">&quot;the same length as the scores_names.&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">scores_weights</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">scores_names</span><span class="p">)</span>
+            <span class="n">scores_weights</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">scores_names</span><span class="p">),</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">scores_names</span><span class="p">)</span>
 
         <span class="n">all_polygons_gdf</span><span class="p">,</span> <span class="n">all_tiles_extents_gdf</span><span class="p">,</span> <span class="n">tile_ids_to_path</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_from_coco</span><span class="p">(</span>
             <span class="n">tiles_folder_path</span><span class="o">=</span><span class="n">tiles_folder_path</span><span class="p">,</span>
             <span class="n">coco_json_path</span><span class="o">=</span><span class="n">coco_json_path</span><span class="p">,</span>
-            <span class="n">scores_names</span><span class="o">=</span><span class="n">scores_names</span><span class="p">,</span>
-            <span class="n">classes_names</span><span class="o">=</span><span class="n">classes_names</span>
+            <span class="n">attributes_names</span><span class="o">=</span><span class="n">scores_names</span> <span class="o">+</span> <span class="n">other_attributes_names</span>
         <span class="p">)</span>
 
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">output_path</span><span class="o">=</span><span class="n">output_path</span><span class="p">,</span>
                    <span class="n">polygons_gdf</span><span class="o">=</span><span class="n">all_polygons_gdf</span><span class="p">,</span>
                    <span class="n">scores_names</span><span class="o">=</span><span class="n">scores_names</span><span class="p">,</span>
-                   <span class="n">classes_names</span><span class="o">=</span><span class="n">classes_names</span><span class="p">,</span>
+                   <span class="n">other_attributes_names</span><span class="o">=</span><span class="n">other_attributes_names</span><span class="p">,</span>
                    <span class="n">scores_weights</span><span class="o">=</span><span class="n">scores_weights</span><span class="p">,</span>
                    <span class="n">tiles_extent_gdf</span><span class="o">=</span><span class="n">all_tiles_extents_gdf</span><span class="p">,</span>
+                   <span class="n">scores_weighting_method</span><span class="o">=</span><span class="n">scores_weighting_method</span><span class="p">,</span>
+                   <span class="n">min_centroid_distance_weight</span><span class="o">=</span><span class="n">min_centroid_distance_weight</span><span class="p">,</span>
                    <span class="n">score_threshold</span><span class="o">=</span><span class="n">score_threshold</span><span class="p">,</span>
                    <span class="n">nms_threshold</span><span class="o">=</span><span class="n">nms_threshold</span><span class="p">,</span>
                    <span class="n">nms_algorithm</span><span class="o">=</span><span class="n">nms_algorithm</span><span class="p">,</span>
                    <span class="n">tile_ids_to_path</span><span class="o">=</span><span class="n">tile_ids_to_path</span><span class="p">,</span>
-                   <span class="n">best_geom_keep_area_ratio</span><span class="o">=</span><span class="n">best_geom_keep_area_ratio</span><span class="p">)</span></div>
+                   <span class="n">best_geom_keep_area_ratio</span><span class="o">=</span><span class="n">best_geom_keep_area_ratio</span><span class="p">,</span>
+                   <span class="n">pre_aggregated_output_path</span><span class="o">=</span><span class="n">pre_aggregated_output_path</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="Aggregator.from_polygons">
 <a class="viewcode-back" href="../../../aggregator.html#geodataset.aggregator.Aggregator.from_polygons">[docs]</a>
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">from_polygons</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_polygons</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span>
                       <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
                       <span class="n">tiles_paths</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">],</span>
                       <span class="n">polygons</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Polygon</span><span class="p">]],</span>
                       <span class="n">scores</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="ow">or</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]],</span>
-                      <span class="n">classes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="ow">or</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]],</span>
+                      <span class="n">other_attributes</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]],</span>
                       <span class="n">scores_weights</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                      <span class="n">scores_weighting_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;weighted_geometric_mean&#39;</span><span class="p">,</span>
+                      <span class="n">min_centroid_distance_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                       <span class="n">score_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
                       <span class="n">nms_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
                       <span class="n">nms_algorithm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;iou&#39;</span><span class="p">,</span>
-                      <span class="n">best_geom_keep_area_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">):</span>
+                      <span class="n">best_geom_keep_area_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+                      <span class="n">pre_aggregated_output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Instanciate and run an Aggregator from a list of polygons for each tile.</span>
@@ -317,18 +356,26 @@
 <span class="sd">                    &#39;segmentation_score&#39;: [[0.4, 0.2, ...], [0.8, 0.9, ...], ...]</span>
 <span class="sd">                }</span>
 
-<span class="sd">            This is useful if you have multiple scores for each polygon, such as detection confidence score and</span>
-<span class="sd">            segmentation confidence score.</span>
-<span class="sd">        classes: List[List[float]] or Dict[str, List[List[float]]]</span>
-<span class="sd">            Classes predicted from the detector. Structure is similar to &quot;scores&quot;</span>
+<span class="sd">            This is useful if you possibly have multiple scores for each polygon, such as detection confidence score</span>
+<span class="sd">            and/or segmentation confidence score.</span>
+<span class="sd">        other_attributes: Dict[str, List[List[float]]]</span>
+<span class="sd">            Used to pass other polygons information, not used by the Aggregator but used for your downstream tasks.</span>
+<span class="sd">            Structure is similar to &quot;scores&quot;, a dict with keys being the attribute (=output gpkg columns) names and</span>
+<span class="sd">            values being lists of lists, one value for each associated polygon.</span>
 <span class="sd">        scores_weights: Dict[str, float]</span>
-<span class="sd">            The weights to apply to each score column in the polygons_gdf. Weights are exponents.</span>
-<span class="sd">            Only used if &#39;scores&#39; is a dict and has more than 1 key (more than 1 set of scores).</span>
-<span class="sd">            There keys of the dict should be the same as the keys of the &#39;scores&#39; dict.</span>
+<span class="sd">            The weights to apply to each score set. The scores_weights should sum to 1 and there should be as many</span>
+<span class="sd">                weights as there are scores_names. See the &#39;scores_weighting_method&#39; parameter for more details.</span>
+<span class="sd">        scores_weighting_method: str</span>
+<span class="sd">            The method to use to weight the different sets of scores. Supported values are [&#39;weighted_arithmetic_mean&#39;,</span>
+<span class="sd">            &#39;weighted_geometric_mean&#39;, &#39;weighted_harmonic_mean&#39;].</span>
 
-<span class="sd">            The equation is::</span>
-
-<span class="sd">                score = (score1 ** weight1) * (score2 ** weight2) * ...</span>
+<span class="sd">                - &#39;weighted_arithmetic_mean&#39;: The scores are simply averaged, but each score is weighted by its weight.</span>
+<span class="sd">                - &#39;weighted_geometric_mean&#39;: The scores are multiplied, but each score is weighted by its weight.</span>
+<span class="sd">                - &#39;weighted_harmonic_mean&#39;: The scores are averaged, but each score is weighted by its reciprocal</span>
+<span class="sd">        min_centroid_distance_weight: float or None</span>
+<span class="sd">            The weight to apply to the polygon scores (after applying the scores_weights) based on the distance</span>
+<span class="sd">            between the polygon centroid and its tile centroid. The smaller the value of min_centroid_distance_weight,</span>
+<span class="sd">            the smaller the score will be for polygons at the edge of the tile.</span>
 <span class="sd">        score_threshold: float</span>
 <span class="sd">            The score threshold under which polygons will be removed, before applying the NMS algorithm.</span>
 <span class="sd">        nms_threshold: float</span>
@@ -356,6 +403,9 @@
 <span class="sd">            the intersection with another one, that polygon may end-up being cut into multiple smaller and disconnected</span>
 <span class="sd">            geometries. The algorithm will only consider keeping the largest of those geometries, and only keep it if</span>
 <span class="sd">            it makes up at least &#39;best_geom_keep_area_ratio&#39; percent of the original polygon (in terms of area).</span>
+<span class="sd">        pre_aggregated_output_path: str or Path</span>
+<span class="sd">            If provided, the polygons will be saved in this file before applying the NMS algorithm.</span>
+<span class="sd">            This is useful to debug the polygons before the NMS algorithm is applied.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
@@ -372,56 +422,48 @@
         <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">scores</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
             <span class="n">scores</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;score&#39;</span><span class="p">:</span> <span class="n">scores</span><span class="p">}</span>
 
-        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">classes</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
-            <span class="n">classes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;class&#39;</span><span class="p">:</span> <span class="n">classes</span><span class="p">}</span>
-
         <span class="k">if</span> <span class="n">scores_weights</span><span class="p">:</span>
             <span class="k">assert</span> <span class="nb">set</span><span class="p">(</span><span class="n">scores_weights</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">==</span> <span class="nb">set</span><span class="p">(</span><span class="n">scores</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span> <span class="p">(</span><span class="s2">&quot;The scores_weights keys must be &quot;</span>
                                                                       <span class="s2">&quot;the same as the scores keys.&quot;</span><span class="p">)</span>
-            <span class="k">assert</span> <span class="nb">all</span><span class="p">([</span><span class="n">w</span> <span class="o">&gt;=</span> <span class="mf">1.0</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">scores_weights</span><span class="o">.</span><span class="n">values</span><span class="p">()]),</span> <span class="s2">&quot;All scores_weights values should be &gt; 1.&quot;</span>
-
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">scores_weights</span> <span class="o">=</span> <span class="p">{</span><span class="n">score_name</span><span class="p">:</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">scores</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span> <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">scores</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">dict</span> <span class="k">else</span> <span class="p">{</span><span class="s1">&#39;score&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+            <span class="n">scores_weights</span> <span class="o">=</span> <span class="p">{</span><span class="n">score_name</span><span class="p">:</span> <span class="mi">1</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">scores</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">scores</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>\
+                             <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">scores</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">dict</span> <span class="k">else</span> <span class="p">{</span><span class="s1">&#39;score&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
 
-        <span class="n">tile_ids_to_scores</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">tile_ids_to_attributes</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">tile_id</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">:</span>
-            <span class="n">id_scores</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">tile_attributes</span> <span class="o">=</span> <span class="p">{}</span>
             <span class="k">for</span> <span class="n">score_name</span><span class="p">,</span> <span class="n">score_values</span> <span class="ow">in</span> <span class="n">scores</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="n">id_scores</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">score_values</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span>
-            <span class="n">tile_ids_to_scores</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">id_scores</span>
-
-        <span class="n">tile_ids_to_classes</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="k">for</span> <span class="n">tile_id</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">:</span>
-            <span class="n">id_classes</span> <span class="o">=</span> <span class="p">{}</span>
-            <span class="k">for</span> <span class="n">class_name</span><span class="p">,</span> <span class="n">class_values</span> <span class="ow">in</span> <span class="n">classes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="n">id_classes</span><span class="p">[</span><span class="n">class_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">class_values</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span>
-            <span class="n">tile_ids_to_classes</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">id_classes</span>
+                <span class="n">tile_attributes</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">score_values</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">attribute_name</span><span class="p">,</span> <span class="n">attribute_values</span> <span class="ow">in</span> <span class="n">other_attributes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">tile_attributes</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">attribute_values</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span>
+            <span class="n">tile_ids_to_attributes</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">tile_attributes</span>
 
         <span class="n">all_polygons_gdf</span><span class="p">,</span> <span class="n">all_tiles_extents_gdf</span> <span class="o">=</span> <span class="n">Aggregator</span><span class="o">.</span><span class="n">_prepare_polygons</span><span class="p">(</span>
             <span class="n">tile_ids_to_path</span><span class="o">=</span><span class="n">tile_ids_to_path</span><span class="p">,</span>
             <span class="n">tile_ids_to_polygons</span><span class="o">=</span><span class="n">tile_ids_to_polygons</span><span class="p">,</span>
-            <span class="n">tile_ids_to_scores</span><span class="o">=</span><span class="n">tile_ids_to_scores</span><span class="p">,</span>
-            <span class="n">tile_ids_to_classes</span><span class="o">=</span><span class="n">tile_ids_to_classes</span>
+            <span class="n">tile_ids_to_attributes</span><span class="o">=</span><span class="n">tile_ids_to_attributes</span>
         <span class="p">)</span>
 
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">output_path</span><span class="o">=</span><span class="n">output_path</span><span class="p">,</span>
                    <span class="n">polygons_gdf</span><span class="o">=</span><span class="n">all_polygons_gdf</span><span class="p">,</span>
                    <span class="n">scores_names</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">scores</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span>
-                   <span class="n">classes_names</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">classes</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span>
+                   <span class="n">other_attributes_names</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">other_attributes</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span>
                    <span class="n">scores_weights</span><span class="o">=</span><span class="p">[</span><span class="n">scores_weights</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">scores</span><span class="o">.</span><span class="n">keys</span><span class="p">()],</span>
                    <span class="n">tiles_extent_gdf</span><span class="o">=</span><span class="n">all_tiles_extents_gdf</span><span class="p">,</span>
+                   <span class="n">scores_weighting_method</span><span class="o">=</span><span class="n">scores_weighting_method</span><span class="p">,</span>
+                   <span class="n">min_centroid_distance_weight</span><span class="o">=</span><span class="n">min_centroid_distance_weight</span><span class="p">,</span>
                    <span class="n">score_threshold</span><span class="o">=</span><span class="n">score_threshold</span><span class="p">,</span>
                    <span class="n">nms_threshold</span><span class="o">=</span><span class="n">nms_threshold</span><span class="p">,</span>
                    <span class="n">nms_algorithm</span><span class="o">=</span><span class="n">nms_algorithm</span><span class="p">,</span>
                    <span class="n">tile_ids_to_path</span><span class="o">=</span><span class="n">tile_ids_to_path</span><span class="p">,</span>
-                   <span class="n">best_geom_keep_area_ratio</span><span class="o">=</span><span class="n">best_geom_keep_area_ratio</span><span class="p">)</span></div>
+                   <span class="n">best_geom_keep_area_ratio</span><span class="o">=</span><span class="n">best_geom_keep_area_ratio</span><span class="p">,</span>
+                   <span class="n">pre_aggregated_output_path</span><span class="o">=</span><span class="n">pre_aggregated_output_path</span><span class="p">)</span></div>
 
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">_from_coco</span><span class="p">(</span><span class="n">tiles_folder_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_from_coco</span><span class="p">(</span><span class="n">tiles_folder_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
                    <span class="n">coco_json_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
-                   <span class="n">scores_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
-                   <span class="n">classes_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]):</span>
+                   <span class="n">attributes_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]):</span>
 
         <span class="c1"># Read the JSON file</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">coco_json_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
@@ -429,57 +471,36 @@
 
         <span class="c1"># Reading the polygons</span>
         <span class="n">tile_ids_to_polygons</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="n">tile_ids_to_scores</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="n">tile_ids_to_classes</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">tile_ids_to_attributes</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">annotation</span> <span class="ow">in</span> <span class="n">coco_data</span><span class="p">[</span><span class="s1">&#39;annotations&#39;</span><span class="p">]:</span>
             <span class="n">image_id</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;image_id&#39;</span><span class="p">]</span>
 
-            <span class="n">annotation_polygon</span> <span class="o">=</span> <span class="n">coco_rle_segmentation_to_polygon</span><span class="p">(</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">])</span>
+            <span class="n">annotation_polygon</span> <span class="o">=</span> <span class="n">decode_coco_segmentation</span><span class="p">(</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">])</span>
 
-            <span class="n">scores</span> <span class="o">=</span> <span class="p">{}</span>
-            <span class="n">warn_scores_not_found</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">scores_names</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">annotation</span><span class="p">:</span>
-                    <span class="n">scores</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span>
+            <span class="n">attributes</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">warn_attributes_not_found</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">attribute_name</span> <span class="ow">in</span> <span class="n">attributes_names</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">attribute_name</span> <span class="ow">in</span> <span class="n">annotation</span><span class="p">:</span>
+                    <span class="n">attributes</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">]</span>
                 <span class="k">elif</span> <span class="p">(</span><span class="s2">&quot;other_attributes&quot;</span> <span class="ow">in</span> <span class="n">annotation</span>
                       <span class="ow">and</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;other_attributes&quot;</span><span class="p">]</span>
-                      <span class="ow">and</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;other_attributes&quot;</span><span class="p">]):</span>
-                    <span class="n">scores</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;other_attributes&quot;</span><span class="p">][</span><span class="n">score_name</span><span class="p">]</span>
+                      <span class="ow">and</span> <span class="n">attribute_name</span> <span class="ow">in</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;other_attributes&quot;</span><span class="p">]):</span>
+                    <span class="n">attributes</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;other_attributes&quot;</span><span class="p">][</span><span class="n">attribute_name</span><span class="p">]</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">scores</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
-                    <span class="n">warn_scores_not_found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">score_name</span><span class="p">)</span>
+                    <span class="n">attributes</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="n">warn_attributes_not_found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">attribute_name</span><span class="p">)</span>
 
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">warn_scores_not_found</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The following scores keys could not be found in the annotation, or in the &#39;other_attributes&#39; key&quot;</span>
-                     <span class="sa">f</span><span class="s2">&quot; of the annotation: </span><span class="si">{</span><span class="n">warn_scores_not_found</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-
-            <span class="n">classes</span> <span class="o">=</span> <span class="p">{}</span>
-            <span class="n">warn_classes_not_found</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="n">classes_names</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="n">annotation</span><span class="p">:</span>
-                    <span class="n">classes</span><span class="p">[</span><span class="n">class_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="n">class_name</span><span class="p">]</span>
-                <span class="k">elif</span> <span class="p">(</span><span class="s2">&quot;other_attributes&quot;</span> <span class="ow">in</span> <span class="n">annotation</span>
-                      <span class="ow">and</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;other_attributes&quot;</span><span class="p">]</span>
-                      <span class="ow">and</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;other_attributes&quot;</span><span class="p">]):</span>
-                    <span class="n">classes</span><span class="p">[</span><span class="n">class_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="s2">&quot;other_attributes&quot;</span><span class="p">][</span><span class="n">class_name</span><span class="p">]</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">classes</span><span class="p">[</span><span class="n">class_name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
-                    <span class="n">warn_classes_not_found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">class_name</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">warn_classes_not_found</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The following classes keys could not be found in the annotation, or in the &#39;other_attributes&#39; key&quot;</span>
-                     <span class="sa">f</span><span class="s2">&quot; of the annotation: </span><span class="si">{</span><span class="n">warn_classes_not_found</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">warn_attributes_not_found</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The following attributes keys could not be found in the annotation, or in the &#39;other_attributes&#39;&quot;</span>
+                     <span class="sa">f</span><span class="s2">&quot; key of the annotation: </span><span class="si">{</span><span class="n">warn_attributes_not_found</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">image_id</span> <span class="ow">in</span> <span class="n">tile_ids_to_polygons</span><span class="p">:</span>
                 <span class="n">tile_ids_to_polygons</span><span class="p">[</span><span class="n">image_id</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">annotation_polygon</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">scores</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-                    <span class="n">tile_ids_to_scores</span><span class="p">[</span><span class="n">image_id</span><span class="p">][</span><span class="n">score_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">scores</span><span class="p">[</span><span class="n">score_name</span><span class="p">])</span>
-                <span class="k">for</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="n">classes</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-                    <span class="n">tile_ids_to_classes</span><span class="p">[</span><span class="n">image_id</span><span class="p">][</span><span class="n">class_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">classes</span><span class="p">[</span><span class="n">class_name</span><span class="p">])</span>
+                <span class="k">for</span> <span class="n">attribute_name</span> <span class="ow">in</span> <span class="n">attributes</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="n">tile_ids_to_attributes</span><span class="p">[</span><span class="n">image_id</span><span class="p">][</span><span class="n">attribute_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">attributes</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">])</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">tile_ids_to_polygons</span><span class="p">[</span><span class="n">image_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">annotation_polygon</span><span class="p">]</span>
-                <span class="n">tile_ids_to_scores</span><span class="p">[</span><span class="n">image_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">score_name</span><span class="p">:</span> <span class="p">[</span><span class="n">scores</span><span class="p">[</span><span class="n">score_name</span><span class="p">]]</span> <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">scores</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
-                <span class="n">tile_ids_to_classes</span><span class="p">[</span><span class="n">image_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">class_name</span><span class="p">:</span> <span class="p">[</span><span class="n">classes</span><span class="p">[</span><span class="n">class_name</span><span class="p">]]</span> <span class="k">for</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="n">classes</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+                <span class="n">tile_ids_to_attributes</span><span class="p">[</span><span class="n">image_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">attribute_name</span><span class="p">:</span> <span class="p">[</span><span class="n">attributes</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">]]</span> <span class="k">for</span> <span class="n">attribute_name</span> <span class="ow">in</span> <span class="n">attributes</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
 
         <span class="n">tiles_folder_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">tiles_folder_path</span><span class="p">)</span>
         <span class="n">tile_ids_to_path</span> <span class="o">=</span> <span class="p">{}</span>
@@ -492,18 +513,19 @@
         <span class="n">all_polygons_gdf</span><span class="p">,</span> <span class="n">all_tiles_extents_gdf</span> <span class="o">=</span> <span class="n">Aggregator</span><span class="o">.</span><span class="n">_prepare_polygons</span><span class="p">(</span>
             <span class="n">tile_ids_to_path</span><span class="o">=</span><span class="n">tile_ids_to_path</span><span class="p">,</span>
             <span class="n">tile_ids_to_polygons</span><span class="o">=</span><span class="n">tile_ids_to_polygons</span><span class="p">,</span>
-            <span class="n">tile_ids_to_scores</span><span class="o">=</span><span class="n">tile_ids_to_scores</span><span class="p">,</span>
-            <span class="n">tile_ids_to_classes</span><span class="o">=</span><span class="n">tile_ids_to_classes</span>
+            <span class="n">tile_ids_to_attributes</span><span class="o">=</span><span class="n">tile_ids_to_attributes</span>
         <span class="p">)</span>
 
         <span class="k">return</span> <span class="n">all_polygons_gdf</span><span class="p">,</span> <span class="n">all_tiles_extents_gdf</span><span class="p">,</span> <span class="n">tile_ids_to_path</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">_prepare_polygons</span><span class="p">(</span><span class="n">tile_ids_to_path</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">tile_ids_to_polygons</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">tile_ids_to_scores</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">tile_ids_to_classes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_prepare_polygons</span><span class="p">(</span><span class="n">tile_ids_to_path</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+                          <span class="n">tile_ids_to_polygons</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+                          <span class="n">tile_ids_to_attributes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
         <span class="n">images_without_crs</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="n">all_gdfs_polygons</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">all_gdfs_tiles_extents</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">tile_id</span> <span class="ow">in</span> <span class="n">tile_ids_to_polygons</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">tile_id</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">tile_ids_to_polygons</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;Reverting tiles polygons to CRS coordinates&#39;</span><span class="p">):</span>
             <span class="n">image_path</span> <span class="o">=</span> <span class="n">tile_ids_to_path</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span>
 
             <span class="n">src</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">image_path</span><span class="p">)</span>
@@ -515,19 +537,16 @@
             <span class="c1"># Making sure the Tile respects the convention</span>
             <span class="n">TileNameConvention</span><span class="o">.</span><span class="n">parse_name</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">image_path</span><span class="p">)</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 
-            <span class="n">gdf_polygons</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">geometry</span><span class="o">=</span><span class="n">tile_ids_to_polygons</span><span class="p">[</span><span class="n">tile_id</span><span class="p">])</span>
-            <span class="n">gdf_polygons</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf_polygons</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+            <span class="n">tile_gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">geometry</span><span class="o">=</span><span class="n">tile_ids_to_polygons</span><span class="p">[</span><span class="n">tile_id</span><span class="p">])</span>
+            <span class="n">tile_gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tile_gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
                 <span class="k">lambda</span> <span class="n">geom</span><span class="p">:</span> <span class="n">apply_affine_transform</span><span class="p">(</span><span class="n">geom</span><span class="p">,</span> <span class="n">src</span><span class="o">.</span><span class="n">transform</span><span class="p">)</span>
             <span class="p">)</span>
-            <span class="n">gdf_polygons</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">crs</span>
-            <span class="n">gdf_polygons</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tile_id</span>
-            <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="n">tile_ids_to_scores</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-                <span class="n">gdf_polygons</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">tile_ids_to_scores</span><span class="p">[</span><span class="n">tile_id</span><span class="p">][</span><span class="n">score_name</span><span class="p">]</span>
-            <span class="n">all_gdfs_polygons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gdf_polygons</span><span class="p">)</span>
+            <span class="n">tile_gdf</span><span class="o">.</span><span class="n">crs</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">crs</span>
+            <span class="n">tile_gdf</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tile_id</span>
+            <span class="k">for</span> <span class="n">attribute_name</span> <span class="ow">in</span> <span class="n">tile_ids_to_attributes</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">tile_gdf</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">tile_ids_to_attributes</span><span class="p">[</span><span class="n">tile_id</span><span class="p">][</span><span class="n">attribute_name</span><span class="p">]</span>
 
-            <span class="k">for</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="n">tile_ids_to_classes</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-                <span class="n">gdf_polygons</span><span class="p">[</span><span class="n">class_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">tile_ids_to_classes</span><span class="p">[</span><span class="n">tile_id</span><span class="p">][</span><span class="n">class_name</span><span class="p">]</span>
-            <span class="n">all_gdfs_polygons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gdf_polygons</span><span class="p">)</span>
+            <span class="n">all_gdfs_polygons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile_gdf</span><span class="p">)</span>
 
             <span class="n">bounds</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">bounds</span>
             <span class="c1"># Create a polygon from the bounds</span>
@@ -558,10 +577,10 @@
 
         <span class="k">return</span> <span class="n">all_polygons_gdf</span><span class="p">,</span> <span class="n">all_tiles_extents_gdf</span>
 
-    <span class="k">def</span> <span class="nf">_validate_polygons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">def</span> <span class="nf">fix_geometry</span><span class="p">(</span><span class="n">geom</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_polygons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">fix_geometry</span><span class="p">(</span><span class="n">geom</span><span class="p">):</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">geom</span><span class="o">.</span><span class="n">is_valid</span><span class="p">:</span>
-                <span class="n">fixed_geom</span> <span class="o">=</span> <span class="n">geom</span><span class="o">.</span><span class="n">buffer</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">fixed_geom</span> <span class="o">=</span> <span class="n">make_valid</span><span class="p">(</span><span class="n">geom</span><span class="p">)</span>
                 <span class="k">return</span> <span class="n">fixed_geom</span>
             <span class="k">return</span> <span class="n">geom</span>
 
@@ -570,24 +589,61 @@
         <span class="c1"># Remove geometries that are still not valid after fixing</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">is_valid</span><span class="p">]</span>
 
-    <span class="k">def</span> <span class="nf">_prepare_scores</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[(</span><span class="n">s</span> <span class="k">if</span> <span class="n">s</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span> <span class="o">**</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores_weights</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span>
-                                      <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]]]</span>
-        <span class="k">for</span> <span class="n">score_name</span><span class="p">,</span> <span class="n">score_weight</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores_weights</span><span class="p">[</span><span class="mi">1</span><span class="p">:]):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="o">*=</span> <span class="p">[(</span><span class="n">s</span> <span class="k">if</span> <span class="n">s</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span> <span class="o">**</span> <span class="n">score_weight</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="n">score_name</span><span class="p">]]</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_prepare_scores</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores_weighting_method</span> <span class="o">==</span> <span class="s1">&#39;weighted_arithmetic_mean&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;aggregator_score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">score_weight</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                 <span class="k">for</span> <span class="n">score_name</span><span class="p">,</span> <span class="n">score_weight</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores_weights</span><span class="p">)]</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores_weighting_method</span> <span class="o">==</span> <span class="s1">&#39;weighted_geometric_mean&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;aggregator_score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+            <span class="k">for</span> <span class="n">score_name</span><span class="p">,</span> <span class="n">score_weight</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores_weights</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;aggregator_score&#39;</span><span class="p">]</span> <span class="o">*=</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">**</span> <span class="n">score_weight</span>
+                <span class="p">)</span>
+            <span class="c1"># Take the root based on the sum of the weights</span>
+            <span class="n">total_weight</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_weights</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;aggregator_score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;aggregator_score&#39;</span><span class="p">]</span> <span class="o">**</span> <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="n">total_weight</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores_weighting_method</span> <span class="o">==</span> <span class="s1">&#39;weighted_harmonic_mean&#39;</span><span class="p">:</span>
+            <span class="n">weighted_reciprocal_sum</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">score_weight</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mf">1e-12</span><span class="p">)</span>
+                 <span class="k">for</span> <span class="n">score_name</span><span class="p">,</span> <span class="n">score_weight</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores_weights</span><span class="p">)]</span>
+            <span class="p">)</span>
+            <span class="n">total_weight</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_weights</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;aggregator_score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">total_weight</span> <span class="o">/</span> <span class="n">weighted_reciprocal_sum</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported score weighting method: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_weighting_method</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-        <span class="c1"># normalize the &#39;score&#39; column between 0 and 1</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">())</span> <span class="o">/</span> \
-                                     <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">())</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_centroid_distance_weight</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Calculate centroids for tiles and polygons</span>
+            <span class="n">tile_centroids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tiles_extent_gdf</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;tile_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">centroid</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;polygon_centroid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">centroid</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;tile_centroid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">tile_centroids</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_prepare_classes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;class&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">classes_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]]]</span>
+            <span class="c1"># Calculate distances between polygon centroids and tile centroids</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;centroid_distance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">row</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;polygon_centroid&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;tile_centroid&#39;</span><span class="p">]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span>
+            <span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_remove_low_score_polygons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="c1"># Calculate max possible distance (tile diagonal)</span>
+            <span class="n">tile_diagonals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tiles_extent_gdf</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;tile_id&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">geom</span><span class="p">:</span> <span class="n">geom</span><span class="o">.</span><span class="n">bounds</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">bounds</span><span class="p">:</span> <span class="p">((</span><span class="n">bounds</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">bounds</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">**</span> <span class="mf">0.5</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;max_distance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">tile_diagonals</span><span class="p">)</span>
+
+            <span class="c1"># Calculate distance weight and adjust scores</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;distance_weight&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;centroid_distance&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;max_distance&#39;</span><span class="p">]</span>
+            <span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_centroid_distance_weight</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;aggregator_score&#39;</span><span class="p">]</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;distance_weight&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_remove_low_score_polygons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">score_threshold</span><span class="p">:</span>
-            <span class="k">if</span> <span class="s2">&quot;score&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s2">&quot;score&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s2">&quot;aggregator_score&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s2">&quot;aggregator_score&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
                 <span class="n">n_before</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s2">&quot;score&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">score_threshold</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s2">&quot;aggregator_score&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">score_threshold</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">,</span>
                                        <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                 <span class="n">n_after</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">)</span>
                 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Removed </span><span class="si">{</span><span class="n">n_before</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">n_after</span><span class="si">}</span><span class="s2"> out of </span><span class="si">{</span><span class="n">n_before</span><span class="si">}</span><span class="s2"> polygons&quot;</span>
@@ -596,11 +652,12 @@
                 <span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not apply score_threshold=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">score_threshold</span><span class="si">}</span><span class="s2"> as scores were not found&quot;</span>
                      <span class="sa">f</span><span class="s2">&quot; in the polygons_gdf. If you instanced the Aggregator from a COCO file,&quot;</span>
                      <span class="sa">f</span><span class="s2">&quot; please make sure that ALL annotations have a &#39;score&#39; key or a [&#39;other_attributes&#39;][&#39;score&#39;]&quot;</span>
-                     <span class="sa">f</span><span class="s2">&quot; nested keys. If you instanced the Aggregator from a list of polygons for each tile,&quot;</span>
+                     <span class="sa">f</span><span class="s2">&quot; nested keys (ex: &#39;detector_score&#39; or &#39;segmenter_score&#39;).&quot;</span>
+                     <span class="sa">f</span><span class="s2">&quot; If you instanced the Aggregator from a list of polygons for each tile,&quot;</span>
                      <span class="sa">f</span><span class="s2">&quot; make sure you also pass the associated list of scores for each tile.&quot;</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">_calculate_iou_for_geometry</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">geometry</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_calculate_iou_for_geometry</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">geometry</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Calculate the IoU between a single geometry and all geometries in a GeoDataFrame.</span>
 
@@ -622,9 +679,9 @@
 
         <span class="k">return</span> <span class="n">iou_values</span>
 
-    <span class="k">def</span> <span class="nf">_apply_iou_nms_algorithm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_iou_nms_algorithm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">gdf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-        <span class="n">gdf</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s1">&#39;score&#39;</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">gdf</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s1">&#39;aggregator_score&#39;</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
         <span class="n">intersect_gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">sjoin</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">gdf</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">,</span> <span class="n">predicate</span><span class="o">=</span><span class="s1">&#39;intersects&#39;</span><span class="p">)</span>
         <span class="n">intersect_gdf</span> <span class="o">=</span> <span class="n">intersect_gdf</span><span class="p">[</span><span class="n">intersect_gdf</span><span class="o">.</span><span class="n">index</span> <span class="o">!=</span> <span class="n">intersect_gdf</span><span class="p">[</span><span class="s1">&#39;index_right&#39;</span><span class="p">]]</span>
@@ -660,11 +717,11 @@
         <span class="n">drop_ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">skip_ids</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">keep_ids</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">drop_ids</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_apply_ioa_disambiguate_nms_algorithm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_ioa_disambiguate_nms_algorithm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">gdf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-        <span class="n">gdf</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s1">&#39;score&#39;</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">gdf</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s1">&#39;aggregator_score&#39;</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
-        <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_geometry_collection</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+        <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">fix_geometry_collection</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
         <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_remove_bad_geometries</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
         <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">notnull</span><span class="p">()]</span>
 
@@ -674,7 +731,7 @@
 
         <span class="n">skip_ids</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
         <span class="n">id_to_final_polygon</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="n">progress</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">gdf</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Applying NMS-iou algorithm&quot;</span><span class="p">)</span>
+        <span class="n">progress</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">gdf</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Applying NMS-iou-disambiguate algorithm&quot;</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">current_id</span> <span class="ow">in</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="p">:</span>
             <span class="n">current</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">current_id</span><span class="p">]</span>
             <span class="n">progress</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
@@ -688,7 +745,7 @@
                     <span class="k">for</span> <span class="n">g_id</span> <span class="ow">in</span> <span class="n">intersecting_geometries_ids</span><span class="p">:</span>
                         <span class="c1"># We have to re-compute the IoA as intersect_gdf might not be up-to-date anymore after some polygons were modified in previous iterations.</span>
                         <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">(</span><span class="n">record</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">w</span><span class="p">:</span>
-                            <span class="n">gdf</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">current_id</span><span class="p">,</span> <span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_geometry_collection</span><span class="p">(</span>
+                            <span class="n">gdf</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">current_id</span><span class="p">,</span> <span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fix_geometry_collection</span><span class="p">(</span>
                                 <span class="n">gdf</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">current_id</span><span class="p">,</span> <span class="s1">&#39;geometry&#39;</span><span class="p">])</span>
                             <span class="k">try</span><span class="p">:</span>
                                 <span class="n">intersection</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">current_id</span><span class="p">,</span> <span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">g_id</span><span class="p">,</span> <span class="s1">&#39;geometry&#39;</span><span class="p">])</span>
@@ -696,7 +753,7 @@
                                 <span class="c1"># &#39;invalid value encountered in intersection&#39;</span>
                                 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;* Skipped polygon matching ids </span><span class="si">{}</span><span class="s1">/</span><span class="si">{}</span><span class="s1"> for shapely intersection error. *&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">current_id</span><span class="p">,</span> <span class="n">g_id</span><span class="p">))</span>
 
-                        <span class="n">intersection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_geometry_collection</span><span class="p">(</span><span class="n">intersection</span><span class="p">)</span>
+                        <span class="n">intersection</span> <span class="o">=</span> <span class="n">fix_geometry_collection</span><span class="p">(</span><span class="n">intersection</span><span class="p">)</span>
 
                         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_remove_bad_geometries</span><span class="p">(</span><span class="n">intersection</span><span class="p">):</span>
                             <span class="k">continue</span>
@@ -715,10 +772,10 @@
                                 <span class="n">skip_ids</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">g_id</span><span class="p">)</span>
                                 <span class="k">continue</span>
 
-                            <span class="n">new_geometry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_geometry_collection</span><span class="p">(</span><span class="n">new_geometry</span><span class="p">)</span>
+                            <span class="n">new_geometry</span> <span class="o">=</span> <span class="n">fix_geometry_collection</span><span class="p">(</span><span class="n">new_geometry</span><span class="p">)</span>
 
                             <span class="k">if</span> <span class="ow">not</span> <span class="n">new_geometry</span><span class="o">.</span><span class="n">is_valid</span><span class="p">:</span>
-                                <span class="n">new_geometry</span> <span class="o">=</span> <span class="n">new_geometry</span><span class="o">.</span><span class="n">buffer</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                                <span class="n">new_geometry</span> <span class="o">=</span> <span class="n">make_valid</span><span class="p">(</span><span class="n">new_geometry</span><span class="p">)</span>
 
                             <span class="k">if</span> <span class="n">new_geometry</span><span class="o">.</span><span class="n">geom_type</span> <span class="o">==</span> <span class="s1">&#39;MultiPolygon&#39;</span><span class="p">:</span>
                                 <span class="c1"># If the largest Polygon represent more than best_geom_keep_area_ratio% of the total area,</span>
@@ -747,31 +804,14 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">drop_ids</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">_check_remove_bad_geometries</span><span class="p">(</span><span class="n">geometry</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_remove_bad_geometries</span><span class="p">(</span><span class="n">geometry</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">geometry</span><span class="o">.</span><span class="n">is_valid</span> <span class="ow">or</span> <span class="n">geometry</span><span class="o">.</span><span class="n">area</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">None</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">geometry</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">_check_geometry_collection</span><span class="p">(</span><span class="n">geometry</span><span class="p">:</span> <span class="n">shapely</span><span class="o">.</span><span class="n">Geometry</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">geometry</span><span class="o">.</span><span class="n">geom_type</span> <span class="o">==</span> <span class="s1">&#39;GeometryCollection&#39;</span><span class="p">:</span>
-            <span class="n">final_geoms</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="c1"># Iterate through each geometry in the collection</span>
-            <span class="k">for</span> <span class="n">geom</span> <span class="ow">in</span> <span class="n">geometry</span><span class="o">.</span><span class="n">geoms</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">geom</span><span class="o">.</span><span class="n">geom_type</span> <span class="o">==</span> <span class="s1">&#39;Polygon&#39;</span><span class="p">:</span>
-                    <span class="n">final_geoms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">geom</span><span class="p">)</span>
-                <span class="k">elif</span> <span class="n">geom</span><span class="o">.</span><span class="n">geom_type</span> <span class="o">==</span> <span class="s1">&#39;LineString&#39;</span><span class="p">:</span>
-                    <span class="c1"># Check if the LineString is closed and can be considered a polygon</span>
-                    <span class="k">if</span> <span class="n">geom</span><span class="o">.</span><span class="n">is_ring</span><span class="p">:</span>
-                        <span class="c1"># Convert the LineString to a Polygon</span>
-                        <span class="n">final_geoms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Polygon</span><span class="p">(</span><span class="n">geom</span><span class="p">))</span>
-            <span class="k">return</span> <span class="n">MultiPolygon</span><span class="p">(</span><span class="n">final_geoms</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">geometry</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">_calculate_centroid_distance</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">geometry</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_calculate_centroid_distance</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">geometry</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Calculate the distance between the centroid of each geometry in a GeoDataFrame and another single geometry.</span>
 
@@ -794,7 +834,7 @@
 
         <span class="k">return</span> <span class="n">distances</span>
 
-    <span class="k">def</span> <span class="nf">_apply_nms_algorithm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_nms_algorithm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">n_before</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">nms_algorithm</span> <span class="o">==</span> <span class="s2">&quot;iou&quot;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_apply_iou_nms_algorithm</span><span class="p">()</span>
@@ -807,8 +847,17 @@
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Removed </span><span class="si">{</span><span class="n">n_before</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">n_after</span><span class="si">}</span><span class="s2"> out of </span><span class="si">{</span><span class="n">n_before</span><span class="si">}</span><span class="s2"> polygons&quot;</span>
               <span class="sa">f</span><span class="s2">&quot; by applying the Non-Maximum Suppression-</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">nms_algorithm</span><span class="si">}</span><span class="s2"> algorithm.&quot;</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_save_polygons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_save_polygons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_validate_polygons</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="s1">&#39;polygon_centroid&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;polygon_centroid&#39;</span><span class="p">],</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;tile_centroid&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;tile_centroid&#39;</span><span class="p">],</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">set_geometry</span><span class="p">(</span><span class="s1">&#39;geometry&#39;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># Update the area of the polygons as it might have changed</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;area&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">area</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
@@ -817,35 +866,33 @@
         <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s1">&#39;.gpkg&#39;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">to_file</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_path</span><span class="p">),</span> <span class="n">driver</span><span class="o">=</span><span class="s2">&quot;GPKG&quot;</span><span class="p">)</span>
         <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s1">&#39;.json&#39;</span><span class="p">:</span>
-            <span class="n">tiles_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">transform_row</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
+                <span class="n">tile_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_ids_to_path</span><span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]]</span>
+                <span class="n">row</span><span class="p">[</span><span class="s1">&#39;tile_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">tile_path</span><span class="p">)</span>
+                <span class="c1"># Apply the inverse transform on the geometry for this row.</span>
+                <span class="c1"># Note: apply_inverse_transform expects a list of polygons.</span>
+                <span class="n">row</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">apply_inverse_transform</span><span class="p">([</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]],</span> <span class="n">raster_path</span><span class="o">=</span><span class="n">tile_path</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">return</span> <span class="n">row</span>
 
-            <span class="n">other_attributes</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">tile_id</span> <span class="ow">in</span> <span class="n">tiles_ids</span><span class="p">:</span>
-                <span class="n">tile_attributes</span> <span class="o">=</span> <span class="p">[]</span>
-                <span class="k">for</span> <span class="n">label_index</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">tile_id</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">:</span>
-                    <span class="n">label_attributes</span> <span class="o">=</span> <span class="p">{}</span>
-                    <span class="n">label_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">label_index</span><span class="p">]</span>
-                    <span class="n">label_attributes</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">label_data</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span>
-                    <span class="n">label_scores</span> <span class="o">=</span> <span class="p">{</span><span class="n">score_name</span><span class="p">:</span> <span class="n">label_data</span><span class="p">[</span><span class="n">score_name</span><span class="p">]</span> <span class="k">for</span> <span class="n">score_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span><span class="p">}</span>
-                    <span class="n">label_attributes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">label_scores</span><span class="p">)</span>
-                    <span class="n">label_classes</span> <span class="o">=</span> <span class="p">{</span><span class="n">class_name</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">label_data</span><span class="p">[</span><span class="n">class_name</span><span class="p">])</span> <span class="k">for</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">classes_names</span><span class="p">}</span>
-                    <span class="n">label_attributes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">label_classes</span><span class="p">)</span>
-                    <span class="n">tile_attributes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">label_attributes</span><span class="p">)</span>
+            <span class="n">coco_gdf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">transform_row</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 
-                <span class="n">other_attributes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile_attributes</span><span class="p">)</span>
+            <span class="c1"># Determine the columns to be used as additional attributes.</span>
+            <span class="c1"># Here we combine the names of the score and other attribute columns.</span>
+            <span class="n">other_attributes_columns</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names</span><span class="p">)</span> \
+                <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
 
-            <span class="n">coco_generator</span> <span class="o">=</span> <span class="n">COCOGenerator</span><span class="p">(</span>
-                <span class="n">description</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Aggregated polygons from multiple tiles.&quot;</span><span class="p">,</span>
-                <span class="n">tiles_paths</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_ids_to_path</span><span class="p">[</span><span class="n">tile_id</span><span class="p">]</span> <span class="k">for</span> <span class="n">tile_id</span> <span class="ow">in</span> <span class="n">tiles_ids</span><span class="p">],</span>
-                <span class="n">polygons</span><span class="o">=</span><span class="p">[</span><span class="n">apply_inverse_transform</span><span class="p">(</span>
-                    <span class="n">polygons</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">tile_id</span><span class="p">][</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
-                    <span class="n">raster_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_ids_to_path</span><span class="p">[</span><span class="n">tile_id</span><span class="p">])</span> <span class="k">for</span> <span class="n">tile_id</span> <span class="ow">in</span> <span class="n">tiles_ids</span><span class="p">],</span>
-                <span class="n">scores</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># Using other_attributes instead</span>
-                <span class="n">categories</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># TODO add support for categories</span>
-                <span class="n">other_attributes</span><span class="o">=</span><span class="n">other_attributes</span><span class="p">,</span>
+            <span class="n">coco_generator</span> <span class="o">=</span> <span class="n">COCOGenerator</span><span class="o">.</span><span class="n">from_gdf</span><span class="p">(</span>
+                <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Aggregated polygons from multiple tiles.&quot;</span><span class="p">,</span>
+                <span class="n">gdf</span><span class="o">=</span><span class="n">coco_gdf</span><span class="p">,</span>
+                <span class="n">tiles_paths_column</span><span class="o">=</span><span class="s1">&#39;tile_path&#39;</span><span class="p">,</span>
+                <span class="n">polygons_column</span><span class="o">=</span><span class="s1">&#39;geometry&#39;</span><span class="p">,</span>
+                <span class="n">scores_column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">categories_column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># TODO: add support for categories if needed</span>
+                <span class="n">other_attributes_columns</span><span class="o">=</span><span class="n">other_attributes_columns</span><span class="p">,</span>
                 <span class="n">output_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_path</span><span class="p">,</span>
-                <span class="n">n_workers</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>  <span class="c1"># TODO make this a parameter to the class</span>
-                <span class="n">coco_categories_list</span><span class="o">=</span><span class="kc">None</span>  <span class="c1"># TODO make this a parameter to the class</span>
+                <span class="n">use_rle_for_labels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># TODO: make this a parameter to the class</span>
+                <span class="n">n_workers</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>              <span class="c1"># TODO: make this a parameter to the class</span>
+                <span class="n">coco_categories_list</span><span class="o">=</span><span class="kc">None</span>  <span class="c1"># TODO: make this a parameter to the class</span>
             <span class="p">)</span>
             <span class="n">coco_generator</span><span class="o">.</span><span class="n">generate_coco</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
@@ -855,29 +902,29 @@
 
 
 
-<span class="k">class</span> <span class="nc">DetectorAggregator</span><span class="p">:</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">DetectorAggregator</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;This class is now deprecated (since v0.1.4). Please use the Aggregator class instead.&#39;</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">from_coco</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_coco</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">from_polygons</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_polygons</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">SegmentationAggregator</span><span class="p">:</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SegmentationAggregator</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;This class is now deprecated (since v0.1.4). Please use the Aggregator class instead.&#39;</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">from_coco</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_coco</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">from_polygons</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_polygons</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </pre></div>
 

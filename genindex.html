@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Index &mdash; GeoDataset  documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
       <link rel="stylesheet" type="text/css" href="_static/css/custom.css?v=0ab8baea" />
 
@@ -157,15 +157,19 @@
 </li>
       <li><a href="utils.html#geodataset.utils.coco_rle_segmentation_to_bbox">coco_rle_segmentation_to_bbox() (in module geodataset.utils)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="utils.html#geodataset.utils.coco_rle_segmentation_to_mask">coco_rle_segmentation_to_mask() (in module geodataset.utils)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="utils.html#geodataset.utils.coco_rle_segmentation_to_polygon">coco_rle_segmentation_to_polygon() (in module geodataset.utils)</a>
 </li>
       <li><a href="utils.html#geodataset.utils.coco_to_geopackage">coco_to_geopackage() (in module geodataset.utils)</a>
 </li>
       <li><a href="utils.html#geodataset.utils.COCOGenerator">COCOGenerator (class in geodataset.utils)</a>
+</li>
+      <li><a href="utils.html#geodataset.utils.create_coco_folds">create_coco_folds() (in module geodataset.utils)</a>
+</li>
+      <li><a href="geodata.html#geodataset.geodata.Raster.create_tile_metadata">create_tile_metadata() (geodataset.geodata.Raster method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -189,6 +193,8 @@
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="utils.html#geodataset.utils.COCOGenerator.from_gdf">from_gdf() (geodataset.utils.COCOGenerator class method)</a>
+</li>
       <li><a href="aggregator.html#geodataset.aggregator.Aggregator.from_polygons">from_polygons() (geodataset.aggregator.Aggregator class method)</a>
 </li>
   </ul></td>
@@ -197,16 +203,18 @@
 <h2 id="G">G</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="tilerize.html#geodataset.tilerize.LabeledRasterTilerizer.generate_additional_coco_dataset">generate_additional_coco_dataset() (geodataset.tilerize.LabeledRasterTilerizer method)</a>
+</li>
       <li><a href="utils.html#geodataset.utils.COCOGenerator.generate_coco">generate_coco() (geodataset.utils.COCOGenerator method)</a>
 </li>
       <li><a href="tilerize.html#geodataset.tilerize.LabeledRasterTilerizer.generate_coco_dataset">generate_coco_dataset() (geodataset.tilerize.LabeledRasterTilerizer method)</a>
 </li>
       <li><a href="tilerize.html#geodataset.tilerize.RasterTilerizer.generate_tiles">generate_tiles() (geodataset.tilerize.RasterTilerizer method)</a>
 </li>
-      <li><a href="tilerize.html#geodataset.tilerize.RasterTilerizerGDF.generate_tiles_gdf">generate_tiles_gdf() (geodataset.tilerize.RasterTilerizerGDF method)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="tilerize.html#geodataset.tilerize.RasterTilerizerGDF.generate_tiles_gdf">generate_tiles_gdf() (geodataset.tilerize.RasterTilerizerGDF method)</a>
+</li>
       <li>
     geodataset.aoi
 
@@ -217,8 +225,6 @@
       <li><a href="utils.html#geodataset.utils.COCOGenerator.get_polygon_ids">get_polygon_ids() (geodataset.utils.COCOGenerator static method)</a>
 </li>
       <li><a href="geodata.html#geodataset.geodata.Raster.get_polygon_tile">get_polygon_tile() (geodataset.geodata.Raster method)</a>
-</li>
-      <li><a href="geodata.html#geodataset.geodata.Raster.get_tile">get_tile() (geodataset.geodata.Raster method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -287,11 +293,13 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="dataset.html#geodataset.dataset.SegmentationLabeledRasterCocoDataset">SegmentationLabeledRasterCocoDataset (class in geodataset.dataset)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="aoi.html#geodataset.aoi.AOIGeneratorConfig.SUPPORTED_AOI_TYPES">SUPPORTED_AOI_TYPES (geodataset.aoi.AOIGeneratorConfig attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="aggregator.html#geodataset.aggregator.Aggregator.SUPPORTED_NMS_ALGORITHMS">SUPPORTED_NMS_ALGORITHMS (geodataset.aggregator.Aggregator attribute)</a>
+</li>
+      <li><a href="aggregator.html#geodataset.aggregator.Aggregator.SUPPORTED_SCORE_WEIGHTING_METHODS">SUPPORTED_SCORE_WEIGHTING_METHODS (geodataset.aggregator.Aggregator attribute)</a>
 </li>
   </ul></td>
 </tr></table>

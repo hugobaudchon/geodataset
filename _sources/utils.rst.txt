@@ -26,6 +26,8 @@ Utils
     :undoc-members:
     :show-inheritance:
 
+.. autofunction:: geodataset.utils.create_coco_folds
+
 .. autofunction:: geodataset.utils.coco_to_geopackage
 
 .. autofunction:: geodataset.utils.tiles_polygons_gdf_to_crs_gdf

@@ -5,7 +5,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Examples &mdash; GeoDataset  documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
       <link rel="stylesheet" type="text/css" href="_static/css/custom.css?v=0ab8baea" />
 
@@ -90,8 +90,8 @@
 These configs can then be passed to the tilerizers to divide the raster into groups of tiles for each AOI.</p>
 <p>Specifying an AOI config for a Tilerizer is optional.
 If no AOI config is passed to the Tilerizer, all the tiles will be kept in a single ‘all’ dataset.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">from</span> <span class="nn">geodataset.aoi</span> <span class="kn">import</span> <span class="n">AOIFromPackageConfig</span><span class="p">,</span> <span class="n">AOIGeneratorConfig</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.aoi</span><span class="w"> </span><span class="kn">import</span> <span class="n">AOIFromPackageConfig</span><span class="p">,</span> <span class="n">AOIGeneratorConfig</span>
 
 <span class="c1"># Automatically creates AOIs based on the percentage of tiles that should be in each AOI.</span>
 <span class="c1"># The &#39;position&#39; value can be None (random) or a unique value between 1 and n_aois, to force the AOIs to specific bands/corners.</span>
@@ -127,8 +127,8 @@ If no AOI config is passed to the Tilerizer, all the tiles will be kept in a sin
 <section id="unlabeled-raster">
 <h2>Unlabeled Raster<a class="headerlink" href="#unlabeled-raster" title="Link to this heading"></a></h2>
 <p>The class RasterTilerizer can tilerize a raster, without labels. The tiles are then stored in the output_path/tiles.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">from</span> <span class="nn">geodataset.tilerize</span> <span class="kn">import</span> <span class="n">RasterTilerizer</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.tilerize</span><span class="w"> </span><span class="kn">import</span> <span class="n">RasterTilerizer</span>
 
 <span class="n">tilerizer</span> <span class="o">=</span> <span class="n">RasterTilerizer</span><span class="p">(</span>
     <span class="n">raster_path</span><span class="o">=</span><span class="s1">&#39;/Data/raw/wwf_ecuador/RGB Orthomosaics/Carlos Vera Arteaga RGB.tif&#39;</span><span class="p">,</span>
@@ -145,8 +145,8 @@ If no AOI config is passed to the Tilerizer, all the tiles will be kept in a sin
 </pre></div>
 </div>
 <p>The class RasterTilerizerGDF can tilerize a raster, without labels, and return the tiles as boxes in a GeoDataFrame. It does not output anything to the disk.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">from</span> <span class="nn">geodataset.tilerize</span> <span class="kn">import</span> <span class="n">RasterTilerizerGDF</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.tilerize</span><span class="w"> </span><span class="kn">import</span> <span class="n">RasterTilerizerGDF</span>
 
 <span class="n">tilerizer</span> <span class="o">=</span> <span class="n">RasterTilerizerGDF</span><span class="p">(</span>
     <span class="n">raster_path</span><span class="o">=</span><span class="s1">&#39;/Data/raw/wwf_ecuador/RGB Orthomosaics/Carlos Vera Arteaga RGB.tif&#39;</span><span class="p">,</span>
@@ -165,8 +165,8 @@ If no AOI config is passed to the Tilerizer, all the tiles will be kept in a sin
 <section id="labeled-raster">
 <h2>Labeled Raster<a class="headerlink" href="#labeled-raster" title="Link to this heading"></a></h2>
 <p>The class LabeledRasterTilerizer can tilerize a raster and its labels (.gpkg, .geojson, .shp, .csv and .xml).</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">from</span> <span class="nn">geodataset.tilerize</span> <span class="kn">import</span> <span class="n">LabeledRasterTilerizer</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.tilerize</span><span class="w"> </span><span class="kn">import</span> <span class="n">LabeledRasterTilerizer</span>
 
 <span class="n">tilerizer</span> <span class="o">=</span> <span class="n">LabeledRasterTilerizer</span><span class="p">(</span>
     <span class="n">raster_path</span><span class="o">=</span><span class="s1">&#39;Data/raw/quebec_trees_dataset_2021-09-02/2021-09-02/zone1/2021-09-02-sbl-z1-rgb-cog.tif&#39;</span><span class="p">,</span>
@@ -174,9 +174,11 @@ If no AOI config is passed to the Tilerizer, all the tiles will be kept in a sin
     <span class="n">output_path</span><span class="o">=</span><span class="s1">&#39;Data/pre_processed/test&#39;</span><span class="p">,</span>
     <span class="n">tile_size</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span>
     <span class="n">tile_overlap</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
-    <span class="n">aois_config</span><span class="o">=</span><span class="n">aoi_gpkg_config</span><span class="p">,</span>
+    <span class="n">labels_gdf</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>                                 <span class="c1"># optional (useful if you have the gdf already loaded in memory)</span>
+    <span class="n">aois_config</span><span class="o">=</span><span class="n">aoi_gpkg_config</span><span class="p">,</span>                     <span class="c1"># can be omitted if no AOI is needed (everything will be in an &#39;all&#39; dataset)</span>
     <span class="n">ground_resolution</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>                          <span class="c1"># optional, scale_factor must be None if used.</span>
     <span class="n">scale_factor</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>                                <span class="c1"># optional, ground_resolution must be None if used.</span>
+    <span class="n">use_rle_for_labels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                         <span class="c1"># optional</span>
     <span class="n">min_intersection_ratio</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span>                      <span class="c1"># optional</span>
     <span class="n">ignore_tiles_without_labels</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>               <span class="c1"># optional</span>
     <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>    <span class="c1"># optional</span>
@@ -195,9 +197,9 @@ and the associated images paths.</p>
 <p>There is also a DetectionUnlabeledRasterDataset class which only loads tiles (useful for inference, where we don’t have labels, or for pre-training a model in a self-supervised manner).</p>
 <p>These classes can then be directly used with a torch Dataloader.</p>
 <p>You can also provide an albumentation transform (optional) to the dataset classes to augment the data when training a model.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">from</span> <span class="nn">geodataset.dataset</span> <span class="kn">import</span> <span class="n">DetectionLabeledRasterCocoDataset</span><span class="p">,</span> <span class="n">SegmentationLabeledRasterCocoDataset</span><span class="p">,</span> <span class="n">UnlabeledRasterDataset</span>
-<span class="kn">import</span> <span class="nn">albumentations</span> <span class="k">as</span> <span class="nn">A</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">DetectionLabeledRasterCocoDataset</span><span class="p">,</span> <span class="n">SegmentationLabeledRasterCocoDataset</span><span class="p">,</span> <span class="n">UnlabeledRasterDataset</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">albumentations</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">A</span>
 
 <span class="n">augment_transform</span> <span class="o">=</span> <span class="n">A</span><span class="o">.</span><span class="n">Compose</span><span class="p">([</span>
             <span class="n">A</span><span class="o">.</span><span class="n">HorizontalFlip</span><span class="p">(),</span>
@@ -240,8 +242,8 @@ and the associated images paths.</p>
 segmentation predictions from a model from multiple tiles/images, and then save the results in a COCO json file.</p>
 <p>For aggregating detection bounding boxes, you should currently use the nms_algorithm=’iou’ option.
 For aggregating instance segmentation polygons, you can use both ‘iou’ and ‘ioa-disambiguate’, depending on what you need.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">shapely.geometry</span> <span class="kn">import</span> <span class="n">box</span><span class="p">,</span> <span class="n">Polygon</span>
-<span class="kn">from</span> <span class="nn">geodataset.aggregator</span> <span class="kn">import</span> <span class="n">Aggregator</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">box</span><span class="p">,</span> <span class="n">Polygon</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.aggregator</span><span class="w"> </span><span class="kn">import</span> <span class="n">Aggregator</span>
 
 <span class="c1"># aggregating detection bounding boxes from a coco file on the disk:</span>
 <span class="n">aggregator</span> <span class="o">=</span> <span class="n">Aggregator</span><span class="o">.</span><span class="n">from_coco</span><span class="p">(</span>
