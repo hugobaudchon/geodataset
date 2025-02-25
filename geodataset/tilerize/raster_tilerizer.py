@@ -239,6 +239,8 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
         Suffix to add to the output file names.
     ignore_black_white_alpha_tiles_threshold : float
         Threshold ratio of black, white or transparent pixels in a tile to skip it
+    temp_dir : str or pathlib.Path
+        Temporary directory to store the resampled Raster, if it is too big to fit in memory.
     """
 
     def __init__(self,
@@ -251,7 +253,8 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
                  ground_resolution: float = None,
                  scale_factor: float = None,
                  output_name_suffix: str = None,
-                 ignore_black_white_alpha_tiles_threshold: float = 0.8):
+                 ignore_black_white_alpha_tiles_threshold: float = 0.8,
+                 temp_dir: str or Path = './tmp'):
 
         super().__init__(raster_path=raster_path,
                          tile_size=tile_size,
@@ -261,7 +264,8 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
                          ground_resolution=ground_resolution,
                          scale_factor=scale_factor,
                          output_name_suffix=output_name_suffix,
-                         ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
+                         ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold,
+                         temp_dir=temp_dir)
 
         self.output_path = Path(output_path) / self.raster.output_name
         self.tiles_path = self.output_path / 'tiles'
@@ -333,6 +337,8 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
         Suffix to add to the output file names.
     ignore_black_white_alpha_tiles_threshold : float
         Threshold ratio of black, white or transparent pixels in a tile to skip it. Default is 0.8.
+    temp_dir : str or pathlib.Path
+        Temporary directory to store the resampled Raster, if it is too big to fit in memory.
     """
 
     def __init__(self,
@@ -345,7 +351,8 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                  ground_resolution: float = None,
                  scale_factor: float = None,
                  output_name_suffix: str = None,
-                 ignore_black_white_alpha_tiles_threshold: float = 0.8):
+                 ignore_black_white_alpha_tiles_threshold: float = 0.8,
+                 temp_dir: str or Path = './tmp'):
 
         super().__init__(raster_path=raster_path,
                          output_path=output_path,
@@ -356,7 +363,8 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                          ground_resolution=ground_resolution,
                          scale_factor=scale_factor,
                          output_name_suffix=output_name_suffix,
-                         ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
+                         ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold,
+                         temp_dir=temp_dir)
 
     def generate_tiles(self):
         """
@@ -418,6 +426,8 @@ class RasterTilerizerGDF(BaseRasterTilerizer):
         Suffix to add to the output file names.
     ignore_black_white_alpha_tiles_threshold : float, optional
         Threshold ratio of black, white or transparent pixels in a tile to skip it. Default is 0.8.
+    temp_dir : str or pathlib.Path
+        Temporary directory to store the resampled Raster, if it is too big to fit in memory.
     """
     def __init__(self,
                  raster_path: str or Path,
@@ -427,7 +437,8 @@ class RasterTilerizerGDF(BaseRasterTilerizer):
                  ground_resolution: float = None,
                  scale_factor: float = None,
                  output_name_suffix: str = None,
-                 ignore_black_white_alpha_tiles_threshold: float = 0.8):
+                 ignore_black_white_alpha_tiles_threshold: float = 0.8,
+                 temp_dir: str or Path = './tmp'):
 
         super().__init__(raster_path=raster_path,
                          tile_size=tile_size,
@@ -436,7 +447,8 @@ class RasterTilerizerGDF(BaseRasterTilerizer):
                          ground_resolution=ground_resolution,
                          scale_factor=scale_factor,
                          output_name_suffix=output_name_suffix,
-                         ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold)
+                         ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold,
+                         temp_dir=temp_dir)
 
     def generate_tiles_gdf(self):
         """

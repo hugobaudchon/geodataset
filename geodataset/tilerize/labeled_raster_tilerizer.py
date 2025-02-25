@@ -124,6 +124,9 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                 "supercategory": 1
             }]
 
+    temp_dir : str or pathlib.Path
+        Temporary directory to store the resampled Raster, if it is too big to fit in memory.
+
     """
 
     def __init__(self,
@@ -146,7 +149,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None,
                  coco_n_workers: int = 5,
-                 coco_categories_list: list[dict] = None):
+                 coco_categories_list: list[dict] = None,
+                 temp_dir: str or Path = './tmp'):
 
         super().__init__(
             raster_path=raster_path,
@@ -158,7 +162,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             ground_resolution=ground_resolution,
             scale_factor=scale_factor,
             output_name_suffix=output_name_suffix,
-            ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold
+            ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold,
+            temp_dir=temp_dir
         )
 
         self.labels_path = Path(labels_path) if labels_path else None

@@ -605,7 +605,8 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
     itemsize = np.dtype(profile['dtype']).itemsize
     nbands = profile.get('count', 1)
     expected_bytes = new_width * new_height * nbands * itemsize
-    max_in_mem_bytes = 10 * 1024 ** 3  # 10GB
+    max_in_mem_gb = 10
+    max_in_mem_bytes = max_in_mem_gb * 1024 ** 3  # 10GB
 
     print(f"Expected raster size in memory: {expected_bytes / (1024 ** 3):.2f} GB.")
 
@@ -636,7 +637,7 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
         dataset = memfile.open()
         temp_path = None
     else:
-        print("Raster too large for in-memory load, writing to temporary file...")
+        print(f"The resampled Raster would be more than {max_in_mem_gb} GB in memory, writing to temporary file on disk instead...")
         vrt = WarpedVRT(
             src,
             crs=target_crs,
@@ -650,6 +651,8 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
         temp = tempfile.NamedTemporaryFile(suffix=".tif", prefix="resampled_raster_", delete=False, dir=temp_dir)
         temp_path = temp.name
         temp.close()
+
+        print(f"Temporary re-sampled Raster will be at at {temp_path}.")
 
         # Adjust the profile: disable tiling and enable BIGTIFF for large files.
         profile.pop("blockxsize", None)
