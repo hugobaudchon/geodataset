@@ -158,9 +158,13 @@
 <span class="sd">        Number of workers to use when generating the COCO dataset.</span>
 <span class="sd">        Useful when use_rle_for_labels=True as it is quite slow.</span>
 <span class="sd">    coco_categories_list : list of dict, optional</span>
-<span class="sd">        A list of category dictionaries in COCO format. If a polygon has a category (label in</span>
-<span class="sd">        &#39;main_label_category_column_name&#39;) that is not in this list, its category_id will be set to None in its COCO</span>
-<span class="sd">        annotation.</span>
+<span class="sd">        A list of category dictionaries in COCO format.</span>
+
+<span class="sd">        If provided, category ids for the annotations in the final COCO file</span>
+<span class="sd">        will be determined by matching the category name (defined by &#39;main_label_category_column_name&#39; parameter) of</span>
+<span class="sd">        each polygon with the categories names in coco_categories_list.</span>
+
+<span class="sd">        If a polygon has a category that is not in this list, its category_id will be set to None in its COCO annotation.</span>
 
 <span class="sd">        If &#39;main_label_category_column_name&#39; is not provided, but &#39;coco_categories_list&#39; is a single</span>
 <span class="sd">        coco category dictionary, then it will be used for all annotations automatically.</span>
@@ -200,6 +204,9 @@
 <span class="sd">                &quot;supercategory&quot;: 1</span>
 <span class="sd">            }]</span>
 
+<span class="sd">    temp_dir : str or pathlib.Path</span>
+<span class="sd">        Temporary directory to store the resampled Raster, if it is too big to fit in memory.</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
@@ -222,7 +229,8 @@
                  <span class="n">main_label_category_column_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">other_labels_attributes_column_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">coco_n_workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
-                 <span class="n">coco_categories_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+                 <span class="n">coco_categories_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">temp_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="s1">&#39;./tmp&#39;</span><span class="p">):</span>
 
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
             <span class="n">raster_path</span><span class="o">=</span><span class="n">raster_path</span><span class="p">,</span>
@@ -234,7 +242,8 @@
             <span class="n">ground_resolution</span><span class="o">=</span><span class="n">ground_resolution</span><span class="p">,</span>
             <span class="n">scale_factor</span><span class="o">=</span><span class="n">scale_factor</span><span class="p">,</span>
             <span class="n">output_name_suffix</span><span class="o">=</span><span class="n">output_name_suffix</span><span class="p">,</span>
-            <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="n">ignore_black_white_alpha_tiles_threshold</span>
+            <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">,</span>
+            <span class="n">temp_dir</span><span class="o">=</span><span class="n">temp_dir</span>
         <span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">labels_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">labels_path</span><span class="p">)</span> <span class="k">if</span> <span class="n">labels_path</span> <span class="k">else</span> <span class="kc">None</span>
@@ -444,7 +453,6 @@
 
         <span class="n">coco_generator</span><span class="o">.</span><span class="n">generate_coco</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">coco_output_file_path</span>
-
 
 <div class="viewcode-block" id="LabeledRasterTilerizer.generate_coco_dataset">
 <a class="viewcode-back" href="../../../tilerize.html#geodataset.tilerize.LabeledRasterTilerizer.generate_coco_dataset">[docs]</a>

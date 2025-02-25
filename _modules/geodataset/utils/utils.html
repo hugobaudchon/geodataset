@@ -708,7 +708,8 @@
     <span class="n">itemsize</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">profile</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">itemsize</span>
     <span class="n">nbands</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;count&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
     <span class="n">expected_bytes</span> <span class="o">=</span> <span class="n">new_width</span> <span class="o">*</span> <span class="n">new_height</span> <span class="o">*</span> <span class="n">nbands</span> <span class="o">*</span> <span class="n">itemsize</span>
-    <span class="n">max_in_mem_bytes</span> <span class="o">=</span> <span class="mi">10</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">**</span> <span class="mi">3</span>  <span class="c1"># 10GB</span>
+    <span class="n">max_in_mem_gb</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">max_in_mem_bytes</span> <span class="o">=</span> <span class="n">max_in_mem_gb</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">**</span> <span class="mi">3</span>  <span class="c1"># 10GB</span>
 
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expected raster size in memory: </span><span class="si">{</span><span class="n">expected_bytes</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="p">(</span><span class="mi">1024</span><span class="w"> </span><span class="o">**</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> GB.&quot;</span><span class="p">)</span>
 
@@ -739,7 +740,7 @@
         <span class="n">dataset</span> <span class="o">=</span> <span class="n">memfile</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
         <span class="n">temp_path</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Raster too large for in-memory load, writing to temporary file...&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The resampled Raster would be more than </span><span class="si">{</span><span class="n">max_in_mem_gb</span><span class="si">}</span><span class="s2"> GB in memory, writing to temporary file on disk instead...&quot;</span><span class="p">)</span>
         <span class="n">vrt</span> <span class="o">=</span> <span class="n">WarpedVRT</span><span class="p">(</span>
             <span class="n">src</span><span class="p">,</span>
             <span class="n">crs</span><span class="o">=</span><span class="n">target_crs</span><span class="p">,</span>
@@ -753,6 +754,8 @@
         <span class="n">temp</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">NamedTemporaryFile</span><span class="p">(</span><span class="n">suffix</span><span class="o">=</span><span class="s2">&quot;.tif&quot;</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;resampled_raster_&quot;</span><span class="p">,</span> <span class="n">delete</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">dir</span><span class="o">=</span><span class="n">temp_dir</span><span class="p">)</span>
         <span class="n">temp_path</span> <span class="o">=</span> <span class="n">temp</span><span class="o">.</span><span class="n">name</span>
         <span class="n">temp</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Temporary re-sampled Raster will be at at </span><span class="si">{</span><span class="n">temp_path</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
 
         <span class="c1"># Adjust the profile: disable tiling and enable BIGTIFF for large files.</span>
         <span class="n">profile</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;blockxsize&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
@@ -1017,9 +1020,19 @@
 <span class="sd">    n_workers: int</span>
 <span class="sd">        The number of workers to use for parallel processing.</span>
 <span class="sd">    coco_categories_list: List[dict] or None</span>
-<span class="sd">        A list of category dictionaries in COCO format. If a polygon has a category that is not in this list, its</span>
-<span class="sd">        category_id will be set to None in its COCO annotation. If &#39;coco_categories_list&#39; is None, the categories ids</span>
-<span class="sd">        will be automatically generated from the unique categories found in the &#39;categories&#39; parameter.</span>
+<span class="sd">        A list of category dictionaries in COCO format.</span>
+
+<span class="sd">        If provided, category ids for the annotations in the final COCO file</span>
+<span class="sd">        will be determined by matching the category name (defined by &#39;main_label_category_column_name&#39; parameter) of</span>
+<span class="sd">        each polygon with the categories names in coco_categories_list.</span>
+
+<span class="sd">        If a polygon has a category that is not in this list, its category_id will be set to None in its COCO annotation.</span>
+
+<span class="sd">        If &#39;main_label_category_column_name&#39; is not provided, but &#39;coco_categories_list&#39; is a single</span>
+<span class="sd">        coco category dictionary, then it will be used for all annotations automatically.</span>
+
+<span class="sd">        If &#39;coco_categories_list&#39; is None, the categories ids will be automatically generated from the</span>
+<span class="sd">        unique categories found in the &#39;main_label_category_column_name&#39; column.</span>
 
 <span class="sd">        .. raw:: html</span>
 
@@ -1145,7 +1158,9 @@
 <span class="sd">        n_workers : int</span>
 <span class="sd">            The number of workers to use for parallel processing.</span>
 <span class="sd">        coco_categories_list : List[dict] or None, optional</span>
-<span class="sd">            A list of COCO category dictionaries. If provided, category ids will be matched against this list.</span>
+<span class="sd">            A list of COCO category dictionaries in COCO format. If provided, category ids for the annotations in the</span>
+<span class="sd">            final COCO file will be determined by matching the category name of each polygon with the categories names</span>
+<span class="sd">            in coco_categories_list.</span>
 <span class="sd">        tiles_paths_order : List[Path] or None, optional</span>
 <span class="sd">            The order in which the tiles should be stored in the COCO file. If None, the order will be determined by</span>
 <span class="sd">            the order in which the tiles are encountered in the GeoDataFrame. This parameter could be useful if you plan</span>
@@ -1209,8 +1224,6 @@
             <span class="n">n_workers</span><span class="o">=</span><span class="n">n_workers</span><span class="p">,</span>
             <span class="n">coco_categories_list</span><span class="o">=</span><span class="n">coco_categories_list</span>
         <span class="p">)</span></div>
-
-
 
 
 <div class="viewcode-block" id="COCOGenerator.generate_coco">

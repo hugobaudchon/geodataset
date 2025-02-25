@@ -313,6 +313,8 @@
 <span class="sd">        Suffix to add to the output file names.</span>
 <span class="sd">    ignore_black_white_alpha_tiles_threshold : float</span>
 <span class="sd">        Threshold ratio of black, white or transparent pixels in a tile to skip it</span>
+<span class="sd">    temp_dir : str or pathlib.Path</span>
+<span class="sd">        Temporary directory to store the resampled Raster, if it is too big to fit in memory.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
@@ -325,7 +327,8 @@
                  <span class="n">ground_resolution</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">scale_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">output_name_suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                 <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">):</span>
+                 <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
+                 <span class="n">temp_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="s1">&#39;./tmp&#39;</span><span class="p">):</span>
 
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">raster_path</span><span class="o">=</span><span class="n">raster_path</span><span class="p">,</span>
                          <span class="n">tile_size</span><span class="o">=</span><span class="n">tile_size</span><span class="p">,</span>
@@ -335,7 +338,8 @@
                          <span class="n">ground_resolution</span><span class="o">=</span><span class="n">ground_resolution</span><span class="p">,</span>
                          <span class="n">scale_factor</span><span class="o">=</span><span class="n">scale_factor</span><span class="p">,</span>
                          <span class="n">output_name_suffix</span><span class="o">=</span><span class="n">output_name_suffix</span><span class="p">,</span>
-                         <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">)</span>
+                         <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">,</span>
+                         <span class="n">temp_dir</span><span class="o">=</span><span class="n">temp_dir</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">output_name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tiles_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">/</span> <span class="s1">&#39;tiles&#39;</span>
@@ -409,6 +413,8 @@
 <span class="sd">        Suffix to add to the output file names.</span>
 <span class="sd">    ignore_black_white_alpha_tiles_threshold : float</span>
 <span class="sd">        Threshold ratio of black, white or transparent pixels in a tile to skip it. Default is 0.8.</span>
+<span class="sd">    temp_dir : str or pathlib.Path</span>
+<span class="sd">        Temporary directory to store the resampled Raster, if it is too big to fit in memory.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
@@ -421,7 +427,8 @@
                  <span class="n">ground_resolution</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">scale_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">output_name_suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                 <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">):</span>
+                 <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
+                 <span class="n">temp_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="s1">&#39;./tmp&#39;</span><span class="p">):</span>
 
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">raster_path</span><span class="o">=</span><span class="n">raster_path</span><span class="p">,</span>
                          <span class="n">output_path</span><span class="o">=</span><span class="n">output_path</span><span class="p">,</span>
@@ -432,7 +439,8 @@
                          <span class="n">ground_resolution</span><span class="o">=</span><span class="n">ground_resolution</span><span class="p">,</span>
                          <span class="n">scale_factor</span><span class="o">=</span><span class="n">scale_factor</span><span class="p">,</span>
                          <span class="n">output_name_suffix</span><span class="o">=</span><span class="n">output_name_suffix</span><span class="p">,</span>
-                         <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">)</span>
+                         <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">,</span>
+                         <span class="n">temp_dir</span><span class="o">=</span><span class="n">temp_dir</span><span class="p">)</span>
 
 <div class="viewcode-block" id="RasterTilerizer.generate_tiles">
 <a class="viewcode-back" href="../../../tilerize.html#geodataset.tilerize.RasterTilerizer.generate_tiles">[docs]</a>
@@ -500,6 +508,8 @@
 <span class="sd">        Suffix to add to the output file names.</span>
 <span class="sd">    ignore_black_white_alpha_tiles_threshold : float, optional</span>
 <span class="sd">        Threshold ratio of black, white or transparent pixels in a tile to skip it. Default is 0.8.</span>
+<span class="sd">    temp_dir : str or pathlib.Path</span>
+<span class="sd">        Temporary directory to store the resampled Raster, if it is too big to fit in memory.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                  <span class="n">raster_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
@@ -509,7 +519,8 @@
                  <span class="n">ground_resolution</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">scale_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">output_name_suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                 <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">):</span>
+                 <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
+                 <span class="n">temp_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="s1">&#39;./tmp&#39;</span><span class="p">):</span>
 
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">raster_path</span><span class="o">=</span><span class="n">raster_path</span><span class="p">,</span>
                          <span class="n">tile_size</span><span class="o">=</span><span class="n">tile_size</span><span class="p">,</span>
@@ -518,7 +529,8 @@
                          <span class="n">ground_resolution</span><span class="o">=</span><span class="n">ground_resolution</span><span class="p">,</span>
                          <span class="n">scale_factor</span><span class="o">=</span><span class="n">scale_factor</span><span class="p">,</span>
                          <span class="n">output_name_suffix</span><span class="o">=</span><span class="n">output_name_suffix</span><span class="p">,</span>
-                         <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">)</span>
+                         <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">,</span>
+                         <span class="n">temp_dir</span><span class="o">=</span><span class="n">temp_dir</span><span class="p">)</span>
 
 <div class="viewcode-block" id="RasterTilerizerGDF.generate_tiles_gdf">
 <a class="viewcode-back" href="../../../tilerize.html#geodataset.tilerize.RasterTilerizerGDF.generate_tiles_gdf">[docs]</a>

@@ -334,9 +334,15 @@ Such a dict could be:</p>
 <li><p><strong>use_rle_for_labels</strong> (<em>bool</em>) – Whether to use RLE encoding for the labels or not. If False, the polygon’s exterior coordinates will be used.
 RLE Encoding takes less space on disk but takes more time to encode.</p></li>
 <li><p><strong>n_workers</strong> (<em>int</em>) – The number of workers to use for parallel processing.</p></li>
-<li><p><strong>coco_categories_list</strong> (<em>List</em><em>[</em><em>dict</em><em>] or </em><em>None</em>) – <p>A list of category dictionaries in COCO format. If a polygon has a category that is not in this list, its
-category_id will be set to None in its COCO annotation. If ‘coco_categories_list’ is None, the categories ids
-will be automatically generated from the unique categories found in the ‘categories’ parameter.</p>
+<li><p><strong>coco_categories_list</strong> (<em>List</em><em>[</em><em>dict</em><em>] or </em><em>None</em>) – <p>A list of category dictionaries in COCO format.</p>
+<p>If provided, category ids for the annotations in the final COCO file
+will be determined by matching the category name (defined by ‘main_label_category_column_name’ parameter) of
+each polygon with the categories names in coco_categories_list.</p>
+<p>If a polygon has a category that is not in this list, its category_id will be set to None in its COCO annotation.</p>
+<p>If ‘main_label_category_column_name’ is not provided, but ‘coco_categories_list’ is a single
+coco category dictionary, then it will be used for all annotations automatically.</p>
+<p>If ‘coco_categories_list’ is None, the categories ids will be automatically generated from the
+unique categories found in the ‘main_label_category_column_name’ column.</p>
 <br><p>To assign a category_id to a polygon, the code will check the ‘name’ and ‘other_names’ fields of the categories.</p>
 <br><p><strong>IMPORTANT</strong>: It is strongly advised to provide this list if you want to have consistent category ids across
 multiple COCO datasets.</p>
@@ -380,7 +386,9 @@ attributes for each polygon. If None, no additional attributes will be provided.
 <li><p><strong>output_path</strong> (<em>Path</em>) – The path where the generated COCO JSON file will be saved.</p></li>
 <li><p><strong>use_rle_for_labels</strong> (<em>bool</em>) – Whether to use RLE encoding for the labels or not.</p></li>
 <li><p><strong>n_workers</strong> (<em>int</em>) – The number of workers to use for parallel processing.</p></li>
-<li><p><strong>coco_categories_list</strong> (<em>List</em><em>[</em><em>dict</em><em>] or </em><em>None</em><em>, </em><em>optional</em>) – A list of COCO category dictionaries. If provided, category ids will be matched against this list.</p></li>
+<li><p><strong>coco_categories_list</strong> (<em>List</em><em>[</em><em>dict</em><em>] or </em><em>None</em><em>, </em><em>optional</em>) – A list of COCO category dictionaries in COCO format. If provided, category ids for the annotations in the
+final COCO file will be determined by matching the category name of each polygon with the categories names
+in coco_categories_list.</p></li>
 <li><p><strong>tiles_paths_order</strong> (<em>List</em><em>[</em><em>Path</em><em>] or </em><em>None</em><em>, </em><em>optional</em>) – The order in which the tiles should be stored in the COCO file. If None, the order will be determined by
 the order in which the tiles are encountered in the GeoDataFrame. This parameter could be useful if you plan
 to use the same order for multiple COCO datasets (e.g using pycocotools COCOEval between truth and preds).</p></li>
