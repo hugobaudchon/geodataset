@@ -605,7 +605,8 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
     itemsize = np.dtype(profile['dtype']).itemsize
     nbands = profile.get('count', 1)
     expected_bytes = new_width * new_height * nbands * itemsize
-    max_in_mem_bytes = 10 * 1024 ** 3  # 10GB
+    max_in_mem_gb = 10
+    max_in_mem_bytes = max_in_mem_gb * 1024 ** 3  # 10GB
 
     print(f"Expected raster size in memory: {expected_bytes / (1024 ** 3):.2f} GB.")
 
@@ -636,7 +637,7 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
         dataset = memfile.open()
         temp_path = None
     else:
-        print("Raster too large for in-memory load, writing to temporary file...")
+        print(f"The resampled Raster would be more than {max_in_mem_gb} GB in memory, writing to temporary file on disk instead...")
         vrt = WarpedVRT(
             src,
             crs=target_crs,
@@ -650,6 +651,8 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
         temp = tempfile.NamedTemporaryFile(suffix=".tif", prefix="resampled_raster_", delete=False, dir=temp_dir)
         temp_path = temp.name
         temp.close()
+
+        print(f"Temporary re-sampled Raster will be at at {temp_path}.")
 
         # Adjust the profile: disable tiling and enable BIGTIFF for large files.
         profile.pop("blockxsize", None)
@@ -908,9 +911,19 @@ class COCOGenerator:
     n_workers: int
         The number of workers to use for parallel processing.
     coco_categories_list: List[dict] or None
-        A list of category dictionaries in COCO format. If a polygon has a category that is not in this list, its
-        category_id will be set to None in its COCO annotation. If 'coco_categories_list' is None, the categories ids
-        will be automatically generated from the unique categories found in the 'categories' parameter.
+        A list of category dictionaries in COCO format.
+
+        If provided, category ids for the annotations in the final COCO file
+        will be determined by matching the category name (defined by 'main_label_category_column_name' parameter) of
+        each polygon with the categories names in coco_categories_list.
+
+        If a polygon has a category that is not in this list, its category_id will be set to None in its COCO annotation.
+
+        If 'main_label_category_column_name' is not provided, but 'coco_categories_list' is a single
+        coco category dictionary, then it will be used for all annotations automatically.
+
+        If 'coco_categories_list' is None, the categories ids will be automatically generated from the
+        unique categories found in the 'main_label_category_column_name' column.
 
         .. raw:: html
 
@@ -1034,7 +1047,9 @@ class COCOGenerator:
         n_workers : int
             The number of workers to use for parallel processing.
         coco_categories_list : List[dict] or None, optional
-            A list of COCO category dictionaries. If provided, category ids will be matched against this list.
+            A list of COCO category dictionaries in COCO format. If provided, category ids for the annotations in the
+            final COCO file will be determined by matching the category name of each polygon with the categories names
+            in coco_categories_list.
         tiles_paths_order : List[Path] or None, optional
             The order in which the tiles should be stored in the COCO file. If None, the order will be determined by
             the order in which the tiles are encountered in the GeoDataFrame. This parameter could be useful if you plan
@@ -1098,8 +1113,6 @@ class COCOGenerator:
             n_workers=n_workers,
             coco_categories_list=coco_categories_list
         )
-
-
 
     def generate_coco(self):
         """

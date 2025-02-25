@@ -82,9 +82,13 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         Number of workers to use when generating the COCO dataset.
         Useful when use_rle_for_labels=True as it is quite slow.
     coco_categories_list : list of dict, optional
-        A list of category dictionaries in COCO format. If a polygon has a category (label in
-        'main_label_category_column_name') that is not in this list, its category_id will be set to None in its COCO
-        annotation.
+        A list of category dictionaries in COCO format.
+
+        If provided, category ids for the annotations in the final COCO file
+        will be determined by matching the category name (defined by 'main_label_category_column_name' parameter) of
+        each polygon with the categories names in coco_categories_list.
+
+        If a polygon has a category that is not in this list, its category_id will be set to None in its COCO annotation.
 
         If 'main_label_category_column_name' is not provided, but 'coco_categories_list' is a single
         coco category dictionary, then it will be used for all annotations automatically.
@@ -124,6 +128,9 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                 "supercategory": 1
             }]
 
+    temp_dir : str or pathlib.Path
+        Temporary directory to store the resampled Raster, if it is too big to fit in memory.
+
     """
 
     def __init__(self,
@@ -146,7 +153,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None,
                  coco_n_workers: int = 5,
-                 coco_categories_list: list[dict] = None):
+                 coco_categories_list: list[dict] = None,
+                 temp_dir: str or Path = './tmp'):
 
         super().__init__(
             raster_path=raster_path,
@@ -158,7 +166,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             ground_resolution=ground_resolution,
             scale_factor=scale_factor,
             output_name_suffix=output_name_suffix,
-            ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold
+            ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold,
+            temp_dir=temp_dir
         )
 
         self.labels_path = Path(labels_path) if labels_path else None
@@ -368,7 +377,6 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
         coco_generator.generate_coco()
         return coco_output_file_path
-
 
     def generate_coco_dataset(self):
         """
