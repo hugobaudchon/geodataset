@@ -637,48 +637,53 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
         dataset = memfile.open()
         temp_path = None
     else:
-        print(f"The resampled Raster would be more than {max_in_mem_gb} GB in memory, writing to temporary file on disk instead...")
-        vrt = WarpedVRT(
-            src,
-            crs=target_crs,
-            width=new_width,
-            height=new_height,
-            transform=new_transform,
-            resampling=Resampling.bilinear
-        )
+        if x_scale_factor != 1 or y_scale_factor != 1:
+            print(f"The resampled Raster would be more than {max_in_mem_gb} GB in memory, writing to temporary file on disk instead...")
+            vrt = WarpedVRT(
+                src,
+                crs=target_crs,
+                width=new_width,
+                height=new_height,
+                transform=new_transform,
+                resampling=Resampling.bilinear
+            )
 
-        Path(temp_dir).mkdir(exist_ok=True, parents=True)
-        temp = tempfile.NamedTemporaryFile(suffix=".tif", prefix="resampled_raster_", delete=False, dir=temp_dir)
-        temp_path = temp.name
-        temp.close()
+            Path(temp_dir).mkdir(exist_ok=True, parents=True)
+            temp = tempfile.NamedTemporaryFile(suffix=".tif", prefix="resampled_raster_", delete=False, dir=temp_dir)
+            temp_path = temp.name
+            temp.close()
 
-        print(f"Temporary re-sampled Raster will be at at {temp_path}.")
+            print(f"Temporary re-sampled Raster will be at at {temp_path}.")
 
-        # Adjust the profile: disable tiling and enable BIGTIFF for large files.
-        profile.pop("blockxsize", None)
-        profile.pop("blockysize", None)
-        profile.update({"tiled": False, "BIGTIFF": "YES"})
+            # Adjust the profile: disable tiling and enable BIGTIFF for large files.
+            profile.pop("blockxsize", None)
+            profile.pop("blockysize", None)
+            profile.update({"tiled": False, "BIGTIFF": "YES"})
 
-        # Define the target chunk size in bytes (e.g. 1GB)
-        chunk_bytes = 1 * 1024 ** 3
-        bytes_per_row = new_width * nbands * itemsize
-        rows_per_chunk = max(1, int(chunk_bytes // bytes_per_row))
-        print(f"Processing {rows_per_chunk} rows per chunk "
-              f"(each chunk ≈{rows_per_chunk * bytes_per_row / (1024 ** 3):.2f} GB).")
+            # Define the target chunk size in bytes (e.g. 1GB)
+            chunk_bytes = 1 * 1024 ** 3
+            bytes_per_row = new_width * nbands * itemsize
+            rows_per_chunk = max(1, int(chunk_bytes // bytes_per_row))
+            print(f"Processing {rows_per_chunk} rows per chunk "
+                  f"(each chunk ≈{rows_per_chunk * bytes_per_row / (1024 ** 3):.2f} GB).")
 
-        with rasterio.open(temp_path, "w", **profile) as dst:
-            for row in tqdm(range(0, new_height, rows_per_chunk), desc="Writing chunks to temp file"):
-                h = min(rows_per_chunk, new_height - row)
-                window = Window(col_off=0, row_off=row, width=new_width, height=h)
-                data_block = vrt.read(window=window)
-                dst.write(data_block, window=window)
-                # Try to flush the cache; if not available, ignore.
-                try:
-                    dst.flush_cache()
-                except AttributeError:
-                    pass
-        dataset = rasterio.open(temp_path)
-        warnings.warn(f"Raster too large for in-memory load. Temporary file created at {temp_path}. You might want to delete it after use.")
+            with rasterio.open(temp_path, "w", **profile) as dst:
+                for row in tqdm(range(0, new_height, rows_per_chunk), desc="Writing chunks to temp file"):
+                    h = min(rows_per_chunk, new_height - row)
+                    window = Window(col_off=0, row_off=row, width=new_width, height=h)
+                    data_block = vrt.read(window=window)
+                    dst.write(data_block, window=window)
+                    # Try to flush the cache; if not available, ignore.
+                    try:
+                        dst.flush_cache()
+                    except AttributeError:
+                        pass
+            dataset = rasterio.open(temp_path)
+            warnings.warn(f"Raster too large for in-memory load. Temporary file created at {temp_path}. You might want to delete it after use.")
+        else:
+            # If no resampling is needed, just open the file directly, no need to duplicate it to temp file
+            dataset = src
+            temp_path = None
 
     return dataset, profile, x_scale_factor, y_scale_factor, temp_path
 
