@@ -118,6 +118,29 @@
             "rank": "SPECIES",
             "other_names": ["FAGR"],
             "supercategory": null
+        },
+	{"id": 16, 
+        "name": "Betula", 
+        "global_id": 2875008, 
+        "rank": "GENUS",
+         "other_names": ["BEPO"], 
+         "supercategory": 2
+        },
+        {"id": 17, 
+        "name": "Conifere", 
+        "global_id": -1, 
+        "rank": "GROUP",
+         "other_names": [],
+         "supercategory": null
+        },
+        {"id": 18, 
+        "name": "Feuillus", 
+        "rank": "GROUP",
+        "global_id": -1, 
+         "other_names": [ "FRNI", 
+            "OSVI",  "POBA",
+           "PRPE",  "QURU"],
+         "supercategory": null
         }
     ]
 }
