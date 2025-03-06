@@ -1545,7 +1545,7 @@ class PointCloudCOCOGenerator:
 
         # Generate COCO annotation data from each associated label
         coco_annotation = {
-            "polygon_id": polygon_id,
+            "id": polygon_id,
             "segmentation": segmentation,
             "is_rle_format": use_rle_for_labels,
             "area": area,
@@ -1565,7 +1565,6 @@ class PointCloudCOCOGenerator:
 
         categories_set = set([category for categories in self.categories for category in categories]
                              if self.categories else {})
-
         if self.coco_categories_list:
             category_name_to_id_map = {}
             id_to_category_dict_map = {}
@@ -1586,7 +1585,6 @@ class PointCloudCOCOGenerator:
                         category_name_to_id_map[other_name] = category_dict['id']
 
             categories_coco = self.coco_categories_list
-
             if self.categories:
                 for category in categories_set:
                     if category not in category_name_to_id_map:

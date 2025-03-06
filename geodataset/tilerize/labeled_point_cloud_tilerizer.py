@@ -245,7 +245,6 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
     def _get_aoi_tiles(self):
         aois_gdf = self.aoi_engine.get_aoi_gdf()
-        # //NOTE -  Cannot check for color as data is not provided here and only metadata is provided.
         tiles_gdf = self.tiles_metadata.gdf
         aois_gdf = aois_gdf.to_crs(tiles_gdf.crs)
 
@@ -262,6 +261,18 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
             aois_tiles = (
                 max_intersection_per_tile.groupby("aoi")["tile_id"].apply(list).to_dict()
             )
+            
+            # Add this code to update the aoi attribute of each tile
+            # Create a mapping from tile_id to aoi
+            tile_id_to_aoi = {}
+            for aoi, tile_ids in aois_tiles.items():
+                for tile_id in tile_ids:
+                    tile_id_to_aoi[tile_id] = aoi
+                    
+            # Update each tile's aoi attribute
+            for tile in self.tiles_metadata:
+                if tile.tile_id in tile_id_to_aoi:
+                    tile.aoi = tile_id_to_aoi[tile.tile_id]
         else:
             # just use tiles_gdf, no need to overlay
             aois_tiles = tiles_gdf.groupby("aoi")["tile_id"].apply(list).to_dict()

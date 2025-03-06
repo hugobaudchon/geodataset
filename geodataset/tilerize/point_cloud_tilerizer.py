@@ -107,9 +107,9 @@ class PointCloudTilerizer:
         # Processing AOIs
         if self.aois_config is None:
             raise Exception("Please provide an aoi_config. Currently don't support 'None'.")
-        self.aoi_engine = AOIBaseFromGeoFileInCRS(aois_config)
+        self.aoi_engine = AOIBaseFromGeoFileInCRS(self.aois_config)
         self.aois_in_both = self._check_aois_in_both_tiles_and_config()
-
+        import ipdb; ipdb.set_trace()
         self.create_folder()
 
     def _check_aois_in_both_tiles_and_config(self):
@@ -126,7 +126,6 @@ class PointCloudTilerizer:
 
     def populate_tiles_metadata(self):
         name_convention = PointCloudTileNameConvention()
-        
         with CopcReader.open(self.point_cloud_path) as reader:
             min_x, min_y = reader.header.x_min, reader.header.y_min
             max_x, max_y = reader.header.x_max, reader.header.y_max
@@ -152,13 +151,21 @@ class PointCloudTilerizer:
                         crs=reader.header.parse_crs(),
                         tile_name=tile_name,
                         tile_id=tile_id,
+                        height=self.tile_side_length,
+                        width=self.tile_side_length,
                     )
 
                     tiles_metadata.append(tile_md)
                     tile_id += 1
 
+            """
+            if self.tiles_metadata is None:
+                product_name = tiles_metadata[0].tile_name
+            else:
+                product_name = self.tiles_metadata.product_name
+            """
             self.tiles_metadata = PointCloudTileMetadataCollection(
-                tiles_metadata,product_name=self.tiles_metadata.product_name
+                tiles_metadata,product_name=self.point_cloud_path.name
             )
 
         print(f"Number of tiles generated: {len(self.tiles_metadata)}")
