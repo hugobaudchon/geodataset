@@ -15,23 +15,30 @@ import pandas as pd
 
 class PointCloudTileMetadata:
     """
-    Represents metadata for a tile, Generally used for PointCloudTile.
-    The tiles are supposed to be rectangular.
+    Represents metadata for a point cloud tile aligned with a raster tile grid.
 
     Parameters
     ----------
     tile_id: int
         The unique id of the tile.
-    x_bound: Tuple[float, float], optional
-        The x-axis bounds of the tile.
-    y_bound: Tuple[float, float], optional
-        The y-axis bounds of the tile.
-    z_bound: Tuple[float, float], optional
-        The z-axis bounds of the tile.
-    crs: PyProjCRS, optional
+    x_bound: Tuple[float, float]
+        The x-axis bounds of the tile in world coordinates.
+    y_bound: Tuple[float, float]
+        The y-axis bounds of the tile in world coordinates.
+    crs: PyProjCRS
         The coordinate reference system of the tile.
-    output_filename: str, optional
-        The output filename of the tile.
+    tile_name: str
+        The name of the tile.
+    height: int
+        The height of the tile in pixels (when rendered as a raster).
+    width: int
+        The width of the tile in pixels (when rendered as a raster).
+    aoi: str, optional
+        The Area of Interest this tile belongs to.
+    ground_resolution: float, optional
+        Ground resolution in meters per pixel.
+    scale_factor: float, optional
+        Scale factor for the tile.
     """
 
     def __init__(
@@ -39,54 +46,46 @@ class PointCloudTileMetadata:
         crs: PyProjCRS,
         tile_id: int,
         tile_name: str,
-        x_bound: Union[Tuple[float, float], None] = None,
-        y_bound: Union[Tuple[float, float], None] = None,
-        z_bound: Union[Tuple[float, float], None] = None,
-
+        x_bound: Tuple[float, float],
+        y_bound: Tuple[float, float],
+        z_bound: Tuple[float, float] = None,
         height: int = None,
         width: int = None,
-        aoi: str = None
+        aoi: str = None,
+        ground_resolution: float = None,
+        scale_factor: float = None,
+        row: int = None,
+        col: int = None
     ) -> None:
         """
-        Initializes a TileMetadata object.
+        Initializes a PointCloudTileMetadata object.
         """
-        __slots__ = ( # noqa F841
-
-            "min_x",
-            "max_x",
-            "min_y",
-            "max_y",
-            "min_z",
-            "max_z",
-            "crs",
-            "id",
-            "filename",
-            "geometry",
-            "height",
-            "width",
-        )
-
-        self.min_x, self.max_x = x_bound if x_bound else (None, None)
-        self.min_y, self.max_y = y_bound if y_bound else (None, None)
+        self.min_x, self.max_x = x_bound
+        self.min_y, self.max_y = y_bound
         self.min_z, self.max_z = z_bound if z_bound else (None, None)
 
         self.crs = crs
         assert PointCloudTileNameConvention._validate_name(
             tile_name
-        ), f"Invalid output_filename: {tile_name}"
+        ), f"Invalid tile_name: {tile_name}"
 
         self.tile_name = tile_name
         self.tile_id = tile_id
 
-        self.geometry = self._get_bounding_box()
-
-        # Height and width are important to generate coco dataset
-        # NOTE: This is important for generating bounding boxes for the tiles
-
+        # Store the row and column for alignment with raster tiles
+        self.row = row
+        self.col = col
+        
+        # Store resolution info for alignment with raster tiles
+        self.ground_resolution = ground_resolution
+        self.scale_factor = scale_factor
+        
+        # Height and width are important for generating consistent bounding boxes
         self.height = height
         self.width = width
         self.aoi = aoi
-
+        
+        self.geometry = self._get_bounding_box()
 
     def __repr__(self) -> str:
         return self.info()
