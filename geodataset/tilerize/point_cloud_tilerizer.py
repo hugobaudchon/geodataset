@@ -105,6 +105,9 @@ class PointCloudTilerizer:
         self.force = force
         self.tile_coordinate_step = int((1 - self.tile_overlap) * self.tile_size)
 
+        # initialize the AOI engine if config is provided
+        self.aoi_engine = AOIBaseFromGeoFileInCRS(aois_config) if aois_config else None
+        
         # Calculate the real world distance equivalent to tile_size pixels
         if self.reference_raster_path:
             self._align_with_reference_raster()
@@ -116,7 +119,8 @@ class PointCloudTilerizer:
             if self.downsample_voxel_size
             else self.output_path / "pc_tiles"
         )
-        
+
+        # Generate tiles metadata
         self.tiles_metadata = self._generate_tiles_metadata()
 
         # Just a sanity check for the maximum number of tiles
@@ -126,10 +130,9 @@ class PointCloudTilerizer:
                 "Use force=True to override."
             )
             
-        # Processing AOIs if provided
-        if self.aois_config is not None:
-            self.aoi_engine = AOIBaseFromGeoFileInCRS(self.aois_config)
-            self.aois_in_both = self._check_aois_in_both_tiles_and_config()
+        # Assign AOIs to tiles if an AOI configuration is provided
+        if self.aoi_engine:
+            self._assign_aois_to_tiles()
             
         self.create_folder()
         
@@ -192,7 +195,8 @@ class PointCloudTilerizer:
                 print(f"Resolution: {self.x_resolution}m/px")
                 print(f"Tile side length: {self.tile_side_length_x}m")
                 print(f"Point cloud CRS: {self.point_cloud_crs}")
-                
+
+
     def _generate_tiles_metadata(self):
         """Generate tile metadata for all tiles covering the point cloud"""
         name_convention = PointCloudTileNameConvention()
@@ -282,11 +286,21 @@ class PointCloudTilerizer:
     def tilerize(self):
         """
         Generate point cloud tiles for the entire dataset.
-        """
-        self._tilerize()
-        self.plot_aois()
-        return self.tiles_metadata
         
+        Returns
+        -------
+        PointCloudTileMetadataCollection
+            Collection of tiles metadata
+        """
+        # Tilerize the point cloud
+        self._tilerize()
+        
+        # Plot AOIs if available
+        if hasattr(self, 'aoi_engine') and self.aoi_engine:
+            self.plot_aois()
+            
+        return self.tiles_metadata
+    
     def _tilerize(self):
         """
         Internal implementation of tilerization.
@@ -536,16 +550,20 @@ class PointCloudTilerizer:
             print(f"Removed {n_removed} points outside AOI {tile_md.aoi} ({percentage_removed:.2f}%)")
         
         return o3d.t.geometry.PointCloud(map_to_tensors)
-        
+
+
     def create_folder(self):
         """Create output folders for tiles"""
         self.pc_tiles_folder_path.mkdir(parents=True, exist_ok=True)
         
-        if hasattr(self, 'aois_in_both'):
-            for aoi in self.aois_in_both:
+        # Create folders for each AOI
+        if hasattr(self, 'aoi_engine') and self.aoi_engine:
+            aoi_set = {tile.aoi for tile in self.tiles_metadata if tile.aoi}
+            for aoi in aoi_set:
                 (self.pc_tiles_folder_path / aoi).mkdir(parents=True, exist_ok=True)
-        else:
-            (self.pc_tiles_folder_path / "noaoi").mkdir(parents=True, exist_ok=True)
+        
+        # Always create noaoi folder for tiles without AOI assignment
+        (self.pc_tiles_folder_path / "noaoi").mkdir(parents=True, exist_ok=True)
             
     def _check_aois_in_both_tiles_and_config(self):
         """Check which AOIs are both in tiles metadata and AOI config"""
@@ -566,7 +584,56 @@ class PointCloudTilerizer:
             )
             
         return aois_in_both
+
+    def _assign_aois_to_tiles(self):
+        """Assign AOIs to tiles based on spatial intersection"""
+        if not hasattr(self, 'aoi_engine') or not self.aoi_engine:
+            return
         
+        print("Assigning AOIs to point cloud tiles...")
+        
+        # Create a GeoDataFrame from the tiles
+        tiles_gdf = gpd.GeoDataFrame(
+            {
+                'tile_id': [tile.tile_id for tile in self.tiles_metadata],
+                'geometry': [box(tile.min_x, tile.min_y, tile.max_x, tile.max_y) for tile in self.tiles_metadata]
+            },
+            crs=self.point_cloud_crs
+        )
+        
+        # Get the AOIs GeoDataFrame and ensure same CRS
+        aois_gdf = self.aoi_engine.get_aoi_gdf()
+        if aois_gdf.crs != tiles_gdf.crs:
+            aois_gdf = aois_gdf.to_crs(tiles_gdf.crs)
+        
+        # Find intersections between tiles and AOIs
+        intersections = gpd.overlay(tiles_gdf, aois_gdf, how="intersection")
+        
+        # Calculate intersection areas
+        intersections['intersection_area'] = intersections.geometry.area
+        
+        # Find which AOI has the maximum intersection with each tile
+        max_intersections = intersections.loc[intersections.groupby('tile_id')['intersection_area'].idxmax()]
+        
+        # Create a mapping from tile_id to AOI
+        tile_id_to_aoi = dict(zip(max_intersections.tile_id, max_intersections.aoi))
+        
+        # Update the AOI attribute for each tile
+        for tile in self.tiles_metadata:
+            if tile.tile_id in tile_id_to_aoi:
+                tile.aoi = tile_id_to_aoi[tile.tile_id]
+                if self.verbose:
+                    print(f"Assigned tile {tile.tile_name} to AOI {tile.aoi}")
+        
+        # Get count of tiles per AOI
+        aoi_counts = {}
+        for tile in self.tiles_metadata:
+            aoi = tile.aoi if tile.aoi else "noaoi"
+            aoi_counts[aoi] = aoi_counts.get(aoi, 0) + 1
+        
+        for aoi, count in aoi_counts.items():
+            print(f"AOI '{aoi}': {count} tiles")
+
     def plot_aois(self):
         """Plot the AOIs and tiles"""
         fig, ax = self.tiles_metadata.plot()
