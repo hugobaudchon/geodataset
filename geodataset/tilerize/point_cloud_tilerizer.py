@@ -625,6 +625,9 @@ class PointCloudTilerizer:
                 if self.verbose:
                     print(f"Assigned tile {tile.tile_name} to AOI {tile.aoi}")
         
+        # Update tile names to include the correct AOI
+        self._update_tile_names_with_aois()
+        
         # Get count of tiles per AOI
         aoi_counts = {}
         for tile in self.tiles_metadata:
@@ -633,6 +636,33 @@ class PointCloudTilerizer:
         
         for aoi, count in aoi_counts.items():
             print(f"AOI '{aoi}': {count} tiles")
+
+    def _update_tile_names_with_aois(self):
+        """Update tile names to include the correct AOI after assignment"""
+        if not hasattr(self, 'aoi_engine') or not self.aoi_engine:
+            return
+            
+        name_convention = PointCloudTileNameConvention()
+        
+        for tile in self.tiles_metadata:
+            # Only update tiles that have been assigned an AOI
+            if tile.aoi:
+                # Create a new name with the correct AOI
+                new_name = name_convention.create_name(
+                    product_name=self.product_name,
+                    row=tile.row,
+                    col=tile.col,
+                    aoi=tile.aoi,  # Include the AOI in the name
+                    voxel_size=self.downsample_voxel_size,
+                    ground_resolution=self.ground_resolution,
+                    scale_factor=self.scale_factor
+                )
+                
+                if self.verbose and tile.tile_name != new_name:
+                    print(f"Updating tile name from {tile.tile_name} to {new_name}")
+                    
+                # Update the tile name
+                tile.tile_name = new_name
 
     def plot_aois(self):
         """Plot the AOIs and tiles"""

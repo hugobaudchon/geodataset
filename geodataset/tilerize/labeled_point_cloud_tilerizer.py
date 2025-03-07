@@ -188,10 +188,18 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         self.category_to_id_map[np.nan] = np.nan
         
         return coco_paths, categories_coco, category_to_id_map
-        
+
     def _generate_coco_dataset(self):
-        """Generate COCO dataset from labels"""
+        """Generate COCO dataset from labels with proper AOI handling"""
+        # Ensure we have aoi_tiles and aoi_labels
+        if not hasattr(self, 'aoi_tiles') or not hasattr(self, 'aoi_labels'):
+            self.aoi_tiles, self.aoi_labels = self._get_aoi_labels()
+        
         coco_paths = {}
+        categories_coco = None
+        category_to_id_map = {}
+        
+        # Process each AOI
         for aoi in self.aoi_labels:
             if aoi == "all" and len(self.aoi_labels.keys()) > 1:
                 # Skip 'all' if we have specific AOIs
@@ -199,13 +207,16 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
             labels = self.aoi_labels[aoi]
             if len(labels) == 0:
-                print(f"No tiles found for AOI {aoi}. Skipping...")
+                print(f"No labels found for AOI {aoi}. Skipping COCO generation.")
                 continue
 
             # Get tiles for this AOI
-            aoi_tiles_metadata = PointCloudTileMetadataCollection(
-                [tile for tile in self.tiles_metadata if tile.tile_id in self.aoi_tiles[aoi]]
-            )
+            aoi_tiles_metadata = [tile for tile in self.tiles_metadata 
+                                  if tile.tile_id in self.aoi_tiles.get(aoi, [])]
+            
+            if not aoi_tiles_metadata:
+                print(f"No tiles found for AOI {aoi}. Skipping COCO generation.")
+                continue
 
             # Extract polygons and attributes
             polygons = [x["geometry"].to_list() for x in labels]
@@ -249,9 +260,11 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
             )
 
             # Create COCO generator
+            aoi_tiles_collection = PointCloudTileMetadataCollection(aoi_tiles_metadata)
+            
             coco_generator = PointCloudCOCOGenerator(
                 description=f"Point cloud dataset for {self.tiles_metadata.product_name} with fold {aoi}",
-                tiles_metadata=aoi_tiles_metadata,
+                tiles_metadata=aoi_tiles_collection,
                 polygons=polygons,
                 scores=None,
                 categories=categories_list,
@@ -263,11 +276,38 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
             )
 
             # Generate COCO dataset
-            categories_coco, category_to_id_map = coco_generator.generate_coco()
+            categories_coco_aoi, category_to_id_map_aoi = coco_generator.generate_coco()
+            categories_coco = categories_coco_aoi  # Use the last one
+            category_to_id_map.update(category_to_id_map_aoi)
             coco_paths[aoi] = coco_output_file_path
 
         return coco_paths, categories_coco, category_to_id_map
+
+    def _get_labels_for_aoi(self, aoi, aoi_tiles_metadata):
+        """Get labels specific to an AOI"""
+        # Get all tile IDs for this AOI
+        tile_ids = [tile.tile_id for tile in aoi_tiles_metadata]
         
+        # We need to have aois_tiles and aoi_labels data structures
+        if not hasattr(self, 'aoi_tiles') or not hasattr(self, 'aoi_labels'):
+            # Generate these structures if they don't exist yet
+            self.aoi_tiles, self.aoi_labels = self._get_aoi_labels()
+        
+        aoi_labels = []
+        
+        for tile_id in tile_ids:
+            # Call your existing method with proper arguments
+            tile_labels = self._get_tile_labels(
+                tile_id, 
+                self.aoi_tiles.copy(), 
+                self.aoi_labels.copy()
+            )
+            
+            if not tile_labels.empty:
+                aoi_labels.append(tile_labels)
+        
+        return aoi_labels
+    
     def _find_tiles_associated_labels(self):
         """Find which labels are associated with each tile"""
         print("Finding labels associated with each tile...")
@@ -487,7 +527,10 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
 
     def _tilerize(self):
         """Generate labeled point cloud tiles"""
-        # We'll override the parent's _tilerize to add label attributes to points
+        # Make sure we have aoi_tiles and aoi_labels populated
+        if not hasattr(self, 'aoi_tiles') or not hasattr(self, 'aoi_labels'):
+            self.aoi_tiles, self.aoi_labels = self._get_aoi_labels()
+
         new_tile_md_list = []
         
         with CopcReader.open(self.point_cloud_path) as reader:
@@ -509,11 +552,16 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                 if self.downsample_voxel_size:
                     pcd = super()._downsample_tile(pcd, self.downsample_voxel_size)
                 pcd = self._keep_unique_points(pcd)
-                pcd = self._remove_points_outside_aoi(pcd, tile_md, reader_crs)
+                
+                # Remove points outside the tile's AOI if assigned
+                if hasattr(self, 'aoi_engine') and tile_md.aoi:
+                    pcd = self._remove_points_outside_aoi(pcd, tile_md, reader_crs)
                 
                 # Get labels for this tile and add them to the point cloud
                 tile_labels = self._get_tile_labels(
-                    tile_md.tile_id, self.aoi_tiles.copy(), self.aoi_labels.copy()
+                    tile_md.tile_id, 
+                    self.aoi_tiles.copy(), 
+                    self.aoi_labels.copy()
                 )
                 
                 if not tile_labels.empty:
@@ -523,14 +571,15 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
                     # Add empty labels
                     pcd = self._add_empty_labels(pcd)
                 
-                new_tile_md_list.append(tile_md)
-                
-                # Save the tile
-                output_dir = self.pc_tiles_folder_path / f"{tile_md.aoi if tile_md.aoi else 'noaoi'}"
-                output_dir.mkdir(parents=True, exist_ok=True)
-                output_file = output_dir / tile_md.tile_name
-                
-                o3d.t.io.write_point_cloud(str(output_file), pcd)
+                if pcd.point.positions.shape[0] > 0:
+                    new_tile_md_list.append(tile_md)
+                    
+                    # Save the tile with correct AOI folder
+                    output_dir = self.pc_tiles_folder_path / f"{tile_md.aoi if tile_md.aoi else 'noaoi'}"
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    output_file = output_dir / tile_md.tile_name
+                    
+                    o3d.t.io.write_point_cloud(str(output_file), pcd)
 
         print(f"Finished tilerizing. Generated {len(new_tile_md_list)} tiles.")
         self.tiles_metadata = PointCloudTileMetadataCollection(

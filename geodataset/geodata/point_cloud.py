@@ -130,6 +130,19 @@ class PointCloudTileMetadata:
         bounding_box = box(self.min_x, self.min_y, self.max_x, self.max_y )
         return gpd.GeoDataFrame(index=[0], crs= self.crs, geometry=[bounding_box])
 
+    def update_name(self, new_name: str):
+        """
+        Update the tile name
+        
+        Parameters
+        ----------
+        new_name : str
+            The new tile name
+        """
+        assert PointCloudTileNameConvention._validate_name(
+            new_name
+        ), f"Invalid tile_name: {new_name}"
+        self.tile_name = new_name
 
 class PointCloudTileMetadataCollection:
     """
