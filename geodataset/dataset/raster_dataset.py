@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List
+from typing import List, Union, Optional, Dict, Tuple
 from pathlib import Path
 
 import albumentations
@@ -337,6 +337,117 @@ class InstanceSegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset)
                                'image_id': image_id}
 
         return transformed_image, transformed_targets
+
+
+class ClassificationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
+    """
+    A dataset class for classification tasks using polygon-based tiles from raster data.
+    Loads COCO datasets and their associated tiles. Tracks polygon IDs for regrouping/aggregation.
+
+    It can directly be used with a torch.utils.data.DataLoader.
+
+    Parameters
+    ----------
+    fold: str
+        The dataset fold to load (e.g., 'train', 'valid', 'test'...)
+    root_path: Union[str, List[str], Path, List[Path]]
+        The root directory of the dataset
+    transform: albumentations.core.composition.Compose
+        A composition of transformations to apply to the tiles
+    include_polygon_id: bool
+        Whether to include the polygon ID in the returned data
+    force_binary_class: Optional[bool]
+        If provided, force all classes to be binary (1)
+    """
+    def __init__(self,
+                 fold: str,
+                 root_path: Union[str, List[str], Path, List[Path]],
+                 transform: Optional[albumentations.core.composition.Compose] = None,
+                 include_polygon_id: bool = True,
+                 force_binary_class: Optional[bool] = None):
+        super().__init__(fold=fold, root_path=root_path, transform=transform)
+        self.include_polygon_id = include_polygon_id
+        self.force_binary_class = force_binary_class
+
+    def __getitem__(self, idx: int) -> Union[Tuple[np.ndarray, int], Tuple[np.ndarray, int, int]]:
+        """
+        Retrieves a tile and its class label by index, applying transforms if specified.
+
+        Parameters
+        ----------
+        idx: int
+            The index of the tile to retrieve
+
+        Returns
+        -------
+        Union[Tuple[np.ndarray, int], Tuple[np.ndarray, int, int]]
+            If include_polygon_id is False:
+                - The tile image data (normalized between 0 and 1)
+                - The class label
+            If include_polygon_id is True:
+                - The tile image data (normalized between 0 and 1)
+                - The class label
+                - The polygon ID
+        """
+        tile_info = self.tiles[idx]
+
+        # Use a try-except block to handle potential TIFF reading errors
+        try:
+            with rasterio.open(tile_info['path']) as tile_file:
+                # Check if we have at least 3 bands (RGB)
+                if tile_file.count >= 3:
+                    tile = tile_file.read([1, 2, 3])  # Reading the first three bands
+                else:
+                    # Handle grayscale images or other band configurations
+                    tile = tile_file.read()
+                    if tile.shape[0] == 1:  # If single band, replicate to 3 channels
+                        tile = np.repeat(tile, 3, axis=0)
+        except rasterio.errors.RasterioIOError as e:
+            print(f"Error reading tile {tile_info['path']}: {e}")
+            # Return a default empty tile if reading fails
+            tile = np.zeros((3, 256, 256), dtype=np.uint8)
+
+        # Extract label (class) information - assuming each tile has one dominant class
+        # Get the first label's category_id (adapt this logic based on your data structure)
+        labels = tile_info['labels']
+
+        # Handle case with no labels
+        if not labels:
+            category_id = 0  # Default to class 0 or background
+        else:
+            # Get the class from the first label (most common case)
+            if self.force_binary_class:
+                category_id = 1
+            else:
+                category_id = 0 if labels[0]['category_id'] is None else labels[0]['category_id']
+
+        # Temporary check
+        if category_id == -1:
+            category_id = 0
+
+        # Extract polygon_id if available
+        polygon_id = None
+        if self.include_polygon_id and 'other_attributes' in labels[0]:
+            if 'polygon_id' in labels[0]['other_attributes']:
+                polygon_id = labels[0]['other_attributes']['polygon_id']
+            elif 'geometry_id' in labels[0]['other_attributes']:
+                polygon_id = labels[0]['other_attributes']['geometry_id']
+
+        # Apply transformations if specified
+        if self.transform:
+            transformed = self.transform(image=tile.transpose((1, 2, 0)))
+            transformed_image = transformed['image'].transpose((2, 0, 1))
+        else:
+            transformed_image = tile
+
+        # Normalize the image data
+        transformed_image = transformed_image / 255.0
+
+        # Return image and class label (and optionally polygon_id)
+        if self.include_polygon_id and polygon_id is not None:
+            return transformed_image, category_id, polygon_id
+        else:
+            return transformed_image, category_id
 
 
 class UnlabeledRasterDataset(BaseDataset):
