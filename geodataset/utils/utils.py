@@ -598,7 +598,11 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
         "height": new_height,
         "width": new_width,
         "transform": new_transform,
-        "crs": target_crs
+        "crs": target_crs,
+        "BIGTIFF": "IF_NEEDED",
+        "tiled": True,
+        "blockxsize": 256,
+        "blockysize": 256
     })
 
     # Estimate memory footprint
