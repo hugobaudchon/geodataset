@@ -220,11 +220,13 @@ class Raster:
         start_col = mask_bounds[0]
         end_col = mask_bounds[2]
 
+        if len(self.data.shape) > 2:
+            import ipdb; ipdb.set_trace()
         # Padding to tile_size if necessary
         pre_row_pad = max(0, -mask_bounds[1])
-        post_row_pad = max(0, mask_bounds[3] - self.data.shape[1])
+        post_row_pad = max(0, mask_bounds[3] - self.data.shape[0])
         pre_col_pad = max(0, -mask_bounds[0])
-        post_col_pad = max(0, mask_bounds[2] - self.data.shape[2])
+        post_col_pad = max(0, mask_bounds[2] - self.data.shape[1])
 
         if final_tile_size - (end_row - start_row + pre_row_pad + post_row_pad) == 1:
             post_row_pad += 1
@@ -233,9 +235,9 @@ class Raster:
 
         # Padding the mask to the final tile size
         start_row = max(0, start_row - pre_row_pad)
-        end_row = min(self.data.shape[1], end_row + post_row_pad)
+        end_row = min(self.data.shape[0], end_row + post_row_pad)
         start_col = max(0, start_col - pre_col_pad)
-        end_col = min(self.data.shape[2], end_col + post_col_pad)
+        end_col = min(self.data.shape[1], end_col + post_col_pad)
         binary_mask = np.pad(binary_mask, ((pre_row_pad, post_row_pad), (pre_col_pad, post_col_pad)),
                              mode='constant', constant_values=0)
 
@@ -427,7 +429,7 @@ class RasterTileMetadata:
     def get_pixel_data(self):
         window = Window(self.col, self.row, self.metadata['width'], self.metadata['height'])
         tile_data = self.associated_raster.data.read(window=window)
-
+            
         pad_row = self.metadata['height'] - tile_data.shape[1]
         pad_col = self.metadata['width'] - tile_data.shape[2]
 
@@ -618,13 +620,14 @@ class RasterPolygonTileMetadata:
         self.scale_factor = scale_factor
         self.ground_resolution = ground_resolution
 
-    def get_pixel_data(self):
+    def get_pixel_data(self, keep_mask_values_only: bool = False):
         window = Window(self.col, self.row, self.metadata['width'], self.metadata['height'])
         
         tile_data = self.associated_raster.data.read(window=window)
 
-        if self.mask is not None:
-            tile_data = tile_data * self.mask
+        if keep_mask_values_only:
+            if self.mask is not None:
+                tile_data = tile_data * self.mask
 
         return tile_data
 
@@ -657,7 +660,7 @@ class RasterPolygonTileMetadata:
 
         return data, metadata, product_name, ground_resolution, scale_factor, polygon_id, aoi
 
-    def save(self, output_folder: Path):
+    def save(self, output_folder: Path, keep_mask_values_only: bool = False):
         """
         Save the tile as a .tif file in the output_folder.
         """
@@ -673,7 +676,7 @@ class RasterPolygonTileMetadata:
                 # predictor=2,  # For integer data; use predictor=3 for floating point if needed
                 # tiled=True  # Enables tiling, which can improve compression efficiency
         ) as tile_raster:
-            tile_raster.write(self.get_pixel_data())
+            tile_raster.write(self.get_pixel_data(keep_mask_values_only))
 
     def generate_name(self):
         """
