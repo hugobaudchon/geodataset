@@ -46,7 +46,7 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         self.box_padding_percentage = box_padding_percentage
         self.force_binary_class = force_binary_class
 
-    def __getitem__(self, idx: int):
+    def __getitem__(self, idx: int) -> Tuple[np.ndarray, dict]:
         """
         Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,
         if any. It also normalizes the tile data between 0 and 1.
@@ -163,7 +163,7 @@ class SegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         super().__init__(fold=fold, root_path=root_path, transform=transform, other_attributes_names_to_pass=other_attributes_names_to_pass)
         self.force_binary_class = force_binary_class
 
-    def __getitem__(self, idx: int):
+    def __getitem__(self, idx: int) -> Tuple[np.ndarray, dict]:
         """
         Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,
         if any. It also normalizes the tile data between 0 and 1.
@@ -252,18 +252,24 @@ class InstanceSegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset)
     transform: albumentations.core.composition.Compose
         A composition of transformations to apply to the tiles and their associated annotations
         (applied in __getitem__).
+    force_binary_class: Optional[bool]
+        If provided, force all classes to be binary (1)
+    other_attributes_names_to_pass: List[str]
+        A list of the names of some other COCO annotations attributes to return when iterating over the dataset
+         (like a global_id, confidence_score...).
     """
     def __init__(self,
                  fold: str,
                  root_path: str or List[str] or Path or List[Path],
                  transform: albumentations.core.composition.Compose = None,
                  box_padding_percentage: float = 0.0,
-                 force_binary_class=None):
-        super().__init__(fold=fold, root_path=root_path, transform=transform)
+                 force_binary_class=None,
+                 other_attributes_names_to_pass: List[str] = None):
+        super().__init__(fold=fold, root_path=root_path, transform=transform, other_attributes_names_to_pass=other_attributes_names_to_pass)
         self.box_padding_percentage = box_padding_percentage
         self.force_binary_class = force_binary_class
 
-    def __getitem__(self, idx: int):
+    def __getitem__(self, idx: int) -> Tuple[np.ndarray, dict]:
         """
         Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,
         if any. It also normalizes the tile data between 0 and 1.
@@ -371,22 +377,22 @@ class ClassificationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         The root directory of the dataset
     transform: albumentations.core.composition.Compose
         A composition of transformations to apply to the tiles
-    include_polygon_id: bool
-        Whether to include the polygon ID in the returned data
     force_binary_class: Optional[bool]
         If provided, force all classes to be binary (1)
+    other_attributes_names_to_pass: List[str]
+        A list of the names of some other COCO annotations attributes to return when iterating over the dataset
+         (like a global_id, confidence_score...).
     """
     def __init__(self,
                  fold: str,
                  root_path: Union[str, List[str], Path, List[Path]],
                  transform: Optional[albumentations.core.composition.Compose] = None,
-                 include_polygon_id: bool = True,
-                 force_binary_class: Optional[bool] = None):
-        super().__init__(fold=fold, root_path=root_path, transform=transform)
-        self.include_polygon_id = include_polygon_id
+                 force_binary_class: Optional[bool] = None,
+                 other_attributes_names_to_pass: List[str] = None):
+        super().__init__(fold=fold, root_path=root_path, transform=transform, other_attributes_names_to_pass=other_attributes_names_to_pass)
         self.force_binary_class = force_binary_class
 
-    def __getitem__(self, idx: int) -> Union[Tuple[np.ndarray, int], Tuple[np.ndarray, int, int]]:
+    def __getitem__(self, idx: int) -> Tuple[np.ndarray, int, dict or None]:
         """
         Retrieves a tile and its class label by index, applying transforms if specified.
 
@@ -442,14 +448,6 @@ class ClassificationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         if category_id == -1:
             category_id = 0
 
-        # Extract polygon_id if available
-        polygon_id = None
-        if self.include_polygon_id and 'other_attributes' in labels[0]:
-            if 'polygon_id' in labels[0]['other_attributes']:
-                polygon_id = labels[0]['other_attributes']['polygon_id']
-            elif 'geometry_id' in labels[0]['other_attributes']:
-                polygon_id = labels[0]['other_attributes']['geometry_id']
-
         # Apply transformations if specified
         if self.transform:
             transformed = self.transform(image=tile.transpose((1, 2, 0)))
@@ -460,11 +458,13 @@ class ClassificationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         # Normalize the image data
         transformed_image = transformed_image / 255.0
 
-        # Return image and class label (and optionally polygon_id)
-        if self.include_polygon_id and polygon_id is not None:
-            return transformed_image, category_id, polygon_id
+        if self.other_attributes_names_to_pass is not None:
+            other_attributes = self._get_other_attributes_to_pass(idx)
         else:
-            return transformed_image, category_id
+            other_attributes = None
+
+        # Return image and class label and other_attributes (which may be None)
+        return transformed_image, category_id, other_attributes
 
 
 class UnlabeledRasterDataset(BaseDataset):
