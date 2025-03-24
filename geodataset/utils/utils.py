@@ -67,6 +67,7 @@ def polygon_to_mask(polygon: Polygon or MultiPolygon, array_height: int, array_w
     Encodes a Polygon or MultiPolygon object into a binary mask.
 
     Parameters
+    ----------
     polygon: Polygon or MultiPolygon
         The polygon to encode.
     array_height: int
@@ -83,16 +84,22 @@ def polygon_to_mask(polygon: Polygon or MultiPolygon, array_height: int, array_w
 
     # Function to process each polygon
     def process_polygon(p):
-        contours = np.array(p.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
-        if len(contours) == 0:
+        # Fill the exterior of the polygon
+        exterior_contour = np.array(p.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
+        if len(exterior_contour) == 0:
             return
-        cv2.fillPoly(binary_mask, [contours], 1)
+        cv2.fillPoly(binary_mask, [exterior_contour], 1)
+
+        # Fill each interior ring (hole) with 0
+        for interior in p.interiors:
+            interior_contour = np.array(interior.coords).reshape((-1, 1, 2)).astype(np.int32)
+            cv2.fillPoly(binary_mask, [interior_contour], 0)
 
     if isinstance(polygon, Polygon):
         process_polygon(polygon)
     elif isinstance(polygon, MultiPolygon):
-        for polygon in polygon.geoms:
-            process_polygon(polygon)
+        for poly in polygon.geoms:
+            process_polygon(poly)
     else:
         raise TypeError(f"Geometry must be a Polygon or MultiPolygon. Got {type(polygon)}.")
 
