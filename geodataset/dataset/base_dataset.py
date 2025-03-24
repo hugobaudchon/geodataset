@@ -46,14 +46,19 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         The root directory of the dataset.
     transform: albumentations.core.composition.Compose
         A composition of transformations to apply to the tiles.
+    other_attributes_names_to_pass: List[str]
+        A list of the names of some other COCO annotations attributes to return when iterating over the dataset
+         (like a global_id, confidence_score...).
     """
     def __init__(self,
                  fold: str,
                  root_path: str or List[str] or Path or List[Path],
-                 transform: albumentations.core.composition.Compose = None):
+                 transform: albumentations.core.composition.Compose = None,
+                 other_attributes_names_to_pass: List[str] = None):
         self.fold = fold
         self.root_path = root_path
         self.transform = transform
+        self.other_attributes_names_to_pass = other_attributes_names_to_pass
         self.tiles = {}
         self.tiles_path_to_id_mapping = {}
         self.category_id_to_metadata_mapping = {}
@@ -213,6 +218,21 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
             reindexed_path_to_id_mapping[tile['name']] = i
         self.tiles = reindexed_tiles
         self.tiles_path_to_id_mapping = reindexed_path_to_id_mapping
+
+    def _get_other_attributes_to_pass(self, tile_id: int):
+        other_attributes = {}
+        if self.other_attributes_names_to_pass:
+            for attribute_name in self.other_attributes_names_to_pass:
+                other_attributes[attribute_name] = []
+        for annotation in self.tiles[tile_id]['labels']:
+            for attribute_name in self.other_attributes_names_to_pass:
+                if 'other_attributes' in annotation and attribute_name in annotation['other_attributes']:
+                    other_attributes[attribute_name].append(annotation['other_attributes'][attribute_name])
+                elif attribute_name in annotation:
+                    other_attributes[attribute_name].append(annotation[attribute_name])
+                else:
+                    other_attributes[attribute_name].append(None)
+        return other_attributes
 
     def __len__(self):
         """

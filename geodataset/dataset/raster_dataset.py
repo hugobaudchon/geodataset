@@ -31,14 +31,18 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
     transform: albumentations.core.composition.Compose
         A composition of transformations to apply to the tiles and their associated annotations
         (applied in __getitem__).
+    other_attributes_names_to_pass: List[str]
+        A list of the names of some other COCO annotations attributes to return when iterating over the dataset
+         (like a global_id, confidence_score...).
     """
     def __init__(self,
                  fold: str,
                  root_path: str or List[str] or Path or List[Path],
                  transform: albumentations.core.composition.Compose = None,
                  box_padding_percentage: float = 0.0,
-                 force_binary_class=None):
-        super().__init__(fold=fold, root_path=root_path, transform=transform)
+                 force_binary_class=None,
+                 other_attributes_names_to_pass: List[str] = None):
+        super().__init__(fold=fold, root_path=root_path, transform=transform, other_attributes_names_to_pass=other_attributes_names_to_pass)
         self.box_padding_percentage = box_padding_percentage
         self.force_binary_class = force_binary_class
 
@@ -120,6 +124,9 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         transformed_bboxes = {'boxes': transformed_bboxes, 'labels': transformed_category_ids,
                               'area': area, 'iscrowd': iscrowd, 'image_id': image_id}
 
+        if self.other_attributes_names_to_pass is not None:
+            transformed_bboxes['other_attributes'] = self._get_other_attributes_to_pass(idx)
+
         return transformed_image, transformed_bboxes
 
 
@@ -143,13 +150,17 @@ class SegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
     transform: albumentations.core.composition.Compose
         A composition of transformations to apply to the tiles and their associated annotations
         (applied in __getitem__).
+    other_attributes_names_to_pass: List[str]
+        A list of the names of some other COCO annotations attributes to return when iterating over the dataset
+         (like a global_id, confidence_score...).
     """
     def __init__(self,
                  fold: str,
                  root_path: str or List[str] or Path or List[Path],
                  transform: albumentations.core.composition.Compose = None,
-                 force_binary_class=None):
-        super().__init__(fold=fold, root_path=root_path, transform=transform)
+                 force_binary_class=None,
+                 other_attributes_names_to_pass: List[str] = None):
+        super().__init__(fold=fold, root_path=root_path, transform=transform, other_attributes_names_to_pass=other_attributes_names_to_pass)
         self.force_binary_class = force_binary_class
 
     def __getitem__(self, idx: int):
@@ -213,6 +224,9 @@ class SegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         image_id = np.array([idx])
         transformed_masks = {'masks': transformed_masks, 'labels': transformed_category_ids,
                              'area': area, 'iscrowd': iscrowd, 'image_id': image_id}
+
+        if self.other_attributes_names_to_pass is not None:
+            transformed_masks['other_attributes'] = self._get_other_attributes_to_pass(idx)
 
         return transformed_image, transformed_masks
 
@@ -335,6 +349,9 @@ class InstanceSegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset)
         transformed_targets = {'masks': transformed_masks, 'boxes': transformed_bboxes,
                                'labels': transformed_category_ids, 'area': area, 'iscrowd': iscrowd,
                                'image_id': image_id}
+
+        if self.other_attributes_names_to_pass is not None:
+            transformed_targets['other_attributes'] = self._get_other_attributes_to_pass(idx)
 
         return transformed_image, transformed_targets
 
