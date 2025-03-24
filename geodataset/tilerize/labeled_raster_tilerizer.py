@@ -261,17 +261,27 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         final_aois_labels = {aoi: [] for aoi in list(self.aois_tiles.keys()) + ['all']}
         for aoi in self.aois_tiles:
             for tile in self.aois_tiles[aoi]:
-                labels_crs_coords = intersecting_labels_aois_raster_coords[intersecting_labels_aois_raster_coords['tile_id'] == tile.tile_id]
-                labels_crs_coords = labels_crs_coords[labels_crs_coords['aoi'] == aoi]
-                labels_ids = labels_crs_coords['label_id'].tolist()
-                labels_tiles_coords = intersecting_labels_tiles_coords[intersecting_labels_tiles_coords.index.isin(labels_ids)]
+                # Use the AOI-cropped label geometries directly
+                labels_crs_coords = intersecting_labels_aois_raster_coords[
+                    (intersecting_labels_aois_raster_coords['tile_id'] == tile.tile_id) &
+                    (intersecting_labels_aois_raster_coords['aoi'] == aoi)
+                    ]
+                labels_tiles_coords = labels_crs_coords.copy()
 
-                # removing boxes that have an area of 0.0
+                # Translate from global to tile coordinates so that non-(0,0) offsets are handled.
+                labels_tiles_coords['geometry'] = labels_tiles_coords.geometry.apply(
+                    lambda geom: translate(geom, xoff=-tile.col, yoff=-tile.row)
+                )
+
+                # Removing boxes that have an area of 0.0
                 labels_tiles_coords = labels_tiles_coords[labels_tiles_coords.geometry.area > 0.0]
 
-                # remove boxes where x2 - x1 <= 0.5 or y2 - y1 <= 0.5, as they are too small and will cause issues when rounding the coordinates (area=0)
-                labels_tiles_coords = labels_tiles_coords[(labels_tiles_coords.geometry.bounds['maxx'] - labels_tiles_coords.geometry.bounds['minx']) > 0.5]
-                labels_tiles_coords = labels_tiles_coords[(labels_tiles_coords.geometry.bounds['maxy'] - labels_tiles_coords.geometry.bounds['miny']) > 0.5]
+                # Remove boxes where x2 - x1 <= 0.5 or y2 - y1 <= 0.5
+                bounds = labels_tiles_coords.geometry.bounds
+                labels_tiles_coords = labels_tiles_coords[
+                    (bounds['maxx'] - bounds['minx'] > 0.5) &
+                    (bounds['maxy'] - bounds['miny'] > 0.5)
+                    ]
 
                 if self.ignore_tiles_without_labels and len(labels_tiles_coords) == 0:
                     continue
