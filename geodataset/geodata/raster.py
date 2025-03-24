@@ -452,14 +452,14 @@ class RasterTileMetadata:
         Parameters
         ----------
         additional_mask: np.ndarray
-            The additional, new mask to apply to the tile. Will be combined with the existing mask with an OR operation.
+            The additional, new mask to apply to the tile. Will be combined with the existing mask with an AND operation.
         """
 
         additional_mask = additional_mask.astype(np.bool_)
 
         if self.mask is not None:
             # combining masks
-            self.mask = self.mask | additional_mask
+            self.mask = self.mask & additional_mask
         else:
             self.mask = additional_mask
 
