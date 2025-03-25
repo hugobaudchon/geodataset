@@ -460,6 +460,159 @@
                    <span class="n">pre_aggregated_output_path</span><span class="o">=</span><span class="n">pre_aggregated_output_path</span><span class="p">)</span></div>
 
 
+<div class="viewcode-block" id="Aggregator.from_gdf">
+<a class="viewcode-back" href="../../../aggregator.html#geodataset.aggregator.Aggregator.from_gdf">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_gdf</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span>
+                 <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
+                 <span class="n">gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span>
+                 <span class="n">tiles_paths_column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                 <span class="n">polygons_column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                 <span class="n">scores_column</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="ow">or</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">other_attributes_columns</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="ow">or</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">scores_weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="ow">or</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">scores_weighting_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;weighted_geometric_mean&#39;</span><span class="p">,</span>
+                 <span class="n">min_centroid_distance_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">score_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+                 <span class="n">nms_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
+                 <span class="n">nms_algorithm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;iou&#39;</span><span class="p">,</span>
+                 <span class="n">best_geom_keep_area_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+                 <span class="n">pre_aggregated_output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Instantiate and run an Aggregator from a GeoDataFrame containing polygon annotations.</span>
+<span class="sd">        The GeoDataFrame may or may not have a CRS. If a CRS is not defined, it is assumed that the polygon</span>
+<span class="sd">        coordinates are in pixel space and the method will call _prepare_polygons to convert them into</span>
+<span class="sd">        CRS coordinates (using the tile file&#39;s affine transform).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        output_path : str or Path</span>
+<span class="sd">            The filename where to save the aggregated polygons.</span>
+<span class="sd">            Supported extensions are &#39;.gpkg&#39;, &#39;.geojson&#39; (spatial outputs) or &#39;.json&#39; (COCO format).</span>
+<span class="sd">        gdf : gpd.GeoDataFrame</span>
+<span class="sd">            A GeoDataFrame where each row represents one polygon annotation.</span>
+<span class="sd">        tiles_paths_column : str</span>
+<span class="sd">            The name of the column in gdf that contains the tile (image) file path.</span>
+<span class="sd">        polygons_column : str</span>
+<span class="sd">            The name of the column in gdf that contains the polygon geometry.</span>
+<span class="sd">        scores_column : str or List[str] or None, optional</span>
+<span class="sd">            The column name(s) in gdf that contain score values for each polygon.</span>
+<span class="sd">            If None, defaults to [&#39;score&#39;].</span>
+<span class="sd">        other_attributes_columns : List[str] or None, optional</span>
+<span class="sd">            A list of additional column names in gdf to be included in the output.</span>
+<span class="sd">        scores_weights : List[float] or None, optional</span>
+<span class="sd">            The weights to apply to each score column. The weights should sum to 1.</span>
+<span class="sd">            If None, equal weights will be used.</span>
+<span class="sd">        scores_weighting_method : str, optional</span>
+<span class="sd">            The method used to weight the different scores. Supported methods are</span>
+<span class="sd">            &#39;weighted_arithmetic_mean&#39;, &#39;weighted_geometric_mean&#39;, and &#39;weighted_harmonic_mean&#39;.</span>
+<span class="sd">        min_centroid_distance_weight : float or None, optional</span>
+<span class="sd">            The weight to adjust polygon scores based on the distance between the polygon centroid and the tile centroid.</span>
+<span class="sd">        score_threshold : float, optional</span>
+<span class="sd">            The score threshold below which polygons will be removed before applying NMS.</span>
+<span class="sd">        nms_threshold : float, optional</span>
+<span class="sd">            The threshold for the Non-Maximum Suppression (NMS) algorithm.</span>
+<span class="sd">        nms_algorithm : str, optional</span>
+<span class="sd">            The NMS algorithm to use. Supported values are &#39;iou&#39; and &#39;ioa-disambiguate&#39;.</span>
+<span class="sd">        best_geom_keep_area_ratio : float, optional</span>
+<span class="sd">            Parameter used in the &#39;ioa-disambiguate&#39; NMS algorithm to decide which geometry to keep.</span>
+<span class="sd">        pre_aggregated_output_path : str or Path, optional</span>
+<span class="sd">            If provided, the intermediate (pre-NMS) polygons will be saved at this location.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Aggregator</span>
+<span class="sd">            An instance of Aggregator initialized with data extracted from the GeoDataFrame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Rename the polygons column to &#39;geometry&#39; if necessary.</span>
+        <span class="k">if</span> <span class="n">polygons_column</span> <span class="o">!=</span> <span class="s1">&#39;geometry&#39;</span><span class="p">:</span>
+            <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="n">polygons_column</span><span class="p">:</span> <span class="s1">&#39;geometry&#39;</span><span class="p">})</span>
+        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># Build mapping from unique tile paths to a unique tile_id.</span>
+        <span class="n">unique_tiles</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">gdf</span><span class="p">[</span><span class="n">tiles_paths_column</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">())</span>
+        <span class="c1"># Ensure tile paths are Path objects.</span>
+        <span class="n">tile_ids_to_path</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="p">(</span><span class="n">tile</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tile</span><span class="p">,</span> <span class="n">Path</span><span class="p">)</span> <span class="k">else</span> <span class="n">Path</span><span class="p">(</span><span class="n">tile</span><span class="p">))</span>
+                              <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">tile</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">unique_tiles</span><span class="p">)}</span>
+        <span class="c1"># Create a lookup dictionary (using string representation for keys).</span>
+        <span class="n">tile_path_to_id</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">tile</span><span class="p">):</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tile_ids_to_path</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+
+        <span class="c1"># Prepare score column names.</span>
+        <span class="k">if</span> <span class="n">scores_column</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">final_scores_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scores_column</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">final_scores_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">scores_column</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scores_column</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">final_scores_names</span> <span class="o">=</span> <span class="n">scores_column</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;scores_column must be a string, list of strings, or None.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Use provided other_attributes_columns if any.</span>
+        <span class="n">final_other_attributes_names</span> <span class="o">=</span> <span class="n">other_attributes_columns</span> <span class="k">if</span> <span class="n">other_attributes_columns</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[]</span>
+
+        <span class="c1"># If gdf has a CRS, assume polygons are already in CRS coordinates.</span>
+        <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">gdf</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="n">tiles_paths_column</span><span class="p">]</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">tile_path_to_id</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)])</span>
+            <span class="c1"># Compute tiles extents by reading each tile.</span>
+            <span class="n">tiles_extents</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">tile_id</span><span class="p">,</span> <span class="n">tile_path</span> <span class="ow">in</span> <span class="n">tile_ids_to_path</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">tile_path</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
+                    <span class="n">bounds</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">bounds</span>
+                    <span class="n">extent_polygon</span> <span class="o">=</span> <span class="n">Polygon</span><span class="p">([</span>
+                        <span class="p">(</span><span class="n">bounds</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">bounds</span><span class="o">.</span><span class="n">bottom</span><span class="p">),</span>
+                        <span class="p">(</span><span class="n">bounds</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">bounds</span><span class="o">.</span><span class="n">top</span><span class="p">),</span>
+                        <span class="p">(</span><span class="n">bounds</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">bounds</span><span class="o">.</span><span class="n">top</span><span class="p">),</span>
+                        <span class="p">(</span><span class="n">bounds</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">bounds</span><span class="o">.</span><span class="n">bottom</span><span class="p">)</span>
+                    <span class="p">])</span>
+                    <span class="n">extent_gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">({</span><span class="s1">&#39;tile_id&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">tile_id</span><span class="p">],</span>
+                                                   <span class="s1">&#39;geometry&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">extent_polygon</span><span class="p">]},</span>
+                                                  <span class="n">crs</span><span class="o">=</span><span class="n">src</span><span class="o">.</span><span class="n">crs</span><span class="p">)</span>
+                    <span class="n">tiles_extents</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">extent_gdf</span><span class="p">)</span>
+            <span class="n">tiles_extent_gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">tiles_extents</span><span class="p">,</span> <span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+            <span class="n">polygons_gdf</span> <span class="o">=</span> <span class="n">gdf</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># If gdf does not have a CRS, assume the geometries are in pixel coordinates.</span>
+            <span class="c1"># Group the polygons by tile and build dictionaries for _prepare_polygons.</span>
+            <span class="n">tile_ids_to_polygons</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">tile_ids_to_attributes</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="c1"># Determine which attribute columns to extract.</span>
+            <span class="n">attribute_columns</span> <span class="o">=</span> <span class="n">final_scores_names</span> <span class="o">+</span> <span class="n">final_other_attributes_names</span>
+            <span class="k">for</span> <span class="n">tile_path_value</span><span class="p">,</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">gdf</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="n">tiles_paths_column</span><span class="p">):</span>
+                <span class="n">tid</span> <span class="o">=</span> <span class="n">tile_path_to_id</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">tile_path_value</span><span class="p">)]</span>
+                <span class="n">tile_ids_to_polygons</span><span class="p">[</span><span class="n">tid</span><span class="p">]</span> <span class="o">=</span> <span class="n">group</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+                <span class="c1"># For each attribute, collect the list of values.</span>
+                <span class="n">tile_ids_to_attributes</span><span class="p">[</span><span class="n">tid</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="n">group</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">attribute_columns</span><span class="p">}</span>
+            <span class="c1"># Call _prepare_polygons to convert pixel coordinates to CRS coordinates.</span>
+            <span class="n">polygons_gdf</span><span class="p">,</span> <span class="n">tiles_extent_gdf</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_prepare_polygons</span><span class="p">(</span>
+                <span class="n">tile_ids_to_path</span><span class="o">=</span><span class="n">tile_ids_to_path</span><span class="p">,</span>
+                <span class="n">tile_ids_to_polygons</span><span class="o">=</span><span class="n">tile_ids_to_polygons</span><span class="p">,</span>
+                <span class="n">tile_ids_to_attributes</span><span class="o">=</span><span class="n">tile_ids_to_attributes</span>
+            <span class="p">)</span>
+
+        <span class="c1"># If scores_weights are not provided, use equal weights.</span>
+        <span class="k">if</span> <span class="n">scores_weights</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">scores_weights</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">final_scores_names</span><span class="p">)]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">final_scores_names</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">scores_weights</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">final_scores_names</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Length of scores_weights must match number of score columns.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Instantiate and return the Aggregator.</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">output_path</span><span class="o">=</span><span class="n">output_path</span><span class="p">,</span>
+                   <span class="n">polygons_gdf</span><span class="o">=</span><span class="n">polygons_gdf</span><span class="p">,</span>
+                   <span class="n">scores_names</span><span class="o">=</span><span class="n">final_scores_names</span><span class="p">,</span>
+                   <span class="n">other_attributes_names</span><span class="o">=</span><span class="n">final_other_attributes_names</span><span class="p">,</span>
+                   <span class="n">scores_weights</span><span class="o">=</span><span class="n">scores_weights</span><span class="p">,</span>
+                   <span class="n">tiles_extent_gdf</span><span class="o">=</span><span class="n">tiles_extent_gdf</span><span class="p">,</span>
+                   <span class="n">tile_ids_to_path</span><span class="o">=</span><span class="n">tile_ids_to_path</span><span class="p">,</span>
+                   <span class="n">scores_weighting_method</span><span class="o">=</span><span class="n">scores_weighting_method</span><span class="p">,</span>
+                   <span class="n">min_centroid_distance_weight</span><span class="o">=</span><span class="n">min_centroid_distance_weight</span><span class="p">,</span>
+                   <span class="n">score_threshold</span><span class="o">=</span><span class="n">score_threshold</span><span class="p">,</span>
+                   <span class="n">nms_threshold</span><span class="o">=</span><span class="n">nms_threshold</span><span class="p">,</span>
+                   <span class="n">nms_algorithm</span><span class="o">=</span><span class="n">nms_algorithm</span><span class="p">,</span>
+                   <span class="n">best_geom_keep_area_ratio</span><span class="o">=</span><span class="n">best_geom_keep_area_ratio</span><span class="p">,</span>
+                   <span class="n">pre_aggregated_output_path</span><span class="o">=</span><span class="n">pre_aggregated_output_path</span><span class="p">)</span></div>
+
+
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_from_coco</span><span class="p">(</span><span class="n">tiles_folder_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
                    <span class="n">coco_json_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
@@ -878,8 +1031,9 @@
 
             <span class="c1"># Determine the columns to be used as additional attributes.</span>
             <span class="c1"># Here we combine the names of the score and other attribute columns.</span>
-            <span class="n">other_attributes_columns</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names</span><span class="p">)</span> \
-                <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">other_attributes_columns</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">scores_names</span> <span class="k">else</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names</span><span class="p">:</span>
+                <span class="n">other_attributes_columns</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names</span><span class="p">)</span>
 
             <span class="n">coco_generator</span> <span class="o">=</span> <span class="n">COCOGenerator</span><span class="o">.</span><span class="n">from_gdf</span><span class="p">(</span>
                 <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Aggregated polygons from multiple tiles.&quot;</span><span class="p">,</span>

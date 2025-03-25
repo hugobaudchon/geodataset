@@ -73,7 +73,7 @@
              
   <h1>Source code for geodataset.dataset.raster_dataset</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Tuple</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">albumentations</span>
@@ -107,20 +107,24 @@
 <span class="sd">    transform: albumentations.core.composition.Compose</span>
 <span class="sd">        A composition of transformations to apply to the tiles and their associated annotations</span>
 <span class="sd">        (applied in __getitem__).</span>
+<span class="sd">    other_attributes_names_to_pass: List[str]</span>
+<span class="sd">        A list of the names of some other COCO annotations attributes to return when iterating over the dataset</span>
+<span class="sd">         (like a global_id, confidence_score...).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                  <span class="n">fold</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
                  <span class="n">root_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="ow">or</span> <span class="n">Path</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="n">Path</span><span class="p">],</span>
                  <span class="n">transform</span><span class="p">:</span> <span class="n">albumentations</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">Compose</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">box_padding_percentage</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
-                 <span class="n">force_binary_class</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">fold</span><span class="o">=</span><span class="n">fold</span><span class="p">,</span> <span class="n">root_path</span><span class="o">=</span><span class="n">root_path</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">)</span>
+                 <span class="n">force_binary_class</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">other_attributes_names_to_pass</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">fold</span><span class="o">=</span><span class="n">fold</span><span class="p">,</span> <span class="n">root_path</span><span class="o">=</span><span class="n">root_path</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span> <span class="n">other_attributes_names_to_pass</span><span class="o">=</span><span class="n">other_attributes_names_to_pass</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">box_padding_percentage</span> <span class="o">=</span> <span class="n">box_padding_percentage</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">force_binary_class</span> <span class="o">=</span> <span class="n">force_binary_class</span>
 
 <div class="viewcode-block" id="DetectionLabeledRasterCocoDataset.__getitem__">
 <a class="viewcode-back" href="../../../dataset.html#geodataset.dataset.DetectionLabeledRasterCocoDataset.__getitem__">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,</span>
 <span class="sd">        if any. It also normalizes the tile data between 0 and 1.</span>
@@ -198,6 +202,9 @@
         <span class="n">transformed_bboxes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;boxes&#39;</span><span class="p">:</span> <span class="n">transformed_bboxes</span><span class="p">,</span> <span class="s1">&#39;labels&#39;</span><span class="p">:</span> <span class="n">transformed_category_ids</span><span class="p">,</span>
                               <span class="s1">&#39;area&#39;</span><span class="p">:</span> <span class="n">area</span><span class="p">,</span> <span class="s1">&#39;iscrowd&#39;</span><span class="p">:</span> <span class="n">iscrowd</span><span class="p">,</span> <span class="s1">&#39;image_id&#39;</span><span class="p">:</span> <span class="n">image_id</span><span class="p">}</span>
 
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names_to_pass</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">transformed_bboxes</span><span class="p">[</span><span class="s1">&#39;other_attributes&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_other_attributes_to_pass</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+
         <span class="k">return</span> <span class="n">transformed_image</span><span class="p">,</span> <span class="n">transformed_bboxes</span></div>
 </div>
 
@@ -225,18 +232,22 @@
 <span class="sd">    transform: albumentations.core.composition.Compose</span>
 <span class="sd">        A composition of transformations to apply to the tiles and their associated annotations</span>
 <span class="sd">        (applied in __getitem__).</span>
+<span class="sd">    other_attributes_names_to_pass: List[str]</span>
+<span class="sd">        A list of the names of some other COCO annotations attributes to return when iterating over the dataset</span>
+<span class="sd">         (like a global_id, confidence_score...).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                  <span class="n">fold</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
                  <span class="n">root_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="ow">or</span> <span class="n">Path</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="n">Path</span><span class="p">],</span>
                  <span class="n">transform</span><span class="p">:</span> <span class="n">albumentations</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">Compose</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                 <span class="n">force_binary_class</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">fold</span><span class="o">=</span><span class="n">fold</span><span class="p">,</span> <span class="n">root_path</span><span class="o">=</span><span class="n">root_path</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">)</span>
+                 <span class="n">force_binary_class</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">other_attributes_names_to_pass</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">fold</span><span class="o">=</span><span class="n">fold</span><span class="p">,</span> <span class="n">root_path</span><span class="o">=</span><span class="n">root_path</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span> <span class="n">other_attributes_names_to_pass</span><span class="o">=</span><span class="n">other_attributes_names_to_pass</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">force_binary_class</span> <span class="o">=</span> <span class="n">force_binary_class</span>
 
 <div class="viewcode-block" id="SegmentationLabeledRasterCocoDataset.__getitem__">
 <a class="viewcode-back" href="../../../dataset.html#geodataset.dataset.SegmentationLabeledRasterCocoDataset.__getitem__">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,</span>
 <span class="sd">        if any. It also normalizes the tile data between 0 and 1.</span>
@@ -298,6 +309,9 @@
         <span class="n">transformed_masks</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;masks&#39;</span><span class="p">:</span> <span class="n">transformed_masks</span><span class="p">,</span> <span class="s1">&#39;labels&#39;</span><span class="p">:</span> <span class="n">transformed_category_ids</span><span class="p">,</span>
                              <span class="s1">&#39;area&#39;</span><span class="p">:</span> <span class="n">area</span><span class="p">,</span> <span class="s1">&#39;iscrowd&#39;</span><span class="p">:</span> <span class="n">iscrowd</span><span class="p">,</span> <span class="s1">&#39;image_id&#39;</span><span class="p">:</span> <span class="n">image_id</span><span class="p">}</span>
 
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names_to_pass</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">transformed_masks</span><span class="p">[</span><span class="s1">&#39;other_attributes&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_other_attributes_to_pass</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+
         <span class="k">return</span> <span class="n">transformed_image</span><span class="p">,</span> <span class="n">transformed_masks</span></div>
 </div>
 
@@ -324,18 +338,24 @@
 <span class="sd">    transform: albumentations.core.composition.Compose</span>
 <span class="sd">        A composition of transformations to apply to the tiles and their associated annotations</span>
 <span class="sd">        (applied in __getitem__).</span>
+<span class="sd">    force_binary_class: Optional[bool]</span>
+<span class="sd">        If provided, force all classes to be binary (1)</span>
+<span class="sd">    other_attributes_names_to_pass: List[str]</span>
+<span class="sd">        A list of the names of some other COCO annotations attributes to return when iterating over the dataset</span>
+<span class="sd">         (like a global_id, confidence_score...).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                  <span class="n">fold</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
                  <span class="n">root_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="ow">or</span> <span class="n">Path</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="n">Path</span><span class="p">],</span>
                  <span class="n">transform</span><span class="p">:</span> <span class="n">albumentations</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">Compose</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">box_padding_percentage</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
-                 <span class="n">force_binary_class</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">fold</span><span class="o">=</span><span class="n">fold</span><span class="p">,</span> <span class="n">root_path</span><span class="o">=</span><span class="n">root_path</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">)</span>
+                 <span class="n">force_binary_class</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">other_attributes_names_to_pass</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">fold</span><span class="o">=</span><span class="n">fold</span><span class="p">,</span> <span class="n">root_path</span><span class="o">=</span><span class="n">root_path</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span> <span class="n">other_attributes_names_to_pass</span><span class="o">=</span><span class="n">other_attributes_names_to_pass</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">box_padding_percentage</span> <span class="o">=</span> <span class="n">box_padding_percentage</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">force_binary_class</span> <span class="o">=</span> <span class="n">force_binary_class</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,</span>
 <span class="sd">        if any. It also normalizes the tile data between 0 and 1.</span>
@@ -422,7 +442,115 @@
                                <span class="s1">&#39;labels&#39;</span><span class="p">:</span> <span class="n">transformed_category_ids</span><span class="p">,</span> <span class="s1">&#39;area&#39;</span><span class="p">:</span> <span class="n">area</span><span class="p">,</span> <span class="s1">&#39;iscrowd&#39;</span><span class="p">:</span> <span class="n">iscrowd</span><span class="p">,</span>
                                <span class="s1">&#39;image_id&#39;</span><span class="p">:</span> <span class="n">image_id</span><span class="p">}</span>
 
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names_to_pass</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">transformed_targets</span><span class="p">[</span><span class="s1">&#39;other_attributes&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_other_attributes_to_pass</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+
         <span class="k">return</span> <span class="n">transformed_image</span><span class="p">,</span> <span class="n">transformed_targets</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ClassificationLabeledRasterCocoDataset</span><span class="p">(</span><span class="n">BaseLabeledRasterCocoDataset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A dataset class for classification tasks using polygon-based tiles from raster data.</span>
+<span class="sd">    Loads COCO datasets and their associated tiles. Tracks polygon IDs for regrouping/aggregation.</span>
+
+<span class="sd">    It can directly be used with a torch.utils.data.DataLoader.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fold: str</span>
+<span class="sd">        The dataset fold to load (e.g., &#39;train&#39;, &#39;valid&#39;, &#39;test&#39;...)</span>
+<span class="sd">    root_path: Union[str, List[str], Path, List[Path]]</span>
+<span class="sd">        The root directory of the dataset</span>
+<span class="sd">    transform: albumentations.core.composition.Compose</span>
+<span class="sd">        A composition of transformations to apply to the tiles</span>
+<span class="sd">    force_binary_class: Optional[bool]</span>
+<span class="sd">        If provided, force all classes to be binary (1)</span>
+<span class="sd">    other_attributes_names_to_pass: List[str]</span>
+<span class="sd">        A list of the names of some other COCO annotations attributes to return when iterating over the dataset</span>
+<span class="sd">         (like a global_id, confidence_score...).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">fold</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                 <span class="n">root_path</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">Path</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">Path</span><span class="p">]],</span>
+                 <span class="n">transform</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">albumentations</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">Compose</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">force_binary_class</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">other_attributes_names_to_pass</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">fold</span><span class="o">=</span><span class="n">fold</span><span class="p">,</span> <span class="n">root_path</span><span class="o">=</span><span class="n">root_path</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span> <span class="n">other_attributes_names_to_pass</span><span class="o">=</span><span class="n">other_attributes_names_to_pass</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">force_binary_class</span> <span class="o">=</span> <span class="n">force_binary_class</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">dict</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieves a tile and its class label by index, applying transforms if specified.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        idx: int</span>
+<span class="sd">            The index of the tile to retrieve</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Union[Tuple[np.ndarray, int], Tuple[np.ndarray, int, int]]</span>
+<span class="sd">            If include_polygon_id is False:</span>
+<span class="sd">                - The tile image data (normalized between 0 and 1)</span>
+<span class="sd">                - The class label</span>
+<span class="sd">            If include_polygon_id is True:</span>
+<span class="sd">                - The tile image data (normalized between 0 and 1)</span>
+<span class="sd">                - The class label</span>
+<span class="sd">                - The polygon ID</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tile_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tiles</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+
+        <span class="c1"># Use a try-except block to handle potential TIFF reading errors</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">tile_info</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">])</span> <span class="k">as</span> <span class="n">tile_file</span><span class="p">:</span>
+                <span class="c1"># Check if we have at least 3 bands (RGB)</span>
+                <span class="k">if</span> <span class="n">tile_file</span><span class="o">.</span><span class="n">count</span> <span class="o">&gt;=</span> <span class="mi">3</span><span class="p">:</span>
+                    <span class="n">tile</span> <span class="o">=</span> <span class="n">tile_file</span><span class="o">.</span><span class="n">read</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>  <span class="c1"># Reading the first three bands</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># Handle grayscale images or other band configurations</span>
+                    <span class="n">tile</span> <span class="o">=</span> <span class="n">tile_file</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">tile</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>  <span class="c1"># If single band, replicate to 3 channels</span>
+                        <span class="n">tile</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">tile</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">RasterioIOError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error reading tile </span><span class="si">{</span><span class="n">tile_info</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="c1"># Return a default empty tile if reading fails</span>
+            <span class="n">tile</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="mi">256</span><span class="p">,</span> <span class="mi">256</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+
+        <span class="c1"># Extract label (class) information - assuming each tile has one dominant class</span>
+        <span class="c1"># Get the first label&#39;s category_id (adapt this logic based on your data structure)</span>
+        <span class="n">labels</span> <span class="o">=</span> <span class="n">tile_info</span><span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">]</span>
+
+        <span class="c1"># Handle case with no labels</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">labels</span><span class="p">:</span>
+            <span class="n">category_id</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># Default to class 0 or background</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Get the class from the first label (most common case)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">force_binary_class</span><span class="p">:</span>
+                <span class="n">category_id</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">category_id</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">labels</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;category_id&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">labels</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;category_id&#39;</span><span class="p">]</span>
+
+        <span class="c1"># Temporary check</span>
+        <span class="k">if</span> <span class="n">category_id</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">category_id</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># Apply transformations if specified</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="p">:</span>
+            <span class="n">transformed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">image</span><span class="o">=</span><span class="n">tile</span><span class="o">.</span><span class="n">transpose</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">)))</span>
+            <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">transformed</span><span class="p">[</span><span class="s1">&#39;image&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">tile</span>
+
+        <span class="c1"># Normalize the image data</span>
+        <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">transformed_image</span> <span class="o">/</span> <span class="mf">255.0</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names_to_pass</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">other_attributes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_other_attributes_to_pass</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">other_attributes</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Return image and class label and other_attributes (which may be None)</span>
+        <span class="k">return</span> <span class="n">transformed_image</span><span class="p">,</span> <span class="n">category_id</span><span class="p">,</span> <span class="n">other_attributes</span>
 
 
 <div class="viewcode-block" id="UnlabeledRasterDataset">

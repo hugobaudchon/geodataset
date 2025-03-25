@@ -125,14 +125,19 @@
 <span class="sd">        The root directory of the dataset.</span>
 <span class="sd">    transform: albumentations.core.composition.Compose</span>
 <span class="sd">        A composition of transformations to apply to the tiles.</span>
+<span class="sd">    other_attributes_names_to_pass: List[str]</span>
+<span class="sd">        A list of the names of some other COCO annotations attributes to return when iterating over the dataset</span>
+<span class="sd">         (like a global_id, confidence_score...).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                  <span class="n">fold</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
                  <span class="n">root_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="ow">or</span> <span class="n">Path</span> <span class="ow">or</span> <span class="n">List</span><span class="p">[</span><span class="n">Path</span><span class="p">],</span>
-                 <span class="n">transform</span><span class="p">:</span> <span class="n">albumentations</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">Compose</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+                 <span class="n">transform</span><span class="p">:</span> <span class="n">albumentations</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">Compose</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">other_attributes_names_to_pass</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">fold</span> <span class="o">=</span> <span class="n">fold</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_path</span> <span class="o">=</span> <span class="n">root_path</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">transform</span> <span class="o">=</span> <span class="n">transform</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names_to_pass</span> <span class="o">=</span> <span class="n">other_attributes_names_to_pass</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tiles</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tiles_path_to_id_mapping</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">category_id_to_metadata_mapping</span> <span class="o">=</span> <span class="p">{}</span>
@@ -147,6 +152,11 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_find_tiles_paths</span><span class="p">(</span><span class="n">directories</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">root_path</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_remove_tiles_not_found</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_filter_tiles_without_box</span><span class="p">()</span>
+
+        <span class="c1"># DEBUG HERE \/</span>
+        <span class="c1"># sub_keys = list(self.tiles.keys())[:100]</span>
+        <span class="c1"># self.tiles = {k: self.tiles[k] for k in sub_keys}</span>
+        <span class="c1"># DEBUG HERE /\</span>
 
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cocos_detected</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No COCO datasets for fold &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">fold</span><span class="si">}</span><span class="s2">&#39; were found in the specified root folder.&quot;</span><span class="p">)</span>
@@ -292,6 +302,21 @@
             <span class="n">reindexed_path_to_id_mapping</span><span class="p">[</span><span class="n">tile</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">i</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tiles</span> <span class="o">=</span> <span class="n">reindexed_tiles</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tiles_path_to_id_mapping</span> <span class="o">=</span> <span class="n">reindexed_path_to_id_mapping</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_other_attributes_to_pass</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tile_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="n">other_attributes</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names_to_pass</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">attribute_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names_to_pass</span><span class="p">:</span>
+                <span class="n">other_attributes</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">annotation</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tiles</span><span class="p">[</span><span class="n">tile_id</span><span class="p">][</span><span class="s1">&#39;labels&#39;</span><span class="p">]:</span>
+            <span class="k">for</span> <span class="n">attribute_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names_to_pass</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s1">&#39;other_attributes&#39;</span> <span class="ow">in</span> <span class="n">annotation</span> <span class="ow">and</span> <span class="n">attribute_name</span> <span class="ow">in</span> <span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;other_attributes&#39;</span><span class="p">]:</span>
+                    <span class="n">other_attributes</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;other_attributes&#39;</span><span class="p">][</span><span class="n">attribute_name</span><span class="p">])</span>
+                <span class="k">elif</span> <span class="n">attribute_name</span> <span class="ow">in</span> <span class="n">annotation</span><span class="p">:</span>
+                    <span class="n">other_attributes</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">annotation</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">other_attributes</span><span class="p">[</span><span class="n">attribute_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">other_attributes</span>
 
 <div class="viewcode-block" id="BaseLabeledRasterCocoDataset.__len__">
 <a class="viewcode-back" href="../../../dataset.html#geodataset.dataset.BaseLabeledRasterCocoDataset.__len__">[docs]</a>
