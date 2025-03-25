@@ -448,6 +448,18 @@ class ClassificationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         if category_id == -1:
             category_id = 0
 
+        # Extract polygon_id if available
+        polygon_id = None
+        if self.include_polygon_id and 'other_attributes' in labels[0]:
+            # First try to get canopyrs_object_id (the standardized field)
+            if 'canopyrs_object_id' in labels[0]['other_attributes']:
+                polygon_id = labels[0]['other_attributes']['canopyrs_object_id']
+            # Fall back to other ID fields for backward compatibility
+            elif 'polygon_id' in labels[0]['other_attributes']:
+                polygon_id = labels[0]['other_attributes']['polygon_id']
+            elif 'geometry_id' in labels[0]['other_attributes']:
+                polygon_id = labels[0]['other_attributes']['geometry_id']
+
         # Apply transformations if specified
         if self.transform:
             transformed = self.transform(image=tile.transpose((1, 2, 0)))
@@ -458,13 +470,11 @@ class ClassificationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         # Normalize the image data
         transformed_image = transformed_image / 255.0
 
-        if self.other_attributes_names_to_pass is not None:
-            other_attributes = self._get_other_attributes_to_pass(idx)
+        # Return image and class label (and optionally polygon_id)
+        if self.include_polygon_id and polygon_id is not None:
+            return transformed_image, category_id, polygon_id
         else:
-            other_attributes = None
-
-        # Return image and class label and other_attributes (which may be None)
-        return transformed_image, category_id, other_attributes
+            return transformed_image, category_id
 
 
 class UnlabeledRasterDataset(BaseDataset):
