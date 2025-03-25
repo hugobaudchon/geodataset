@@ -21,6 +21,7 @@ class AOIDisambiguator:
 
     def disambiguate_tiles(self):
         # For each tile, black out the part of the tile which is not in its AOI.
+        from shapely.ops import unary_union  # minimal change: ensure unary_union is imported
         for aoi, tiles in self.aois_tiles.items():
             # Get the subset of intersections for this AOI
             aoi_intersections = gpd.overlay(self.tiles_gdf[self.tiles_gdf['aoi'] == aoi],
@@ -33,12 +34,12 @@ class AOIDisambiguator:
                 original_tile_row = self.tiles_gdf[self.tiles_gdf['tile_id'] == tile.tile_id]
                 original_tile_geom = original_tile_row.geometry.iloc[0]
 
-                # Retrieve the intersection geometry.
+                # Retrieve the intersection geometry by combining all parts.
                 intersection_tile_row = aoi_intersections.loc[aoi_intersections['tile_id'] == tile.tile_id]
-                intersection_geom = list(intersection_tile_row.geometry)[0]
+                intersection_geom = unary_union(intersection_tile_row.geometry)
 
                 # Check if the tile is completely within the AOI.
-                # Using 'almost_equals' to allow for minor floating point differences.
+                # Using 'equals' (or 'almost_equals' if desired) to allow for minor floating point differences.
                 if original_tile_geom.equals(intersection_geom):
                     # The tile is completely inside the AOI, so skip updating the mask.
                     continue

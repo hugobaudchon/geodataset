@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import List
 
 import geopandas as gpd
-from pandas.core.computation.expr import intersection
 
 from .aoi_disambiguator import AOIDisambiguator
 from .aoi_config import AOIFromPackageConfig

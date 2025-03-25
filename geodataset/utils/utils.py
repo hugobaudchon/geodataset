@@ -67,6 +67,7 @@ def polygon_to_mask(polygon: Polygon or MultiPolygon, array_height: int, array_w
     Encodes a Polygon or MultiPolygon object into a binary mask.
 
     Parameters
+    ----------
     polygon: Polygon or MultiPolygon
         The polygon to encode.
     array_height: int
@@ -83,16 +84,22 @@ def polygon_to_mask(polygon: Polygon or MultiPolygon, array_height: int, array_w
 
     # Function to process each polygon
     def process_polygon(p):
-        contours = np.array(p.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
-        if len(contours) == 0:
+        # Fill the exterior of the polygon
+        exterior_contour = np.array(p.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
+        if len(exterior_contour) == 0:
             return
-        cv2.fillPoly(binary_mask, [contours], 1)
+        cv2.fillPoly(binary_mask, [exterior_contour], 1)
+
+        # Fill each interior ring (hole) with 0
+        for interior in p.interiors:
+            interior_contour = np.array(interior.coords).reshape((-1, 1, 2)).astype(np.int32)
+            cv2.fillPoly(binary_mask, [interior_contour], 0)
 
     if isinstance(polygon, Polygon):
         process_polygon(polygon)
     elif isinstance(polygon, MultiPolygon):
-        for polygon in polygon.geoms:
-            process_polygon(polygon)
+        for poly in polygon.geoms:
+            process_polygon(poly)
     else:
         raise TypeError(f"Geometry must be a Polygon or MultiPolygon. Got {type(polygon)}.")
 
@@ -598,7 +605,11 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
         "height": new_height,
         "width": new_width,
         "transform": new_transform,
-        "crs": target_crs
+        "crs": target_crs,
+        "BIGTIFF": "IF_NEEDED",
+        "tiled": True,
+        "blockxsize": 256,
+        "blockysize": 256
     })
 
     # Estimate memory footprint
@@ -637,48 +648,53 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
         dataset = memfile.open()
         temp_path = None
     else:
-        print(f"The resampled Raster would be more than {max_in_mem_gb} GB in memory, writing to temporary file on disk instead...")
-        vrt = WarpedVRT(
-            src,
-            crs=target_crs,
-            width=new_width,
-            height=new_height,
-            transform=new_transform,
-            resampling=Resampling.bilinear
-        )
+        if x_scale_factor != 1 or y_scale_factor != 1:
+            print(f"The resampled Raster would be more than {max_in_mem_gb} GB in memory, writing to temporary file on disk instead...")
+            vrt = WarpedVRT(
+                src,
+                crs=target_crs,
+                width=new_width,
+                height=new_height,
+                transform=new_transform,
+                resampling=Resampling.bilinear
+            )
 
-        Path(temp_dir).mkdir(exist_ok=True, parents=True)
-        temp = tempfile.NamedTemporaryFile(suffix=".tif", prefix="resampled_raster_", delete=False, dir=temp_dir)
-        temp_path = temp.name
-        temp.close()
+            Path(temp_dir).mkdir(exist_ok=True, parents=True)
+            temp = tempfile.NamedTemporaryFile(suffix=".tif", prefix="resampled_raster_", delete=False, dir=temp_dir)
+            temp_path = temp.name
+            temp.close()
 
-        print(f"Temporary re-sampled Raster will be at at {temp_path}.")
+            print(f"Temporary re-sampled Raster will be at at {temp_path}.")
 
-        # Adjust the profile: disable tiling and enable BIGTIFF for large files.
-        profile.pop("blockxsize", None)
-        profile.pop("blockysize", None)
-        profile.update({"tiled": False, "BIGTIFF": "YES"})
+            # Adjust the profile: disable tiling and enable BIGTIFF for large files.
+            profile.pop("blockxsize", None)
+            profile.pop("blockysize", None)
+            profile.update({"tiled": False, "BIGTIFF": "YES"})
 
-        # Define the target chunk size in bytes (e.g. 1GB)
-        chunk_bytes = 1 * 1024 ** 3
-        bytes_per_row = new_width * nbands * itemsize
-        rows_per_chunk = max(1, int(chunk_bytes // bytes_per_row))
-        print(f"Processing {rows_per_chunk} rows per chunk "
-              f"(each chunk ≈{rows_per_chunk * bytes_per_row / (1024 ** 3):.2f} GB).")
+            # Define the target chunk size in bytes (e.g. 1GB)
+            chunk_bytes = 1 * 1024 ** 3
+            bytes_per_row = new_width * nbands * itemsize
+            rows_per_chunk = max(1, int(chunk_bytes // bytes_per_row))
+            print(f"Processing {rows_per_chunk} rows per chunk "
+                  f"(each chunk ≈{rows_per_chunk * bytes_per_row / (1024 ** 3):.2f} GB).")
 
-        with rasterio.open(temp_path, "w", **profile) as dst:
-            for row in tqdm(range(0, new_height, rows_per_chunk), desc="Writing chunks to temp file"):
-                h = min(rows_per_chunk, new_height - row)
-                window = Window(col_off=0, row_off=row, width=new_width, height=h)
-                data_block = vrt.read(window=window)
-                dst.write(data_block, window=window)
-                # Try to flush the cache; if not available, ignore.
-                try:
-                    dst.flush_cache()
-                except AttributeError:
-                    pass
-        dataset = rasterio.open(temp_path)
-        warnings.warn(f"Raster too large for in-memory load. Temporary file created at {temp_path}. You might want to delete it after use.")
+            with rasterio.open(temp_path, "w", **profile) as dst:
+                for row in tqdm(range(0, new_height, rows_per_chunk), desc="Writing chunks to temp file"):
+                    h = min(rows_per_chunk, new_height - row)
+                    window = Window(col_off=0, row_off=row, width=new_width, height=h)
+                    data_block = vrt.read(window=window)
+                    dst.write(data_block, window=window)
+                    # Try to flush the cache; if not available, ignore.
+                    try:
+                        dst.flush_cache()
+                    except AttributeError:
+                        pass
+            dataset = rasterio.open(temp_path)
+            warnings.warn(f"Raster too large for in-memory load. Temporary file created at {temp_path}. You might want to delete it after use.")
+        else:
+            # If no resampling is needed, just open the file directly, no need to duplicate it to temp file
+            dataset = src
+            temp_path = None
 
     return dataset, profile, x_scale_factor, y_scale_factor, temp_path
 
@@ -1545,7 +1561,7 @@ class PointCloudCOCOGenerator:
 
         # Generate COCO annotation data from each associated label
         coco_annotation = {
-            "polygon_id": polygon_id,
+            "id": polygon_id,
             "segmentation": segmentation,
             "is_rle_format": use_rle_for_labels,
             "area": area,
@@ -1565,7 +1581,6 @@ class PointCloudCOCOGenerator:
 
         categories_set = set([category for categories in self.categories for category in categories]
                              if self.categories else {})
-
         if self.coco_categories_list:
             category_name_to_id_map = {}
             id_to_category_dict_map = {}
@@ -1586,7 +1601,6 @@ class PointCloudCOCOGenerator:
                         category_name_to_id_map[other_name] = category_dict['id']
 
             categories_coco = self.coco_categories_list
-
             if self.categories:
                 for category in categories_set:
                     if category not in category_name_to_id_map:
