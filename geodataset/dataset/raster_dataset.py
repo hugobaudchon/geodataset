@@ -388,9 +388,11 @@ class ClassificationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
                  root_path: Union[str, List[str], Path, List[Path]],
                  transform: Optional[albumentations.core.composition.Compose] = None,
                  force_binary_class: Optional[bool] = None,
-                 other_attributes_names_to_pass: List[str] = None):
+                 other_attributes_names_to_pass: List[str] = None,
+                 include_polygon_id: Optional[bool] = False):
         super().__init__(fold=fold, root_path=root_path, transform=transform, other_attributes_names_to_pass=other_attributes_names_to_pass)
         self.force_binary_class = force_binary_class
+        self.include_polygon_id = include_polygon_id
 
     def __getitem__(self, idx: int) -> Tuple[np.ndarray, int, dict or None]:
         """
