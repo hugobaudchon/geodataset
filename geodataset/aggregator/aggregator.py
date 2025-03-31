@@ -117,6 +117,8 @@ class Aggregator:
 
         Parameters
         ----------
+        polygon_type: str
+            The type of polygons to aggregate. Supported values are ['bbox', 'segmentation'].
         output_path: str or Path
             The filename where to save the aggregated polygons.
             '.gpkg', '.geojson' are supported, as well as '.json' for COCO format.
@@ -549,7 +551,7 @@ class Aggregator:
             image_id = annotation['image_id']
 
             annotation_polygon = decode_coco_segmentation(
-                annotation['segmentation'],
+                annotation,
                 polygon_type if polygon_type == 'bbox' else 'polygon'   # 'polygon' for segmentation
             )
 
