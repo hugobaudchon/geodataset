@@ -409,6 +409,7 @@ def coco_rle_segmentation_to_polygon(
     mask = coco_rle_segmentation_to_mask(rle_segmentation)
     return mask_to_polygon(mask, simplify_tolerance, min_contour_points)
 
+
 def decode_coco_segmentation(coco_annotation: dict, output_type: str):
     """
     Decodes a COCO annotation segmentation into a shapely Polygon or MultiPolygon.

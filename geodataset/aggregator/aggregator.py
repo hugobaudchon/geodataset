@@ -96,6 +96,7 @@ class Aggregator:
 
     @classmethod
     def from_coco(cls,
+                  polygon_type: str,
                   output_path: str or Path,
                   tiles_folder_path: str or Path,
                   coco_json_path: str or Path,
@@ -203,6 +204,8 @@ class Aggregator:
         Aggregator
         """
 
+        assert polygon_type in ['bbox', 'segmentation'], "The polygon_type must be either 'bbox' or 'segmentation'."
+
         if scores_names is None:
             scores_names = ['score']  # will try to find a 'score' attribute as it's required for NMS algorithm.
 
@@ -216,6 +219,7 @@ class Aggregator:
             scores_weights = [1 / len(scores_names), ] * len(scores_names)
 
         all_polygons_gdf, all_tiles_extents_gdf, tile_ids_to_path = cls._from_coco(
+            polygon_type=polygon_type,
             tiles_folder_path=tiles_folder_path,
             coco_json_path=coco_json_path,
             attributes_names=scores_names + other_attributes_names
@@ -379,7 +383,8 @@ class Aggregator:
                    pre_aggregated_output_path=pre_aggregated_output_path)
 
     @staticmethod
-    def _from_coco(tiles_folder_path: str or Path,
+    def _from_coco(polygon_type: str,
+                   tiles_folder_path: str or Path,
                    coco_json_path: str or Path,
                    attributes_names: List[str]):
 
@@ -393,7 +398,10 @@ class Aggregator:
         for annotation in coco_data['annotations']:
             image_id = annotation['image_id']
 
-            annotation_polygon = decode_coco_segmentation(annotation['segmentation'])
+            annotation_polygon = decode_coco_segmentation(
+                annotation['segmentation'],
+                polygon_type if polygon_type == 'bbox' else 'polygon'   # 'polygon' for segmentation
+            )
 
             attributes = {}
             warn_attributes_not_found = []
