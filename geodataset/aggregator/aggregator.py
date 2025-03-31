@@ -382,6 +382,156 @@ class Aggregator:
                    best_geom_keep_area_ratio=best_geom_keep_area_ratio,
                    pre_aggregated_output_path=pre_aggregated_output_path)
 
+    @classmethod
+    def from_gdf(cls,
+                 output_path: str or Path,
+                 gdf: gpd.GeoDataFrame,
+                 tiles_paths_column: str,
+                 polygons_column: str,
+                 scores_column: str or List[str] or None = None,
+                 other_attributes_columns: List[str] or None = None,
+                 scores_weights: List[float] or None = None,
+                 scores_weighting_method: str = 'weighted_geometric_mean',
+                 min_centroid_distance_weight: float = None,
+                 score_threshold: float = 0.1,
+                 nms_threshold: float = 0.8,
+                 nms_algorithm: str = 'iou',
+                 best_geom_keep_area_ratio: float = 0.5,
+                 pre_aggregated_output_path: str or Path = None):
+        """
+        Instantiate and run an Aggregator from a GeoDataFrame containing polygon annotations.
+        The GeoDataFrame may or may not have a CRS. If a CRS is not defined, it is assumed that the polygon
+        coordinates are in pixel space and the method will call _prepare_polygons to convert them into
+        CRS coordinates (using the tile file's affine transform).
+
+        Parameters
+        ----------
+        output_path : str or Path
+            The filename where to save the aggregated polygons.
+            Supported extensions are '.gpkg', '.geojson' (spatial outputs) or '.json' (COCO format).
+        gdf : gpd.GeoDataFrame
+            A GeoDataFrame where each row represents one polygon annotation.
+        tiles_paths_column : str
+            The name of the column in gdf that contains the tile (image) file path.
+        polygons_column : str
+            The name of the column in gdf that contains the polygon geometry.
+        scores_column : str or List[str] or None, optional
+            The column name(s) in gdf that contain score values for each polygon.
+            If None, defaults to ['score'].
+        other_attributes_columns : List[str] or None, optional
+            A list of additional column names in gdf to be included in the output.
+        scores_weights : List[float] or None, optional
+            The weights to apply to each score column. The weights should sum to 1.
+            If None, equal weights will be used.
+        scores_weighting_method : str, optional
+            The method used to weight the different scores. Supported methods are
+            'weighted_arithmetic_mean', 'weighted_geometric_mean', and 'weighted_harmonic_mean'.
+        min_centroid_distance_weight : float or None, optional
+            The weight to adjust polygon scores based on the distance between the polygon centroid and the tile centroid.
+        score_threshold : float, optional
+            The score threshold below which polygons will be removed before applying NMS.
+        nms_threshold : float, optional
+            The threshold for the Non-Maximum Suppression (NMS) algorithm.
+        nms_algorithm : str, optional
+            The NMS algorithm to use. Supported values are 'iou' and 'ioa-disambiguate'.
+        best_geom_keep_area_ratio : float, optional
+            Parameter used in the 'ioa-disambiguate' NMS algorithm to decide which geometry to keep.
+        pre_aggregated_output_path : str or Path, optional
+            If provided, the intermediate (pre-NMS) polygons will be saved at this location.
+
+        Returns
+        -------
+        Aggregator
+            An instance of Aggregator initialized with data extracted from the GeoDataFrame.
+        """
+        # Rename the polygons column to 'geometry' if necessary.
+        if polygons_column != 'geometry':
+            gdf = gdf.rename(columns={polygons_column: 'geometry'})
+        gdf = gdf.copy()
+
+        # Build mapping from unique tile paths to a unique tile_id.
+        unique_tiles = sorted(gdf[tiles_paths_column].unique())
+        # Ensure tile paths are Path objects.
+        tile_ids_to_path = {i: (tile if isinstance(tile, Path) else Path(tile))
+                              for i, tile in enumerate(unique_tiles)}
+        # Create a lookup dictionary (using string representation for keys).
+        tile_path_to_id = {str(tile): i for i, tile in tile_ids_to_path.items()}
+
+        # Prepare score column names.
+        if scores_column is None:
+            final_scores_names = ['score']
+        elif isinstance(scores_column, str):
+            final_scores_names = [scores_column]
+        elif isinstance(scores_column, list):
+            final_scores_names = scores_column
+        else:
+            raise ValueError("scores_column must be a string, list of strings, or None.")
+
+        # Use provided other_attributes_columns if any.
+        final_other_attributes_names = other_attributes_columns if other_attributes_columns is not None else []
+
+        # If gdf has a CRS, assume polygons are already in CRS coordinates.
+        if gdf.crs is not None:
+            gdf['tile_id'] = gdf[tiles_paths_column].apply(lambda x: tile_path_to_id[str(x)])
+            # Compute tiles extents by reading each tile.
+            tiles_extents = []
+            for tile_id, tile_path in tile_ids_to_path.items():
+                with rasterio.open(tile_path) as src:
+                    bounds = src.bounds
+                    extent_polygon = Polygon([
+                        (bounds.left, bounds.bottom),
+                        (bounds.left, bounds.top),
+                        (bounds.right, bounds.top),
+                        (bounds.right, bounds.bottom)
+                    ])
+                    extent_gdf = gpd.GeoDataFrame({'tile_id': [tile_id],
+                                                   'geometry': [extent_polygon]},
+                                                  crs=src.crs)
+                    tiles_extents.append(extent_gdf)
+            tiles_extent_gdf = gpd.GeoDataFrame(pd.concat(tiles_extents, ignore_index=True))
+            polygons_gdf = gdf
+        else:
+            # If gdf does not have a CRS, assume the geometries are in pixel coordinates.
+            # Group the polygons by tile and build dictionaries for _prepare_polygons.
+            tile_ids_to_polygons = {}
+            tile_ids_to_attributes = {}
+            # Determine which attribute columns to extract.
+            attribute_columns = final_scores_names + final_other_attributes_names
+            for tile_path_value, group in gdf.groupby(tiles_paths_column):
+                tid = tile_path_to_id[str(tile_path_value)]
+                tile_ids_to_polygons[tid] = group['geometry'].tolist()
+                # For each attribute, collect the list of values.
+                tile_ids_to_attributes[tid] = {col: group[col].tolist() for col in attribute_columns}
+            # Call _prepare_polygons to convert pixel coordinates to CRS coordinates.
+            polygons_gdf, tiles_extent_gdf = cls._prepare_polygons(
+                tile_ids_to_path=tile_ids_to_path,
+                tile_ids_to_polygons=tile_ids_to_polygons,
+                tile_ids_to_attributes=tile_ids_to_attributes
+            )
+
+        # If scores_weights are not provided, use equal weights.
+        if scores_weights is None:
+            scores_weights = [1 / len(final_scores_names)] * len(final_scores_names)
+        else:
+            if len(scores_weights) != len(final_scores_names):
+                raise ValueError("Length of scores_weights must match number of score columns.")
+
+        # Instantiate and return the Aggregator.
+        return cls(output_path=output_path,
+                   polygons_gdf=polygons_gdf,
+                   scores_names=final_scores_names,
+                   other_attributes_names=final_other_attributes_names,
+                   scores_weights=scores_weights,
+                   tiles_extent_gdf=tiles_extent_gdf,
+                   tile_ids_to_path=tile_ids_to_path,
+                   scores_weighting_method=scores_weighting_method,
+                   min_centroid_distance_weight=min_centroid_distance_weight,
+                   score_threshold=score_threshold,
+                   nms_threshold=nms_threshold,
+                   nms_algorithm=nms_algorithm,
+                   best_geom_keep_area_ratio=best_geom_keep_area_ratio,
+                   pre_aggregated_output_path=pre_aggregated_output_path)
+
     @staticmethod
     def _from_coco(polygon_type: str,
                    tiles_folder_path: str or Path,
@@ -804,8 +954,9 @@ class Aggregator:
 
             # Determine the columns to be used as additional attributes.
             # Here we combine the names of the score and other attribute columns.
-            other_attributes_columns = (self.scores_names + self.other_attributes_names) \
-                if (self.scores_names or self.other_attributes_names) else None
+            other_attributes_columns = set(self.scores_names) if self.scores_names else set()
+            if self.other_attributes_names:
+                other_attributes_columns.update(self.other_attributes_names)
 
             coco_generator = COCOGenerator.from_gdf(
                 description="Aggregated polygons from multiple tiles.",
