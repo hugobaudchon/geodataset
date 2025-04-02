@@ -40,7 +40,7 @@ class Aggregator:
                  score_threshold: float = 0.1,
                  nms_threshold: float = 0.8,
                  nms_algorithm: str = 'iou',
-                 edge_band_percentage: float = 0.05,
+                 edge_band_buffer_percentage: float = 0.05,
                  best_geom_keep_area_ratio: float = 0.5,
                  pre_aggregated_output_path: str or Path = None):
 
@@ -56,7 +56,7 @@ class Aggregator:
         self.score_threshold = score_threshold
         self.nms_threshold = nms_threshold
         self.nms_algorithm = nms_algorithm
-        self.edge_band_percentage = edge_band_percentage
+        self.edge_band_buffer_percentage = edge_band_buffer_percentage
         self.best_geom_keep_area_ratio = best_geom_keep_area_ratio
         self.pre_aggregated_output_path = pre_aggregated_output_path
 
@@ -68,8 +68,8 @@ class Aggregator:
         self._check_parameters()
         self._validate_polygons()
 
-        if self.edge_band_percentage > 0:
-            self._filter_edge_polygons(self.edge_band_percentage)
+        if self.edge_band_buffer_percentage > 0:
+            self._filter_edge_polygons(self.edge_band_buffer_percentage)
 
         if self.pre_aggregated_output_path:
             self.polygons_gdf['area'] = self.polygons_gdf.geometry.area
@@ -113,7 +113,7 @@ class Aggregator:
                   score_threshold: float = 0.1,
                   nms_threshold: float = 0.8,
                   nms_algorithm: str = 'iou',
-                  edge_band_percentage: float = 0.05,
+                  edge_band_buffer_percentage: float = 0.05,
                   best_geom_keep_area_ratio: float = 0.5,
                   pre_aggregated_output_path: str or Path = None):
 
@@ -198,7 +198,7 @@ class Aggregator:
                   In addition to using IoU, this algorithm attempts to disambiguate overlapping polygons by
                   cutting the intersecting parts and keeping only the largest resulting geometry, as long as it meets the
                   `best_geom_keep_area_ratio` threshold.
-        edge_band_percentage: float
+        edge_band_buffer_percentage: float
             The percentage of the tile width/height to consider as an edge band. The polygons that intersect with this
             band will be removed before applying the NMS algorithm.
         best_geom_keep_area_ratio: float
@@ -247,7 +247,7 @@ class Aggregator:
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
                    nms_algorithm=nms_algorithm,
-                   edge_band_percentage=edge_band_percentage,
+                   edge_band_buffer_percentage=edge_band_buffer_percentage,
                    tile_ids_to_path=tile_ids_to_path,
                    best_geom_keep_area_ratio=best_geom_keep_area_ratio,
                    pre_aggregated_output_path=pre_aggregated_output_path)
@@ -265,7 +265,7 @@ class Aggregator:
                       score_threshold: float = 0.1,
                       nms_threshold: float = 0.8,
                       nms_algorithm: str = 'iou',
-                      edge_band_percentage: float = 0.05,
+                      edge_band_buffer_percentage: float = 0.05,
                       best_geom_keep_area_ratio: float = 0.5,
                       pre_aggregated_output_path: str or Path = None):
 
@@ -334,7 +334,7 @@ class Aggregator:
                   In addition to using IoU, this algorithm attempts to disambiguate overlapping polygons by
                   cutting the intersecting parts and keeping only the largest resulting geometry, as long as it meets the
                   `best_geom_keep_area_ratio` threshold.
-        edge_band_percentage: float
+        edge_band_buffer_percentage: float
             The percentage of the tile width/height to consider as an edge band. The polygons that intersect with this
             band will be removed before applying the NMS algorithm.
         best_geom_keep_area_ratio: float
@@ -394,7 +394,7 @@ class Aggregator:
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
                    nms_algorithm=nms_algorithm,
-                   edge_band_percentage=edge_band_percentage,
+                   edge_band_buffer_percentage=edge_band_buffer_percentage,
                    tile_ids_to_path=tile_ids_to_path,
                    best_geom_keep_area_ratio=best_geom_keep_area_ratio,
                    pre_aggregated_output_path=pre_aggregated_output_path)
@@ -413,7 +413,7 @@ class Aggregator:
                  score_threshold: float = 0.1,
                  nms_threshold: float = 0.8,
                  nms_algorithm: str = 'iou',
-                 edge_band_percentage: float = 0.05,
+                 edge_band_buffer_percentage: float = 0.05,
                  best_geom_keep_area_ratio: float = 0.5,
                  pre_aggregated_output_path: str or Path = None):
         """
@@ -452,7 +452,7 @@ class Aggregator:
             The threshold for the Non-Maximum Suppression (NMS) algorithm.
         nms_algorithm : str
             The NMS algorithm to use. Supported values are 'iou' and 'ioa-disambiguate'.
-        edge_band_percentage: float
+        edge_band_buffer_percentage: float
             The percentage of the tile width/height to consider as an edge band. The polygons that intersect with this
             band will be removed before applying the NMS algorithm.
         best_geom_keep_area_ratio : float
@@ -550,7 +550,7 @@ class Aggregator:
                    score_threshold=score_threshold,
                    nms_threshold=nms_threshold,
                    nms_algorithm=nms_algorithm,
-                   edge_band_percentage=edge_band_percentage,
+                   edge_band_buffer_percentage=edge_band_buffer_percentage,
                    best_geom_keep_area_ratio=best_geom_keep_area_ratio,
                    pre_aggregated_output_path=pre_aggregated_output_path)
 
@@ -754,21 +754,21 @@ class Aggregator:
                      f" If you instanced the Aggregator from a list of polygons for each tile,"
                      f" make sure you also pass the associated list of scores for each tile.")
 
-    def _filter_edge_polygons(self, edge_band_percentage: float):
+    def _filter_edge_polygons(self, edge_band_buffer_percentage: float):
         """
         Remove polygons that are too close to the tile edge.
 
         For each tile, the safe area is computed by shrinking the tile geometry using
         a margin defined as:
 
-            margin = edge_band_percentage * tile_width
+            margin = edge_band_buffer_percentage * tile_width
 
         Only polygons fully contained within this safe area are kept.
         """
         # Compute the safe (inset) geometry for each tile in tiles_extent_gdf.
         safe_tiles = self.tiles_extent_gdf.copy()
         safe_tiles['safe_geometry'] = safe_tiles.geometry.apply(
-            lambda geom: geom.buffer(- (edge_band_percentage * (geom.bounds[2] - geom.bounds[0])))
+            lambda geom: geom.buffer(- (edge_band_buffer_percentage * (geom.bounds[2] - geom.bounds[0])))
         )
 
         # Create a mapping from tile_id to its safe geometry.
@@ -786,7 +786,7 @@ class Aggregator:
         self.polygons_gdf = self.polygons_gdf[self.polygons_gdf.apply(is_within_safe, axis=1)]
         filtered_count = len(self.polygons_gdf)
         print(f"Filtered {initial_count - filtered_count} polygons that were too close to the tile edge "
-              f"(edge_band_percentage={edge_band_percentage}).")
+              f"(edge_band_buffer_percentage={edge_band_buffer_percentage}).")
 
     @staticmethod
     def _calculate_iou_for_geometry(gdf, geometry):
