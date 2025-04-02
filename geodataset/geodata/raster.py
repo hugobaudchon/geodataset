@@ -516,7 +516,8 @@ class RasterTileMetadata:
                                               scale_factor=self.scale_factor,
                                               row=self.row,
                                               col=self.col,
-                                              aoi=self.aoi)
+                                              aoi=self.aoi,
+                                              tile_size=self.metadata['height'])
 
     def get_bbox(self):
         """
