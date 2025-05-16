@@ -116,6 +116,7 @@
                  <span class="n">score_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
                  <span class="n">nms_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
                  <span class="n">nms_algorithm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;iou&#39;</span><span class="p">,</span>
+                 <span class="n">edge_band_buffer_percentage</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">,</span>
                  <span class="n">best_geom_keep_area_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
                  <span class="n">pre_aggregated_output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 
@@ -131,6 +132,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">score_threshold</span> <span class="o">=</span> <span class="n">score_threshold</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nms_threshold</span> <span class="o">=</span> <span class="n">nms_threshold</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nms_algorithm</span> <span class="o">=</span> <span class="n">nms_algorithm</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">edge_band_buffer_percentage</span> <span class="o">=</span> <span class="n">edge_band_buffer_percentage</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">best_geom_keep_area_ratio</span> <span class="o">=</span> <span class="n">best_geom_keep_area_ratio</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">pre_aggregated_output_path</span> <span class="o">=</span> <span class="n">pre_aggregated_output_path</span>
 
@@ -141,6 +143,9 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_check_parameters</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_validate_polygons</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">edge_band_buffer_percentage</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_filter_edge_polygons</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">edge_band_buffer_percentage</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_aggregated_output_path</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="s1">&#39;area&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">area</span>
@@ -174,6 +179,7 @@
 <a class="viewcode-back" href="../../../aggregator.html#geodataset.aggregator.Aggregator.from_coco">[docs]</a>
     <span class="nd">@classmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">from_coco</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span>
+                  <span class="n">polygon_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
                   <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
                   <span class="n">tiles_folder_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
                   <span class="n">coco_json_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
@@ -185,7 +191,8 @@
                   <span class="n">score_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
                   <span class="n">nms_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
                   <span class="n">nms_algorithm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;iou&#39;</span><span class="p">,</span>
-                  <span class="n">best_geom_keep_area_ratio</span><span class="p">:</span> <span class="nb">float</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+                  <span class="n">edge_band_buffer_percentage</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">,</span>
+                  <span class="n">best_geom_keep_area_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
                   <span class="n">pre_aggregated_output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -194,6 +201,8 @@
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
+<span class="sd">        polygon_type: str</span>
+<span class="sd">            The type of polygons to aggregate. Supported values are [&#39;bbox&#39;, &#39;segmentation&#39;].</span>
 <span class="sd">        output_path: str or Path</span>
 <span class="sd">            The filename where to save the aggregated polygons.</span>
 <span class="sd">            &#39;.gpkg&#39;, &#39;.geojson&#39; are supported, as well as &#39;.json&#39; for COCO format.</span>
@@ -267,6 +276,9 @@
 <span class="sd">                  In addition to using IoU, this algorithm attempts to disambiguate overlapping polygons by</span>
 <span class="sd">                  cutting the intersecting parts and keeping only the largest resulting geometry, as long as it meets the</span>
 <span class="sd">                  `best_geom_keep_area_ratio` threshold.</span>
+<span class="sd">        edge_band_buffer_percentage: float</span>
+<span class="sd">            The percentage of the tile width/height to consider as an edge band. The polygons that intersect with this</span>
+<span class="sd">            band will be removed before applying the NMS algorithm.</span>
 <span class="sd">        best_geom_keep_area_ratio: float</span>
 <span class="sd">            Only used when nms_algorithm is set to &#39;ioa-disambiguate&#39;. When removing part of a polygon due to</span>
 <span class="sd">            the intersection with another one, that polygon may end-up being cut into multiple smaller and disconnected</span>
@@ -281,6 +293,8 @@
 <span class="sd">        Aggregator</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
+        <span class="k">assert</span> <span class="n">polygon_type</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;bbox&#39;</span><span class="p">,</span> <span class="s1">&#39;segmentation&#39;</span><span class="p">],</span> <span class="s2">&quot;The polygon_type must be either &#39;bbox&#39; or &#39;segmentation&#39;.&quot;</span>
+
         <span class="k">if</span> <span class="n">scores_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">scores_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span>  <span class="c1"># will try to find a &#39;score&#39; attribute as it&#39;s required for NMS algorithm.</span>
 
@@ -294,6 +308,7 @@
             <span class="n">scores_weights</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">scores_names</span><span class="p">),</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">scores_names</span><span class="p">)</span>
 
         <span class="n">all_polygons_gdf</span><span class="p">,</span> <span class="n">all_tiles_extents_gdf</span><span class="p">,</span> <span class="n">tile_ids_to_path</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_from_coco</span><span class="p">(</span>
+            <span class="n">polygon_type</span><span class="o">=</span><span class="n">polygon_type</span><span class="p">,</span>
             <span class="n">tiles_folder_path</span><span class="o">=</span><span class="n">tiles_folder_path</span><span class="p">,</span>
             <span class="n">coco_json_path</span><span class="o">=</span><span class="n">coco_json_path</span><span class="p">,</span>
             <span class="n">attributes_names</span><span class="o">=</span><span class="n">scores_names</span> <span class="o">+</span> <span class="n">other_attributes_names</span>
@@ -310,6 +325,7 @@
                    <span class="n">score_threshold</span><span class="o">=</span><span class="n">score_threshold</span><span class="p">,</span>
                    <span class="n">nms_threshold</span><span class="o">=</span><span class="n">nms_threshold</span><span class="p">,</span>
                    <span class="n">nms_algorithm</span><span class="o">=</span><span class="n">nms_algorithm</span><span class="p">,</span>
+                   <span class="n">edge_band_buffer_percentage</span><span class="o">=</span><span class="n">edge_band_buffer_percentage</span><span class="p">,</span>
                    <span class="n">tile_ids_to_path</span><span class="o">=</span><span class="n">tile_ids_to_path</span><span class="p">,</span>
                    <span class="n">best_geom_keep_area_ratio</span><span class="o">=</span><span class="n">best_geom_keep_area_ratio</span><span class="p">,</span>
                    <span class="n">pre_aggregated_output_path</span><span class="o">=</span><span class="n">pre_aggregated_output_path</span><span class="p">)</span></div>
@@ -330,6 +346,7 @@
                       <span class="n">score_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
                       <span class="n">nms_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
                       <span class="n">nms_algorithm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;iou&#39;</span><span class="p">,</span>
+                      <span class="n">edge_band_buffer_percentage</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">,</span>
                       <span class="n">best_geom_keep_area_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
                       <span class="n">pre_aggregated_output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 
@@ -398,6 +415,9 @@
 <span class="sd">                  In addition to using IoU, this algorithm attempts to disambiguate overlapping polygons by</span>
 <span class="sd">                  cutting the intersecting parts and keeping only the largest resulting geometry, as long as it meets the</span>
 <span class="sd">                  `best_geom_keep_area_ratio` threshold.</span>
+<span class="sd">        edge_band_buffer_percentage: float</span>
+<span class="sd">            The percentage of the tile width/height to consider as an edge band. The polygons that intersect with this</span>
+<span class="sd">            band will be removed before applying the NMS algorithm.</span>
 <span class="sd">        best_geom_keep_area_ratio: float</span>
 <span class="sd">            Only used when nms_algorithm is set to &#39;ioa-disambiguate&#39;. When removing part of a polygon due to</span>
 <span class="sd">            the intersection with another one, that polygon may end-up being cut into multiple smaller and disconnected</span>
@@ -455,6 +475,7 @@
                    <span class="n">score_threshold</span><span class="o">=</span><span class="n">score_threshold</span><span class="p">,</span>
                    <span class="n">nms_threshold</span><span class="o">=</span><span class="n">nms_threshold</span><span class="p">,</span>
                    <span class="n">nms_algorithm</span><span class="o">=</span><span class="n">nms_algorithm</span><span class="p">,</span>
+                   <span class="n">edge_band_buffer_percentage</span><span class="o">=</span><span class="n">edge_band_buffer_percentage</span><span class="p">,</span>
                    <span class="n">tile_ids_to_path</span><span class="o">=</span><span class="n">tile_ids_to_path</span><span class="p">,</span>
                    <span class="n">best_geom_keep_area_ratio</span><span class="o">=</span><span class="n">best_geom_keep_area_ratio</span><span class="p">,</span>
                    <span class="n">pre_aggregated_output_path</span><span class="o">=</span><span class="n">pre_aggregated_output_path</span><span class="p">)</span></div>
@@ -476,6 +497,7 @@
                  <span class="n">score_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
                  <span class="n">nms_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
                  <span class="n">nms_algorithm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;iou&#39;</span><span class="p">,</span>
+                 <span class="n">edge_band_buffer_percentage</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">,</span>
                  <span class="n">best_geom_keep_area_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
                  <span class="n">pre_aggregated_output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -506,15 +528,18 @@
 <span class="sd">        scores_weighting_method : str, optional</span>
 <span class="sd">            The method used to weight the different scores. Supported methods are</span>
 <span class="sd">            &#39;weighted_arithmetic_mean&#39;, &#39;weighted_geometric_mean&#39;, and &#39;weighted_harmonic_mean&#39;.</span>
-<span class="sd">        min_centroid_distance_weight : float or None, optional</span>
+<span class="sd">        min_centroid_distance_weight : float or None</span>
 <span class="sd">            The weight to adjust polygon scores based on the distance between the polygon centroid and the tile centroid.</span>
-<span class="sd">        score_threshold : float, optional</span>
+<span class="sd">        score_threshold : float</span>
 <span class="sd">            The score threshold below which polygons will be removed before applying NMS.</span>
-<span class="sd">        nms_threshold : float, optional</span>
+<span class="sd">        nms_threshold : float</span>
 <span class="sd">            The threshold for the Non-Maximum Suppression (NMS) algorithm.</span>
-<span class="sd">        nms_algorithm : str, optional</span>
+<span class="sd">        nms_algorithm : str</span>
 <span class="sd">            The NMS algorithm to use. Supported values are &#39;iou&#39; and &#39;ioa-disambiguate&#39;.</span>
-<span class="sd">        best_geom_keep_area_ratio : float, optional</span>
+<span class="sd">        edge_band_buffer_percentage: float</span>
+<span class="sd">            The percentage of the tile width/height to consider as an edge band. The polygons that intersect with this</span>
+<span class="sd">            band will be removed before applying the NMS algorithm.</span>
+<span class="sd">        best_geom_keep_area_ratio : float</span>
 <span class="sd">            Parameter used in the &#39;ioa-disambiguate&#39; NMS algorithm to decide which geometry to keep.</span>
 <span class="sd">        pre_aggregated_output_path : str or Path, optional</span>
 <span class="sd">            If provided, the intermediate (pre-NMS) polygons will be saved at this location.</span>
@@ -609,12 +634,14 @@
                    <span class="n">score_threshold</span><span class="o">=</span><span class="n">score_threshold</span><span class="p">,</span>
                    <span class="n">nms_threshold</span><span class="o">=</span><span class="n">nms_threshold</span><span class="p">,</span>
                    <span class="n">nms_algorithm</span><span class="o">=</span><span class="n">nms_algorithm</span><span class="p">,</span>
+                   <span class="n">edge_band_buffer_percentage</span><span class="o">=</span><span class="n">edge_band_buffer_percentage</span><span class="p">,</span>
                    <span class="n">best_geom_keep_area_ratio</span><span class="o">=</span><span class="n">best_geom_keep_area_ratio</span><span class="p">,</span>
                    <span class="n">pre_aggregated_output_path</span><span class="o">=</span><span class="n">pre_aggregated_output_path</span><span class="p">)</span></div>
 
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_from_coco</span><span class="p">(</span><span class="n">tiles_folder_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_from_coco</span><span class="p">(</span><span class="n">polygon_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                   <span class="n">tiles_folder_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
                    <span class="n">coco_json_path</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
                    <span class="n">attributes_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]):</span>
 
@@ -628,7 +655,10 @@
         <span class="k">for</span> <span class="n">annotation</span> <span class="ow">in</span> <span class="n">coco_data</span><span class="p">[</span><span class="s1">&#39;annotations&#39;</span><span class="p">]:</span>
             <span class="n">image_id</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;image_id&#39;</span><span class="p">]</span>
 
-            <span class="n">annotation_polygon</span> <span class="o">=</span> <span class="n">decode_coco_segmentation</span><span class="p">(</span><span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">])</span>
+            <span class="n">annotation_polygon</span> <span class="o">=</span> <span class="n">decode_coco_segmentation</span><span class="p">(</span>
+                <span class="n">annotation</span><span class="p">,</span>
+                <span class="n">polygon_type</span> <span class="k">if</span> <span class="n">polygon_type</span> <span class="o">==</span> <span class="s1">&#39;bbox&#39;</span> <span class="k">else</span> <span class="s1">&#39;polygon&#39;</span>   <span class="c1"># &#39;polygon&#39; for segmentation</span>
+            <span class="p">)</span>
 
             <span class="n">attributes</span> <span class="o">=</span> <span class="p">{}</span>
             <span class="n">warn_attributes_not_found</span> <span class="o">=</span> <span class="p">[]</span>
@@ -808,6 +838,40 @@
                      <span class="sa">f</span><span class="s2">&quot; nested keys (ex: &#39;detector_score&#39; or &#39;segmenter_score&#39;).&quot;</span>
                      <span class="sa">f</span><span class="s2">&quot; If you instanced the Aggregator from a list of polygons for each tile,&quot;</span>
                      <span class="sa">f</span><span class="s2">&quot; make sure you also pass the associated list of scores for each tile.&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_filter_edge_polygons</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">edge_band_buffer_percentage</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Remove polygons that are too close to the tile edge.</span>
+
+<span class="sd">        For each tile, the safe area is computed by shrinking the tile geometry using</span>
+<span class="sd">        a margin defined as:</span>
+
+<span class="sd">            margin = edge_band_buffer_percentage * tile_width</span>
+
+<span class="sd">        Only polygons fully contained within this safe area are kept.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Compute the safe (inset) geometry for each tile in tiles_extent_gdf.</span>
+        <span class="n">safe_tiles</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tiles_extent_gdf</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">safe_tiles</span><span class="p">[</span><span class="s1">&#39;safe_geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">safe_tiles</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">geom</span><span class="p">:</span> <span class="n">geom</span><span class="o">.</span><span class="n">buffer</span><span class="p">(</span><span class="o">-</span> <span class="p">(</span><span class="n">edge_band_buffer_percentage</span> <span class="o">*</span> <span class="p">(</span><span class="n">geom</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">geom</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">])))</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Create a mapping from tile_id to its safe geometry.</span>
+        <span class="n">safe_geom_map</span> <span class="o">=</span> <span class="n">safe_tiles</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;tile_id&#39;</span><span class="p">)[</span><span class="s1">&#39;safe_geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">is_within_safe</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
+            <span class="n">safe_geom</span> <span class="o">=</span> <span class="n">safe_geom_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;tile_id&#39;</span><span class="p">])</span>
+            <span class="c1"># If no safe geometry is available or it is empty, keep the polygon.</span>
+            <span class="k">if</span> <span class="n">safe_geom</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">safe_geom</span><span class="o">.</span><span class="n">is_empty</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="c1"># Discard the polygon if it is not fully contained within the safe area.</span>
+            <span class="k">return</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">within</span><span class="p">(</span><span class="n">safe_geom</span><span class="p">)</span>
+
+        <span class="n">initial_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">is_within_safe</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)]</span>
+        <span class="n">filtered_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">polygons_gdf</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Filtered </span><span class="si">{</span><span class="n">initial_count</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">filtered_count</span><span class="si">}</span><span class="s2"> polygons that were too close to the tile edge &quot;</span>
+              <span class="sa">f</span><span class="s2">&quot;(edge_band_buffer_percentage=</span><span class="si">{</span><span class="n">edge_band_buffer_percentage</span><span class="si">}</span><span class="s2">).&quot;</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_calculate_iou_for_geometry</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">geometry</span><span class="p">):</span>

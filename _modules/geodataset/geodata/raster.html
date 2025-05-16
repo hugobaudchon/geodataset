@@ -594,6 +594,10 @@
         <span class="p">)</span> <span class="k">as</span> <span class="n">tile_raster</span><span class="p">:</span>
             <span class="n">tile_raster</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_pixel_data</span><span class="p">())</span>
 
+            <span class="c1"># Make sure to also copy the colorinterp from the parent raster</span>
+            <span class="n">parent_ci</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">associated_raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">colorinterp</span>
+            <span class="n">tile_raster</span><span class="o">.</span><span class="n">colorinterp</span> <span class="o">=</span> <span class="n">parent_ci</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">generate_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate the name of the tile based on its metadata.</span>
@@ -608,7 +612,8 @@
                                               <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span>
                                               <span class="n">row</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">,</span>
                                               <span class="n">col</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">col</span><span class="p">,</span>
-                                              <span class="n">aoi</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">aoi</span><span class="p">)</span>
+                                              <span class="n">aoi</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">aoi</span><span class="p">,</span>
+                                              <span class="n">tile_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">])</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">get_bbox</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -769,6 +774,10 @@
                 <span class="c1"># tiled=True  # Enables tiling, which can improve compression efficiency</span>
         <span class="p">)</span> <span class="k">as</span> <span class="n">tile_raster</span><span class="p">:</span>
             <span class="n">tile_raster</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_pixel_data</span><span class="p">(</span><span class="n">keep_mask_values_only</span><span class="p">))</span>
+
+            <span class="c1"># Make sure to also copy the colorinterp from the parent raster</span>
+            <span class="n">parent_ci</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">associated_raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">colorinterp</span>
+            <span class="n">tile_raster</span><span class="o">.</span><span class="n">colorinterp</span> <span class="o">=</span> <span class="n">parent_ci</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">generate_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
