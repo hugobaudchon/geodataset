@@ -68,28 +68,33 @@ class FileNameConvention(ABC):
 
 
 class TileNameConvention(FileNameConvention):
+    pattern_aoi_tile_size = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_[a-zA-Z0-9]+_[0-9]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
     pattern_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_[a-zA-Z0-9]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
     pattern_no_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
 
     @staticmethod
     def _validate_name(name):
-        if re.match(TileNameConvention.pattern_aoi, name):
+        if re.match(TileNameConvention.pattern_aoi_tile_size, name):
+            return 'pattern_aoi_tile_size'
+        elif re.match(TileNameConvention.pattern_aoi, name):
             return 'pattern_aoi'
         elif re.match(TileNameConvention.pattern_no_aoi, name):
             return 'pattern_no_aoi'
         else:
             raise ValueError(f"tile_name {name} does not match any of the supported patterns.")
 
-
     @staticmethod
-    def create_name(product_name: str, col: int, row: int, scale_factor=None, ground_resolution=None, aoi=None):
+    def create_name(product_name: str, col: int, row: int, scale_factor=None, ground_resolution=None, aoi=None, tile_size=None):
         specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
-        tile_name = f"{product_name}_tile_{aoi if aoi else 'noaoi'}_{specifier}_{col}_{row}.tif"
+        if tile_size:
+            tile_name = f"{product_name}_tile_{aoi if aoi else 'noaoi'}_{tile_size}_{specifier}_{col}_{row}.tif"
+        else:
+            tile_name = f"{product_name}_tile_{aoi if aoi else 'noaoi'}_{specifier}_{col}_{row}.tif"
         TileNameConvention._validate_name(tile_name)
         return tile_name
 
     @staticmethod
-    def parse_name(tile_name: str):
+    def parse_name(tile_name: str, return_tile_size=False):
         pattern_name = TileNameConvention._validate_name(tile_name)
 
         parts = tile_name.split("_")
@@ -97,19 +102,29 @@ class TileNameConvention(FileNameConvention):
         col = int(parts[-2])
         specifier = parts[-3]
         scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
-        if pattern_name == 'pattern_aoi':
+        if pattern_name == 'pattern_aoi_tile_size':
+            tile_size = int(parts[-4])
+            aoi = parts[-5]
+            if aoi == 'noaoi':
+                aoi = None
+            product_name = "_".join(parts[:-6])
+        elif pattern_name == 'pattern_aoi':
             aoi = parts[-4]
             if aoi == 'noaoi':
                 aoi = None
             product_name = "_".join(parts[:-5])
+            tile_size = None
         elif pattern_name == 'pattern_no_aoi':
             aoi = None
             product_name = "_".join(parts[:-4])
+            tile_size = None
         else:
             raise ValueError(f"pattern_name {pattern_name} is not supported.")
 
-        return product_name, scale_factor, ground_resolution, col, row, aoi
-
+        if return_tile_size:
+            return product_name, scale_factor, ground_resolution, col, row, aoi, tile_size
+        else:
+            return product_name, scale_factor, ground_resolution, col, row, aoi
 
 
 class PolygonTileNameConvention(FileNameConvention):
