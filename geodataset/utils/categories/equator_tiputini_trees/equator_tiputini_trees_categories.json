@@ -1,0 +1,436 @@
+{
+    "categories": [
+        {
+            "id": 1,
+            "name": "Arecaceae",
+            "global_id": 7681,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 2,
+            "name": "Urticaceae",
+            "global_id": 6639,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 3,
+            "name": "Moraceae",
+            "global_id": 6640,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 4,
+            "name": "Lecythidaceae",
+            "global_id": 3990,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 5,
+            "name": "Elaeocarpaceae",
+            "global_id": 2435,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 6,
+            "name": "Fabaceae",
+            "global_id": 5386,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 7,
+            "name": "Meliaceae",
+            "global_id": 2397,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 8,
+            "name": "Polygonaceae",
+            "global_id": 2416,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 9,
+            "name": "Malvaceae",
+            "global_id": 6685,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 10,
+            "name": "Rubiaceae",
+            "global_id": 8798,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 11,
+            "name": "Myristicaceae",
+            "global_id": 2439,
+            "rank": "FAMILY",
+            "other_names": [],
+            "supercategory": null
+        },
+        {
+            "id": 12,
+            "name": "Iriartea",
+            "global_id": 2739058,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 13,
+            "name": "Astrocaryum",
+            "global_id": 2738048,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 14,
+            "name": "Wettinia",
+            "global_id": 2736938,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 15,
+            "name": "Euterpe",
+            "global_id": 2733546,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 16,
+            "name": "Oenocarpus",
+            "global_id": 2735438,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 17,
+            "name": "Attalea",
+            "global_id": 2732664,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 18,
+            "name": "Bactris",
+            "global_id": 2732906,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 19,
+            "name": "Socratea",
+            "global_id": 2732448,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 20,
+            "name": "Mauritia",
+            "global_id": 8413640,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 1
+        },
+        {
+            "id": 21,
+            "name": "Cecropia",
+            "global_id": 2984472,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 2
+        },
+        {
+            "id": 22,
+            "name": "Ficus",
+            "global_id": 2984588,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 3
+        },
+        {
+            "id": 23,
+            "name": "Gustavia",
+            "global_id": 3082580,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 4
+        },
+        {
+            "id": 24,
+            "name": "Sloanea",
+            "global_id": 3152097,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 5
+        },
+        {
+            "id": 25,
+            "name": "Parkia",
+            "global_id": 2943936,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 6
+        },
+        {
+            "id": 26,
+            "name": "Inga",
+            "global_id": 2965936,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 6
+        },
+        {
+            "id": 27,
+            "name": "Zygia",
+            "global_id": 2939650,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 6
+        },
+        {
+            "id": 28,
+            "name": "Brownea",
+            "global_id": 2970433,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 6
+        },
+        {
+            "id": 29,
+            "name": "Erythrina",
+            "global_id": 2945830,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 6
+        },
+        {
+            "id": 30,
+            "name": "Cedrela",
+            "global_id": 3190510,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 7
+        },
+        {
+            "id": 31,
+            "name": "Triplaris",
+            "global_id": 6390747,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 8
+        },
+        {
+            "id": 32,
+            "name": "Ceiba",
+            "global_id": 3152218,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 9
+        },
+        {
+            "id": 33,
+            "name": "Pentagonia",
+            "global_id": 2893500,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 10
+        },
+        {
+            "id": 34,
+            "name": "Virola",
+            "global_id": 3152843,
+            "rank": "GENUS",
+            "other_names": [],
+            "supercategory": 11
+        },
+        {
+            "id": 35,
+            "name": "Iriartea deltoidea",
+            "global_id": 2739059,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 12
+        },
+        {
+            "id": 36,
+            "name": "Astrocaryum chambira",
+            "global_id": 2738064,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 13
+        },
+        {
+            "id": 37,
+            "name": "Wettinia maynensis",
+            "global_id": 2737000,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 14
+        },
+        {
+            "id": 38,
+            "name": "Euterpe precatoria",
+            "global_id": 5293425,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 15
+        },
+        {
+            "id": 39,
+            "name": "Oenocarpus bataua",
+            "global_id": 2735462,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 16
+        },
+        {
+            "id": 40,
+            "name": "Attalea butyracea",
+            "global_id": 2732721,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 17
+        },
+        {
+            "id": 41,
+            "name": "Attalea maripa",
+            "global_id": 2732686,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 17
+        },
+        {
+            "id": 42,
+            "name": "Bactris riparia",
+            "global_id": 2733109,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 18
+        },
+        {
+            "id": 43,
+            "name": "Socratea exorrhiza",
+            "global_id": 2732453,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 19
+        },
+        {
+            "id": 44,
+            "name": "Mauritia flexuosa",
+            "global_id": 5294777,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 20
+        },
+        {
+            "id": 45,
+            "name": "Cecropia sciadophylla",
+            "global_id": 7316424,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 21
+        },
+        {
+            "id": 46,
+            "name": "Cecropia ficifolia",
+            "global_id": 4013542,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 21
+        },
+        {
+            "id": 47,
+            "name": "Cecropia herthae",
+            "global_id": 4013414,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 21
+        },
+        {
+            "id": 48,
+            "name": "Cecropia membranacea",
+            "global_id": 4013609,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 21
+        },
+        {
+            "id": 49,
+            "name": "Gustavia longifolia",
+            "global_id": 5383753,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 23
+        },
+        {
+            "id": 50,
+            "name": "Brownea grandiceps",
+            "global_id": 2970463,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 28
+        },
+        {
+            "id": 51,
+            "name": "Cedrela odorata",
+            "global_id": 3190511,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 30
+        },
+        {
+            "id": 52,
+            "name": "Triplaris cumingiana",
+            "global_id": 4038399,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 31
+        },
+        {
+            "id": 53,
+            "name": "Ceiba pentandra",
+            "global_id": 5406697,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 32
+        },
+        {
+            "id": 54,
+            "name": "Pentagonia subauriculata",
+            "global_id": 5334725,
+            "rank": "SPECIES",
+            "other_names": [],
+            "supercategory": 33
+        }
+    ]
+}

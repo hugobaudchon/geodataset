@@ -6,44 +6,82 @@ import pandas as pd
 import geopandas as gpd
 from pathlib import Path
 
-from shapely import box, Polygon, MultiPolygon
+from shapely import box
 
 from geodataset.geodata import Raster
+from geodataset.utils import try_cast_multipolygon_to_polygon
 
 
 class RasterPolygonLabels:
+    """
+    Class to handle the loading and processing of polygon labels associated with a :class:`~geodataset.geodata.Raster`.
+    The labels will automatically be adjusted to the associated :class:`~geodataset.geodata.Raster`
+    pixel coordinate system.
+    For example, this class is instantiated by the :class:`~geodataset.tilerize.LabeledRasterTilerizer` to align the Raster and labels.
+
+    Parameters
+    ----------
+    path: str or Path
+        Path to the labels file. Supported formats are: .gpkg, .geojson, .shp, .xml, .csv.
+        For .xml and .csv files, only specific formats are supported.
+        Supported .xml and .csv files will also be converted to a GeoDataFrame for downstream uses.
+    associated_raster: :class:`~geodataset.geodata.Raster`
+        The instanced :class:`~geodataset.geodata.Raster` object associated with the labels.
+        The labels will automatically be adjusted to this :class:`~geodataset.geodata.Raster` pixel coordinate system.
+    geopackage_layer_name : str, optional
+        The name of the layer in the geopackage file to use as labels. Only used if the labels_path is a .gpkg, .geojson
+        or .shp file. Only useful when the labels geopackage file contains multiple layers.
+    main_label_category_column_name : str, optional
+        The name of the column in the labels file that contains the main category of the labels.
+    other_labels_attributes_column_names : list of str, optional
+        The names of the columns in the labels file that contains other attributes of the labels, which should be kept
+        as a dictionary in the COCO annotations data.
+    """
+
     def __init__(self,
-                 path: Path,
+                 path: str or Path or None,
                  associated_raster: Raster,
+                 labels_gdf: gpd.GeoDataFrame = None,
                  geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None):
+        if path:
+            self.path = Path(path)
+            self.ext = self.path.suffix
+        else:
+            self.path = path
+            self.ext = None
 
-        self.path = path
-        self.ext = self.path.suffix
         self.associated_raster = associated_raster
+        self.labels_gdf = labels_gdf
         self.geopackage_layer_name = geopackage_layer_name
         self.ground_resolution = self.associated_raster.ground_resolution
         self.scale_factor = self.associated_raster.scale_factor
         self.main_label_category_column_name = main_label_category_column_name
         self.other_labels_attributes_column_names = other_labels_attributes_column_names
 
+        assert not (self.path and self.labels_gdf is not None) and (self.path or self.labels_gdf is not None),\
+            'Either path or labels_gdf must be passed to RasterPolygonLabels, but not both.'
+
         self.geometries_gdf = self._load_labels()
 
     def _load_labels(self):
         # Loading the labels into a GeoDataFrame
-        if self.ext.lower() == '.xml':
-            labels_gdf = self._load_xml_labels()
-        elif self.ext == '.csv':
-            labels_gdf = self._load_csv_labels()
-        elif self.ext in ['.geojson', '.gpkg', '.shp', ".json"]:
-            labels_gdf = self._load_geopandas_labels()
+        if self.labels_gdf is not None:
+            labels_gdf = self.labels_gdf
         else:
-            raise Exception(f'Annotation format {self.ext} is not yet supported.')
+            if self.ext.lower() == '.xml':
+                labels_gdf = self._load_xml_labels()
+            elif self.ext == '.csv':
+                labels_gdf = self._load_csv_labels()
+            elif self.ext in ['.geojson', '.gpkg', '.shp', ".json"]:
+                labels_gdf = self._load_geopandas_labels()
+            else:
+                raise Exception(f'Annotation format {self.ext} is not yet supported.')
 
         # Making sure we are working with Polygons and not Multipolygons
         if (labels_gdf['geometry'].type == 'MultiPolygon').any():
-            labels_gdf['geometry'] = labels_gdf['geometry'].astype(object).apply(self.try_cast_multipolygon_to_polygon)
+            labels_gdf['geometry'] = labels_gdf['geometry'].astype(object).apply(try_cast_multipolygon_to_polygon)
             n_poly_before = len(labels_gdf)
             labels_gdf = labels_gdf.dropna(subset=['geometry'])
             warnings.warn(f"Removed {n_poly_before - len(labels_gdf)} out of {n_poly_before} labels as they are MultiPolygons"
@@ -147,7 +185,7 @@ class RasterPolygonLabels:
         labels_gdf = gpd.GeoDataFrame(geometry=labels_bboxes)
         # Adding main categories and other attributes in labels_gdf
         if self.main_label_category_column_name:
-            labels_gdf['main_category'] = pd.Series(labels_main_categories)
+            labels_gdf[self.main_label_category_column_name] = pd.Series(labels_main_categories)
         if self.other_labels_attributes_column_names:
             for attribute, values in labels_other_attributes.items():
                 labels_gdf[attribute] = pd.Series(values)
@@ -211,19 +249,3 @@ class RasterPolygonLabels:
                                     f' The columns of the CSV are: {labels_df.columns}')
 
         return labels_gdf
-
-    @staticmethod
-    def try_cast_multipolygon_to_polygon(geometry):
-        if isinstance(geometry, Polygon):
-            return geometry
-        elif isinstance(geometry, MultiPolygon):
-            polygons = list(geometry.geoms)
-            if len(polygons) == 1:
-                return Polygon(polygons[0])
-            else:
-                return None
-        else:
-            # Return None if the geometry is neither Polygon nor MultiPolygon
-            return None
-
-

@@ -1,3 +1,2 @@
-from .raster import Raster
-from .point_cloud import PointCloud
-from .tile import Tile, PolygonTile
+from .raster import Raster, RasterTileMetadata, RasterPolygonTileMetadata
+from .point_cloud import PointCloudTileMetadata, PointCloudTileMetadataCollection
