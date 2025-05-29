@@ -502,6 +502,10 @@ class RasterTileMetadata:
         ) as tile_raster:
             tile_raster.write(self.get_pixel_data())
 
+            # Make sure to also copy the colorinterp from the parent raster
+            parent_ci = self.associated_raster.data.colorinterp
+            tile_raster.colorinterp = parent_ci
+
     def generate_name(self):
         """
         Generate the name of the tile based on its metadata.
@@ -516,7 +520,8 @@ class RasterTileMetadata:
                                               scale_factor=self.scale_factor,
                                               row=self.row,
                                               col=self.col,
-                                              aoi=self.aoi)
+                                              aoi=self.aoi,
+                                              tile_size=self.metadata['height'])
 
     def get_bbox(self):
         """
@@ -677,6 +682,10 @@ class RasterPolygonTileMetadata:
                 # tiled=True  # Enables tiling, which can improve compression efficiency
         ) as tile_raster:
             tile_raster.write(self.get_pixel_data(keep_mask_values_only))
+
+            # Make sure to also copy the colorinterp from the parent raster
+            parent_ci = self.associated_raster.data.colorinterp
+            tile_raster.colorinterp = parent_ci
 
     def generate_name(self):
         """

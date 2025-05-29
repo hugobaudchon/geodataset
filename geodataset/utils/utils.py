@@ -416,6 +416,7 @@ def coco_rle_segmentation_to_polygon(
     mask = coco_rle_segmentation_to_mask(rle_segmentation)
     return mask_to_polygon(mask, simplify_tolerance, min_contour_points)
 
+
 def decode_coco_segmentation(coco_annotation: dict, output_type: str):
     """
     Decodes a COCO annotation segmentation into a shapely Polygon or MultiPolygon.
@@ -998,8 +999,7 @@ class COCOGenerator:
         assert len(self.tiles_paths) == len(self.polygons), "The number of tiles and polygons must be the same."
         if self.scores:
             assert len(self.tiles_paths) == len(self.scores), "The number of tiles and scores must be the same."
-        else:
-            self.scores = [[None, ] * len(tile_polygons) for tile_polygons in self.polygons]
+            assert all(score is not None for score in self.scores), "If passed, all values in scores must be non-None."
         if self.categories:
             assert len(self.tiles_paths) == len(self.categories), "The number of tiles and categories must be the same."
         else:
@@ -1015,7 +1015,6 @@ class COCOGenerator:
         if self.scores and self.other_attributes:
             self.other_attributes = [[dict(self.other_attributes[t][i], score=self.scores[t][i]) for i in
                                      range(len(self.other_attributes[t]))] for t in range(len(self.tiles_paths))]
-
         elif self.scores:
             self.other_attributes = [[{'score': s} for s in tile_scores] for tile_scores in self.scores]
 
@@ -1143,7 +1142,7 @@ class COCOGenerator:
                 zip(self.tiles_paths,
                     self.polygons,
                     polygons_ids,
-                    self.scores,
+                    self.scores if self.scores else [None, ] * len(self.tiles_paths),
                     [[category_to_id_map[c] if c in category_to_id_map else -1 for c in cs] for cs in self.categories],
                     self.other_attributes if self.other_attributes else [None, ] * len(self.tiles_paths),
                     [self.use_rle_for_labels, ] * len(self.tiles_paths)
@@ -1151,10 +1150,10 @@ class COCOGenerator:
             )))
 
         images_cocos = []
-        detections_cocos = []
+        annotations_cocos = []
         for result in results:
             images_cocos.append(result["image_coco"])
-            detections_cocos.extend(result["detections_coco"])
+            annotations_cocos.extend(result["annotations_coco"])
 
         # Save the COCO dataset to a JSON file
         with self.output_path.open('w') as f:
@@ -1169,7 +1168,7 @@ class COCOGenerator:
                     # Placeholder for licenses
                 ],
                 "images": images_cocos,
-                "annotations": detections_cocos,
+                "annotations": annotations_cocos,
                 "categories": categories_coco
             }, f, ensure_ascii=False, indent=2)
 
@@ -1196,7 +1195,7 @@ class COCOGenerator:
          (tile_path, tile_polygons, tile_polygons_ids, tile_polygons_scores,
           tiles_polygons_category_ids, tiles_polygons_other_attributes, use_rle_for_labels)) = tile_data
 
-        local_detections_coco = []
+        local_annotations_coco = []
 
         assert Path(tile_path).exists(), "Please make sure to save the tiles/images before creating the COCO dataset."
 
@@ -1207,7 +1206,7 @@ class COCOGenerator:
             detection = self._generate_label_coco(
                 polygon=tile_polygons[i],
                 polygon_id=tile_polygons_ids[i],
-                score=tile_polygons_scores[i],
+                score=tile_polygons_scores[i] if tile_polygons_scores else None,
                 tile_height=tile_height,
                 tile_width=tile_width,
                 tile_id=tile_id,
@@ -1215,7 +1214,7 @@ class COCOGenerator:
                 category_id=tiles_polygons_category_ids[i] if tiles_polygons_category_ids else None,
                 other_attributes_dict=tiles_polygons_other_attributes[i] if tiles_polygons_other_attributes else None
             )
-            local_detections_coco.append(detection)
+            local_annotations_coco.append(detection)
         return {
             "image_coco": {
                 "id": tile_id,
@@ -1223,7 +1222,7 @@ class COCOGenerator:
                 "height": tile_height,
                 "file_name": str(tile_path.name),
             },
-            "detections_coco": local_detections_coco
+            "annotations_coco": local_annotations_coco
         }
 
     @staticmethod
@@ -1257,14 +1256,19 @@ class COCOGenerator:
             "id": polygon_id,
             "segmentation": segmentation,
             "is_rle_format": use_rle_for_labels,
-            "score": score,
             "area": area,
             "iscrowd": 0,  # Assuming this polygon represents a single object (not a crowd)
             "image_id": tile_id,
             "bbox": bbox_coco_format,
             "category_id": category_id,
-            "other_attributes": other_attributes_dict
         }
+
+        if score is not None:
+            coco_annotation["score"] = score    # Add the score to the annotation if it's not None (only predictions have scores, not labels)
+        if other_attributes_dict is None:
+            coco_annotation["other_attributes"] = {}
+        else:
+            coco_annotation["other_attributes"] = other_attributes_dict
 
         return coco_annotation
 
