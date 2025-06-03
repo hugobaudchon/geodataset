@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Union, Optional, Dict, Tuple
+from typing import List, Union, Optional, Dict, Tuple, Any
 from pathlib import Path
 
 import albumentations
@@ -8,6 +8,7 @@ from shapely import box
 
 from geodataset.dataset.base_dataset import BaseDataset, BaseLabeledRasterCocoDataset
 from geodataset.utils import decode_coco_segmentation
+from geodataset.utils.file_name_conventions import PolygonTileNameConvention
 
 
 class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
@@ -500,11 +501,13 @@ class UnlabeledRasterDataset(BaseDataset):
     def __init__(self,
                  root_path: str or List[str] or Path or List[Path],
                  transform: albumentations.core.composition.Compose = None,
-                 fold: str = None):
+                 fold: str = None,
+                 include_polygon_id: bool = False):
         self.fold = fold
         self.root_path = root_path
         self.transform = transform
         self.tile_paths = []
+        self.include_polygon_id = include_polygon_id  # Used for polygon-based datasets
 
         if isinstance(self.root_path, (str, Path)):
             self.root_path = [self.root_path]
@@ -513,7 +516,8 @@ class UnlabeledRasterDataset(BaseDataset):
 
         self._find_tiles_paths(directories=self.root_path)
 
-        print(f"Found {len(self.tile_paths)} tiles for fold {self.fold}.")
+        print(f"Found {len(self.tile_paths)} tiles for fold "
+              "{self.fold if self.fold else 'all'}.")
 
     def _find_tiles_paths(self, directories: List[Path]):
         """
@@ -543,9 +547,10 @@ class UnlabeledRasterDataset(BaseDataset):
                     if path.is_dir():
                         self._find_tiles_paths(directories=[path])
 
-    def __getitem__(self, idx: int):
+    def __getitem__(self, idx: int) -> Union[np.ndarray, Tuple[np.ndarray, Any]]:
         """
-        Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,
+        Retrieves a tile and its annotations by index, applying the transform
+        passed to the constructor of the class,
         if any. It also normalizes the tile data between 0 and 1.
 
         Parameters
@@ -557,6 +562,7 @@ class UnlabeledRasterDataset(BaseDataset):
         -------
         numpy.ndarray
             The transformed tile (image) data, normalized between 0 and 1.
+        If `include_polygon_id` is True, returns a tuple of (transformed_image, polygon_id).
         """
         tile_path = self.tile_paths[idx]
 
@@ -571,7 +577,20 @@ class UnlabeledRasterDataset(BaseDataset):
 
         transformed_image = transformed_image / 255  # normalizing
 
-        return transformed_image
+        if self.include_polygon_id:
+            try:
+                # Using PolygonTileNameConvention to parse tile names
+                # parse_name returns: product_name, scale_factor, ground_resolution, polygon_id, aoi
+                _, _, _, polygon_id, _ = PolygonTileNameConvention.parse_name(tile_path.name)
+                # Ensure polygon_id is of a consistent type, e.g., int
+                polygon_id = int(polygon_id)
+            except Exception as e:
+                print(f"Warning: Could not parse polygon_id from filename {tile_path.name}: {e}."
+                      "Returning None for polygon_id.")
+                polygon_id = None
+            return transformed_image, polygon_id
+        else:
+            return transformed_image
 
     def __len__(self):
         """
