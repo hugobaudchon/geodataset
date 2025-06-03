@@ -34,6 +34,7 @@ class RasterPolygonTilerizer:
                  geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None,
+                 persistent_object_id_col: Optional[str] = None,
                  coco_n_workers: int = 5,
                  coco_categories_list: list[dict] = None,
                  tile_batch_size: int = 1000,
@@ -53,6 +54,12 @@ class RasterPolygonTilerizer:
         self.coco_categories_list = coco_categories_list
         self.tile_batch_size = tile_batch_size
         self.temp_dir = Path(temp_dir)
+
+        # Store the persistent object ID column name
+        if labels_gdf is not None and persistent_object_id_col is None:
+            raise ValueError("If 'labels_gdf' is provided,"
+                             "'persistent_object_id_col' must also be specified.")
+        self.persistent_object_id_col = persistent_object_id_col
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
                                                           " Please only specify one.")
@@ -92,45 +99,66 @@ class RasterPolygonTilerizer:
         if self.labels_path and labels_gdf:
             raise ValueError("You can't provide both a labels_path and a labels_gdf.")
         elif self.labels_path:
-            labels = RasterPolygonLabels(path=self.labels_path,
-                                         associated_raster=self.raster,
-                                         geopackage_layer_name=geopackage_layer_name,
-                                         main_label_category_column_name=main_label_category_column_name,
-                                         other_labels_attributes_column_names=other_labels_attributes_column_names)
+            labels = RasterPolygonLabels(
+                path=self.labels_path,
+                associated_raster=self.raster,
+                geopackage_layer_name=geopackage_layer_name,
+                main_label_category_column_name=main_label_category_column_name,
+                other_labels_attributes_column_names=other_labels_attributes_column_names
+            )
+            if self.persistent_object_id_col not in labels.geometries_gdf.columns:
+                raise ValueError(
+                    f"Critical: The persistent ID column '{self.persistent_object_id_col}' "
+                    f"is missing from the GDF loaded from labels_path: {self.labels_path}."
+                )
         elif labels_gdf is not None:
-            labels = RasterPolygonLabels(path=None,
-                                         labels_gdf=labels_gdf,
-                                         associated_raster=self.raster,
-                                         main_label_category_column_name=main_label_category_column_name,
-                                         other_labels_attributes_column_names=other_labels_attributes_column_names)
+            if self.persistent_object_id_col not in labels_gdf.columns:
+                raise ValueError(
+                    f"Critical: The persistent ID column '{self.persistent_object_id_col}' "
+                    f"is missing from the input labels_gdf. Available columns: {labels_gdf.columns.tolist()}"
+                )
+            labels = RasterPolygonLabels(
+                path=None,
+                labels_gdf=labels_gdf,
+                associated_raster=self.raster,
+                main_label_category_column_name=main_label_category_column_name,
+                other_labels_attributes_column_names=other_labels_attributes_column_names
+            )
         else:
-            raise ValueError("You must provide either a labels_path or a labels_gdf.")
-
+            raise ValueError("RasterPolygonTilerizer: You must"
+                             "provide either a labels_path or a labels_gdf.")
         return labels
 
     def _generate_aois_polygons(self):
+        polygons_for_aoi_processing = self.labels.geometries_gdf.copy()
+        if self.persistent_object_id_col not in polygons_for_aoi_processing.columns:
+            raise ValueError(f"'{self.persistent_object_id_col}' not found in self.labels.geometries_gdf.")
         if self.aois_config is not None:
-            if type(self.aois_config) is AOIGeneratorConfig:
-                if len(self.aois_config.aois) > 1 or next(iter(self.aois_config.aois.values()))['percentage'] != 1 or self.global_aoi is not None:
-                    raise Exception("Currently only supports inference on whole raster.")
+            if isinstance(self.aois_config, AOIGeneratorConfig):
+                if len(self.aois_config.aois) == 1 and next(iter(self.aois_config.aois.keys())) == 'all':
+                    aoi_name = 'all'
+                    aois_polygons_dict = {aoi_name: polygons_for_aoi_processing}
+                    raster_extent_poly = box(0, 0, self.raster.metadata['width'],
+                                             self.raster.metadata['height'])
+                    aois_gdf = gpd.GeoDataFrame({'geometry': [raster_extent_poly],
+                                                 'aoi': [aoi_name]}, crs=None)
+                else:
+                    raise NotImplementedError("Complex AOIGeneratorConfig not fully supported"
+                                              "for RasterPolygonTilerizer while ensuring persistent"
+                                              "ID propagation. Use AOIFromPackageConfig or a"
+                                              "single 'all' AOI.")
 
-                polygons = self.labels.geometries_gdf.copy()
-                polygons['geometry_id'] = range(len(polygons))
-
-                aois_polygons = {next(iter(self.aois_config.aois.keys())): polygons}
-                # Get the raster extent and create a polygon and gdf for it
-
-                raster_extent = box(0, 0, self.raster.metadata['width'], self.raster.metadata['height'])
-                aois_gdf = gpd.GeoDataFrame(geometry=[raster_extent])
-                aois_gdf['aoi'] = next(iter(self.aois_config.aois.keys()))
-
-            elif type(self.aois_config) is AOIFromPackageConfig:
-                aoi_engine = AOIFromPackageForPolygons(labels=self.labels,
-                                                       global_aoi=self.global_aoi,
-                                                       aois_config=cast(AOIFromPackageConfig, self.aois_config),
-                                                       associated_raster=self.raster)
-
+            elif isinstance(self.aois_config, AOIFromPackageConfig):
+                aoi_engine = AOIFromPackageForPolygons(
+                    labels=self.labels,
+                    global_aoi=self.global_aoi,
+                    aois_config=cast(AOIFromPackageConfig, self.aois_config),
+                    associated_raster=self.raster
+                )
                 aois_polygons, aois_gdf = aoi_engine.get_aoi_polygons()
+                for aoi_name, gdf_aoi in aois_polygons.items():
+                    if self.persistent_object_id_col not in gdf_aoi.columns:
+                        raise ValueError(f"'{self.persistent_object_id_col}' lost after AOI processing for AOI '{aoi_name}'. Available columns: {gdf_aoi.columns.tolist()}")
             else:
                 raise Exception(f'aois_config type unsupported: {type(self.aois_config)}')
         else:
@@ -154,20 +182,29 @@ class RasterPolygonTilerizer:
         return aois_polygons, aois_gdf
 
     def _generate_aois_tiles_and_polygons(self):
-        aois_polygons, aois_labels = self._generate_aois_polygons()
+        aois_polygons, _ = self._generate_aois_polygons()
 
         final_aois_tiles_paths = {aoi: [] for aoi in aois_polygons.keys()}
         final_aois_polygons = {aoi: [] for aoi in aois_polygons.keys()}
         tiles_batch = []
+
         for aoi, polygons in aois_polygons.items():
-            for i, polygon_row in tqdm(polygons.iterrows(),
-                                       f"Generating polygon tiles for AOI {aoi}...", total=len(polygons)):
+            if self.persistent_object_id_col not in polygons.columns:
+                raise ValueError(
+                    f"The ID column '{self.persistent_object_id_col}' is missing from the polygons GeoDataFrame "
+                    f"for AOI '{aoi}' before tiling. Available columns: {polygons.columns.tolist()}"
+                )
+
+            for _, polygon_row in tqdm(polygons.iterrows(),
+                                       f"Generating polygon tiles for AOI {aoi}...",
+                                       total=len(polygons)):
 
                 polygon = polygon_row['geometry']
+                current_persistent_id = polygon_row[self.persistent_object_id_col]
 
                 polygon_tile, translated_polygon = self.raster.get_polygon_tile(
                     polygon=polygon,
-                    polygon_id=polygon_row['geometry_id'],
+                    polygon_id=current_persistent_id,
                     polygon_aoi=aoi,
                     tile_size=self.tile_size,
                     use_variable_tile_size=self.use_variable_tile_size,
@@ -204,8 +241,8 @@ class RasterPolygonTilerizer:
 
     def generate_coco_dataset(self):
         aois_tiles_paths, aois_polygons = self._generate_aois_tiles_and_polygons()
-
         coco_paths = {}
+
         for aoi in aois_tiles_paths:
             if aoi == 'all' and len(aois_tiles_paths.keys()) > 1:
                 # don't save the 'all' tiles if aois were provided.
@@ -218,6 +255,10 @@ class RasterPolygonTilerizer:
                 print(f"No tiles found for AOI {aoi}, skipping...")
                 continue
 
+            if len(tiles_paths) != len(polygons_gdfs):
+                raise ValueError(f"Mismatch in length of tile paths ({len(tiles_paths)}) "
+                                 f"and polygon GDFs ({len(polygons_gdfs)}) for AOI {aoi}.")
+
             # Combine the list of GeoDataFrames into one GeoDataFrame,
             # adding a 'tile_path' column from tiles_paths.
             combined_gdf_list = []
@@ -225,6 +266,9 @@ class RasterPolygonTilerizer:
                 temp_gdf = gdf_tile.copy()
                 temp_gdf['tile_path'] = str(tile_path)
                 combined_gdf_list.append(temp_gdf)
+            if not combined_gdf_list:
+                print(f"No polygons to include in COCO for AOI {aoi}. Skipping.")
+                continue
             combined_gdf = gpd.GeoDataFrame(pd.concat(combined_gdf_list, ignore_index=True))
 
             coco_output_file_path = self.output_path / CocoNameConvention.create_name(
@@ -252,9 +296,6 @@ class RasterPolygonTilerizer:
                 n_workers=self.coco_n_workers,
                 coco_categories_list=self.coco_categories_list
             )
-
             coco_generator.generate_coco()
             coco_paths[aoi] = coco_output_file_path
-
         return coco_paths
-
