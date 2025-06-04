@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, cast
+from typing import List, cast, Optional
 
 import geopandas as gpd
 import pandas as pd
