@@ -86,12 +86,6 @@ class RasterPolygonLabels:
             )
             n_poly_before = len(labels_gdf)
 
-            # TODO: debgging to be removed
-            # Identify which ones became None
-            problematic_indices = labels_gdf[labels_gdf.isnull()].index
-            if not problematic_indices.empty:
-                print(f"DEBUG: Found {len(problematic_indices)} MultiPolygons that resulted in None after try_cast_multipolygon_to_polygon_improved.")
-
             labels_gdf = labels_gdf.dropna(subset=['geometry'])
             warnings.warn(f"Removed {n_poly_before - len(labels_gdf)} out of {n_poly_before} labels as they are MultiPolygons"
                           f" that can't be cast to Polygons.")
