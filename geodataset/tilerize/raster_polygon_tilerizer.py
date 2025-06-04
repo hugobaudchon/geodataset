@@ -153,7 +153,7 @@ class RasterPolygonTilerizer:
             )
             if is_simple_generate_all:
                 aoi_name = next(iter(self.aois_config.aois.keys())) # Get the actual name ('all', 'infer', etc.)
-                aois_polygons_dict = {aoi_name: polygons_for_aoi_processing}
+                aois_polygons = {aoi_name: polygons_for_aoi_processing}
                 raster_extent_poly = box(0, 0, self.raster.metadata['width'], self.raster.metadata['height'])
                 aois_gdf = gpd.GeoDataFrame({'geometry': [raster_extent_poly], 'aoi': [aoi_name]}, crs=None)
             else:
