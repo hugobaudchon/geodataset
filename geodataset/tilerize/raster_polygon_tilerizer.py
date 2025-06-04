@@ -6,13 +6,14 @@ import pandas as pd
 from shapely import box
 from tqdm import tqdm
 
-from geodataset.aoi import AOIFromPackageConfig, AOIGeneratorConfig
+from geodataset.aoi import AOIFromPackageConfig, AOIGeneratorConfig, AOIConfig
 from geodataset.aoi.aoi_from_package import AOIFromPackageForPolygons
 from geodataset.geodata import Raster, RasterPolygonTileMetadata
 from geodataset.geodata.raster import RasterTileSaver
 from geodataset.labels import RasterPolygonLabels
 from geodataset.utils import CocoNameConvention, COCOGenerator
 from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
+DEFAULT_AOI_NAME = "all"
 
 
 class RasterPolygonTilerizer:
@@ -25,7 +26,7 @@ class RasterPolygonTilerizer:
                  variable_tile_size_pixel_buffer: int or None,
                  labels_gdf: gpd.GeoDataFrame = None,
                  global_aoi: str or Path or gpd.GeoDataFrame = None,
-                 aois_config: AOIFromPackageConfig = None,
+                 aois_config: Optional[AOIConfig] = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
                  output_name_suffix: str = None,
@@ -46,7 +47,6 @@ class RasterPolygonTilerizer:
         self.use_variable_tile_size = use_variable_tile_size
         self.variable_tile_size_pixel_buffer = variable_tile_size_pixel_buffer
         self.global_aoi = global_aoi
-        self.aois_config = aois_config
         self.output_name_suffix = output_name_suffix
         self.use_rle_for_labels = use_rle_for_labels
         self.min_intersection_ratio = min_intersection_ratio
@@ -63,7 +63,6 @@ class RasterPolygonTilerizer:
 
         assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
                                                           " Please only specify one.")
-
         if use_variable_tile_size:
             assert variable_tile_size_pixel_buffer, "A variable_tile_size_pixel_buffer must be provided if use_variable_tile_size is True."
 
@@ -81,6 +80,18 @@ class RasterPolygonTilerizer:
         self.output_path = Path(output_path) / self.raster.output_name
         self.tiles_folder_path = self.output_path / 'tiles'
         self.tiles_folder_path.mkdir(parents=True, exist_ok=True)
+
+        # Default AOI config logic, similar to BaseRasterTilerizer
+        if aois_config is None:
+            print("RasterPolygonTilerizer: No AOIs configuration provided."
+                  f"Defaulting to a single '{DEFAULT_AOI_NAME}' AOI for all polygons.")
+            self.aois_config = AOIGeneratorConfig(aois={DEFAULT_AOI_NAME: {'percentage': 1.0, 'position': 1}}, aoi_type='band')
+        elif isinstance(aois_config, AOIGeneratorConfig) and not aois_config.aois: # Empty AOIGeneratorConfig
+            print("RasterPolygonTilerizer: Empty AOIGeneratorConfig.aois."
+                  f"Defaulting to a single '{DEFAULT_AOI_NAME}' AOI.")
+            self.aois_config = AOIGeneratorConfig(aois={DEFAULT_AOI_NAME: {'percentage': 1.0, 'position': 1}}, aoi_type='band')
+        else:
+            self.aois_config = aois_config
 
     def _load_raster(self):
         raster = Raster(path=self.raster_path,
@@ -133,36 +144,45 @@ class RasterPolygonTilerizer:
         polygons_for_aoi_processing = self.labels.geometries_gdf.copy()
         if self.persistent_object_id_col not in polygons_for_aoi_processing.columns:
             raise ValueError(f"'{self.persistent_object_id_col}' not found in self.labels.geometries_gdf.")
-        if self.aois_config is not None:
-            if isinstance(self.aois_config, AOIGeneratorConfig):
-                if len(self.aois_config.aois) == 1 and next(iter(self.aois_config.aois.keys())) == 'all':
-                    aoi_name = 'all'
-                    aois_polygons_dict = {aoi_name: polygons_for_aoi_processing}
-                    raster_extent_poly = box(0, 0, self.raster.metadata['width'],
-                                             self.raster.metadata['height'])
-                    aois_gdf = gpd.GeoDataFrame({'geometry': [raster_extent_poly],
-                                                 'aoi': [aoi_name]}, crs=None)
-                else:
-                    raise NotImplementedError("Complex AOIGeneratorConfig not fully supported"
-                                              "for RasterPolygonTilerizer while ensuring persistent"
-                                              "ID propagation. Use AOIFromPackageConfig or a"
-                                              "single 'all' AOI.")
 
-            elif isinstance(self.aois_config, AOIFromPackageConfig):
-                aoi_engine = AOIFromPackageForPolygons(
-                    labels=self.labels,
-                    global_aoi=self.global_aoi,
-                    aois_config=cast(AOIFromPackageConfig, self.aois_config),
-                    associated_raster=self.raster
+
+        if isinstance(self.aois_config, AOIGeneratorConfig):
+            is_simple_generate_all = (
+                len(self.aois_config.aois) == 1 and
+                next(iter(self.aois_config.aois.keys())).lower() in [DEFAULT_AOI_NAME.lower(), "infer"]
+            )
+            if is_simple_generate_all:
+                aoi_name = next(iter(self.aois_config.aois.keys())) # Get the actual name ('all', 'infer', etc.)
+                aois_polygons_dict = {aoi_name: polygons_for_aoi_processing}
+                raster_extent_poly = box(0, 0, self.raster.metadata['width'], self.raster.metadata['height'])
+                aois_gdf = gpd.GeoDataFrame({'geometry': [raster_extent_poly], 'aoi': [aoi_name]}, crs=None)
+            else:
+                # This case remains for truly complex AOIGeneratorConfigs not meant for polygon tiling
+                raise NotImplementedError(
+                    "Complex AOIGeneratorConfig (defining multiple spatial splits not named 'all'/'infer') "
+                    "is not directly supported for RasterPolygonTilerizer when the goal is to tile existing polygons. "
+                    "Use AOIFromPackageConfig to assign polygons to predefined vector AOIs, "
+                    "or ensure AOIGeneratorConfig defines a single AOI named 'all' or 'infer'."
                 )
-                aois_polygons, aois_gdf = aoi_engine.get_aoi_polygons()
+        elif isinstance(self.aois_config, AOIFromPackageConfig):
+            aoi_engine = AOIFromPackageForPolygons(
+                labels=self.labels,
+                global_aoi=self.global_aoi,
+                aois_config=self.aois_config,
+                associated_raster=self.raster
+            )
+            aois_polygons, aois_gdf = aoi_engine.get_aoi_polygons()
+            # Ensure persistent ID column is preserved
+            if self.persistent_object_id_col:
                 for aoi_name, gdf_aoi in aois_polygons.items():
                     if self.persistent_object_id_col not in gdf_aoi.columns:
-                        raise ValueError(f"'{self.persistent_object_id_col}' lost after AOI processing for AOI '{aoi_name}'. Available columns: {gdf_aoi.columns.tolist()}")
-            else:
-                raise Exception(f'aois_config type unsupported: {type(self.aois_config)}')
+                        raise ValueError(
+                            f"'{self.persistent_object_id_col}' lost after AOI processing for AOI '{aoi_name}'. "
+                            f"Available columns: {gdf_aoi.columns.tolist()}"
+                        )
         else:
-            raise Exception("No AOI configuration provided.")
+            # This should not be reached if __init__ correctly sets self.aois_config
+            raise Exception(f'Internal error: aois_config type unsupported or None: {type(self.aois_config)}')    
 
         # Saving the AOIs to disk
         for aoi in aois_gdf['aoi'].unique():
@@ -178,6 +198,9 @@ class RasterPolygonTilerizer:
                 aoi_gdf.drop(columns=['id'], inplace=True, errors='ignore')
                 aoi_gdf.to_file(self.output_path / aoi_file_name, driver='GPKG')
                 print(f"Final AOI '{aoi}' saved to {self.output_path / aoi_file_name}.")
+            else:
+                print(f"Skipping save of AOI boundary for '{aoi}'"
+                      "as no polygons were assigned to it.")
 
         return aois_polygons, aois_gdf
 
@@ -236,7 +259,6 @@ class RasterPolygonTilerizer:
         tiles_paths = [self.tiles_folder_path / aoi / tile.generate_name() for tile in tiles]
         tile_saver = RasterTileSaver(n_workers=self.coco_n_workers)
         tile_saver.save_all_tiles(tiles, output_folder=self.tiles_folder_path / aoi)
-
         return tiles_paths
 
     def generate_coco_dataset(self):
