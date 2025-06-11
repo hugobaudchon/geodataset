@@ -19,7 +19,6 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -27,17 +26,14 @@ classifiers = [
     "Topic :: Scientific/Engineering :: GIS",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
     "albumentations>=1.4.0",
     "einops>=0.7.0",
     "geopandas>=0.13.2",
-    "laspy>=2.5.3",
-    "lazrs>=0.5.2",
     "matplotlib>=3.8.2",
     "numpy>=1.25.2",
     "opencv-python>=4.9.0",
-    "open3d>=0.18.0,<0.20.0",
     "pandas>=2.2.0",
     "Pillow>=10.3.0",
     "pyarrow>=15.0.1",
@@ -49,6 +45,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+pc = [
+    "laspy>=2.5.3",
+    "lazrs>=0.5.2",
+    "open3d>=0.18.0,<0.20.0",
+]
 dev = [
     "build",
     "twine",
