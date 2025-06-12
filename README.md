@@ -4,6 +4,10 @@
 
 This package provide essential tools for cutting rasters and their labels into smaller tiles, useful for machine learning tasks. Also provides datasets compatible with pytorch.
 
+### Documentation
+
+Documentation can be found here: https://hugobaudchon.github.io/geodataset/
+
 ### Installation
 
 It is strongly advised to use this library on a Linux-based system.
@@ -20,6 +24,12 @@ Then, install the library with pip:
 
 ```bash
 pip install git+https://github.com/hugobaudchon/geodataset.git
+```
+
+or for a specific version like for example v0.4.1:
+    
+```bash
+pip install git+https://github.com/hugobaudchon/geodataset.git@v0.4.1
 ```
 
 #### Additional Point Cloud support
@@ -40,10 +50,6 @@ Finally, you can install the library with point cloud support by adding the `[pc
 ```bash
 pip install git+https://github.com/hugobaudchon/geodataset.git[pc]
 ```
-
-### Documentation
-
-Documentation can be found here: https://hugobaudchon.github.io/geodataset/
 
 ## License
 
