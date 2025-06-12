@@ -492,17 +492,40 @@ def get_tiles_array(tiles: list,
     return array
 
 
-def try_cast_multipolygon_to_polygon(geometry):
+def try_cast_multipolygon_to_polygon(geometry, strategy="largest_part"):
+    """
+    Casting MultiPolygon to Polygon.
+
+    Args:
+        geometry: The input shapely geometry.
+        strategy: "largest_part" - returns the largest Polygon component.
+                  "explode" - would require different handling in the calling code
+                              to manage multiple rows per original MultiPolygon.
+                              Not implemented here for direct replacement.
+                  "single_if_one" - keep the first element.
+    Returns:
+        A Polygon or None if casting fails or strategy doesn't yield a single Polygon.
+    """
     if isinstance(geometry, Polygon):
         return geometry
     elif isinstance(geometry, MultiPolygon):
         polygons = list(geometry.geoms)
-        if len(polygons) == 1:
-            return Polygon(polygons[0])
+        if not polygons:  # Empty MultiPolygon
+            return None
+
+        if strategy == "largest_part":
+            # Find the polygon with the largest area
+            largest_polygon = max(polygons, key=lambda p: p.area)
+            return Polygon(largest_polygon)
+        elif strategy == "single_if_one":
+            if len(polygons) == 1:
+                return Polygon(polygons[0])
+            else:
+                return None # More than one part, or zero parts
         else:
+            warnings.warn(f"Unknown strategy for try_cast_multipolygon_to_polygon: {strategy}")
             return None
     else:
-        # Return None if the geometry is neither Polygon nor MultiPolygon
         return None
 
 
