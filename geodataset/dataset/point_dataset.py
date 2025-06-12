@@ -6,6 +6,7 @@ import open3d as o3d
 from geodataset.dataset.base_dataset import BaseDataset
 import pandas as pd
 
+
 class SegmentationLabeledPointCloudCocoDataset(BaseLabeledPointCloudCocoDataset):
     """
     A dataset class that loads COCO datasets and their associated tiles (point clouds). 

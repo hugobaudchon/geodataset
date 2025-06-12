@@ -15,10 +15,12 @@ from abc import ABC, abstractmethod
 
 from typing import Union
 
+
 class BaseLabels(ABC):
     @abstractmethod
     def _load_labels(self):
         pass
+
 
 class PolygonLabels(BaseLabels):
     def __init__(self,
