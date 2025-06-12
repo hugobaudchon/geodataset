@@ -27,11 +27,10 @@ jobs:
           pip install .[dev]
 
       - name: Build documentation
-        run: |
-          sphinx-build -b html docs docs/_build/html
+        run: make -C docs html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: docs/_build/html
+          publish_dir: docs/source/_build/html
