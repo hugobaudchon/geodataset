@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 from geodataset.aoi import AOIGeneratorForTiles, AOIFromPackageForTiles
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
+from geodataset.aoi.aoi_base import DEFAULT_AOI_NAME
 from geodataset.geodata import Raster, RasterTileMetadata
 from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention
 from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
@@ -44,7 +45,7 @@ class BaseRasterTilerizer(ABC):
             aoi_type='band'
         )
     aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
-        An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
+        An instance of AOIConfig to use, or None if all tiles should be kept in a DEFAULT_AOI_NAME AOI.
     ground_resolution : float, optional
         The ground resolution in meter per pixel desired when loading the raster.
         Only one of ground_resolution and scale_factor can be set at the same time.
@@ -89,8 +90,8 @@ class BaseRasterTilerizer(ABC):
         self.raster = self._load_raster()
 
         if self.aois_config is None:
-            self.aois_config = AOIGeneratorConfig(aois={'all': {'percentage': 1, 'position': 1}}, aoi_type='band')
-            print('No AOIs provided, all tiles will be kept in the "all" AOI.')
+            self.aois_config = AOIGeneratorConfig(aois={DEFAULT_AOI_NAME: {'percentage': 1, 'position': 1}}, aoi_type='band')
+            print('No AOIs provided, all tiles will be kept in the DEFAULT_AOI_NAME AOI.')
 
     def _check_parameters(self):
         assert self.raster_path.exists(), \
@@ -228,7 +229,7 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
             aoi_type='band'
         )
     aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
-        An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
+        An instance of AOIConfig to use, or None if all tiles should be kept in a DEFAULT_AOI_NAME AOI.
     ground_resolution : float
         The ground resolution in meter per pixel desired when loading the raster.
         Only one of ground_resolution and scale_factor can be set at the same time.
@@ -326,7 +327,7 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
             aoi_type='band'
         )
     aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
-        An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
+        An instance of AOIConfig to use, or None if all tiles should be kept in a DEFAULT_AOI_NAME AOI.
     ground_resolution : float
         The ground resolution in meter per pixel desired when loading the raster.
         Only one of ground_resolution and scale_factor can be set at the same time.
@@ -373,7 +374,6 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
 
         tiles = self._create_tiles()
         self._get_tiles_per_aoi(tiles=tiles)
-        self.aois_tiles['all'] = [tile for tile_list in self.aois_tiles.values() for tile in tile_list]
 
         save_aois_tiles_picture(aois_tiles=self.aois_tiles,
                                 save_path=self.output_path / AoiTilesImageConvention.create_name(
@@ -388,10 +388,6 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
 
         print("Saving tiles...")
         for aoi in self.aois_tiles:
-            if aoi == 'all' and len(self.aois_tiles.keys()) > 1:
-                # don't save the 'all' tiles if aois were provided.
-                continue
-
             # Save the tile images
             tiles_path_aoi = self.tiles_path / aoi
             tiles_path_aoi.mkdir(parents=True, exist_ok=True)
@@ -415,7 +411,7 @@ class RasterTilerizerGDF(BaseRasterTilerizer):
     tile_overlap : float
         The overlap between the tiles (0 <= overlap < 1).
     aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
-        An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
+        An instance of AOIConfig to use, or None if all tiles should be kept in an DEFAULT_AOI_NAME AOI.
     ground_resolution : float, optional
         The ground resolution in meter per pixel desired when loading the raster.
         Only one of ground_resolution and scale_factor can be set at the same time.
@@ -468,9 +464,6 @@ class RasterTilerizerGDF(BaseRasterTilerizer):
             },
             crs=None
         )
-
-        if len(aois_tiles.keys()) > 1:
-            tiles_gdf = tiles_gdf[tiles_gdf['aoi'] != 'all']
 
         return tiles_gdf
 

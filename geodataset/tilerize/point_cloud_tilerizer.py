@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 from typing import List, Union
 
@@ -9,6 +8,7 @@ from laspy import CopcReader
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 import open3d as o3d
 from shapely import box
 from shapely.geometry import Point

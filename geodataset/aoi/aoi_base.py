@@ -10,6 +10,10 @@ from .aoi_config import AOIFromPackageConfig, AOIGeneratorConfig, AOIConfig
 from geodataset.geodata import RasterTileMetadata, Raster
 from ..labels import RasterPolygonLabels
 
+
+DEFAULT_AOI_NAME = "all"
+
+
 class AOIForRasterBase(ABC):
     def __init__(self,
                  associated_raster: Raster,

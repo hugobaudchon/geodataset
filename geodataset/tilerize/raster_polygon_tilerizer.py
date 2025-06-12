@@ -7,13 +7,14 @@ from shapely import box
 from tqdm import tqdm
 
 from geodataset.aoi import AOIFromPackageConfig, AOIGeneratorConfig, AOIConfig
+from geodataset.aoi.aoi_base import DEFAULT_AOI_NAME
 from geodataset.aoi.aoi_from_package import AOIFromPackageForPolygons
 from geodataset.geodata import Raster, RasterPolygonTileMetadata
 from geodataset.geodata.raster import RasterTileSaver
 from geodataset.labels import RasterPolygonLabels
 from geodataset.utils import CocoNameConvention, COCOGenerator
 from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
-DEFAULT_AOI_NAME = "all"
+
 
 
 class RasterPolygonTilerizer:
@@ -152,7 +153,7 @@ class RasterPolygonTilerizer:
                 next(iter(self.aois_config.aois.keys())).lower() in [DEFAULT_AOI_NAME.lower(), "infer"]
             )
             if is_simple_generate_all:
-                aoi_name = next(iter(self.aois_config.aois.keys())) # Get the actual name ('all', 'infer', etc.)
+                aoi_name = next(iter(self.aois_config.aois.keys())) # Get the actual name ('train', 'infer', etc.)
                 aois_polygons = {aoi_name: polygons_for_aoi_processing}
                 raster_extent_poly = box(0, 0, self.raster.metadata['width'], self.raster.metadata['height'])
                 aois_gdf = gpd.GeoDataFrame({'geometry': [raster_extent_poly], 'aoi': [aoi_name]}, crs=None)
@@ -162,7 +163,7 @@ class RasterPolygonTilerizer:
                     "Complex AOIGeneratorConfig (defining multiple spatial splits not named 'all'/'infer') "
                     "is not directly supported for RasterPolygonTilerizer when the goal is to tile existing polygons. "
                     "Use AOIFromPackageConfig to assign polygons to predefined vector AOIs, "
-                    "or ensure AOIGeneratorConfig defines a single AOI named 'all' or 'infer'."
+                    "or ensure AOIGeneratorConfig defines a single AOI named 'all'/'infer'/something of your choosing."
                 )
         elif isinstance(self.aois_config, AOIFromPackageConfig):
             aoi_engine = AOIFromPackageForPolygons(
@@ -266,10 +267,6 @@ class RasterPolygonTilerizer:
         coco_paths = {}
 
         for aoi in aois_tiles_paths:
-            if aoi == 'all' and len(aois_tiles_paths.keys()) > 1:
-                # don't save the 'all' tiles if aois were provided.
-                continue
-
             tiles_paths = aois_tiles_paths[aoi]
             polygons_gdfs = aois_polygons[aoi]
 

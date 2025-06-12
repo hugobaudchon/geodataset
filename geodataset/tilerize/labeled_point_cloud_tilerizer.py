@@ -200,10 +200,6 @@ class LabeledPointCloudTilerizer(PointCloudTilerizer):
         
         # Process each AOI
         for aoi in self.aoi_labels:
-            if aoi == "all" and len(self.aoi_labels.keys()) > 1:
-                # Skip 'all' if we have specific AOIs
-                continue
-
             labels = self.aoi_labels[aoi]
             if len(labels) == 0:
                 print(f"No labels found for AOI {aoi}. Skipping COCO generation.")
