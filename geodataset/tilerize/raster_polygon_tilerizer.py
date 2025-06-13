@@ -16,8 +16,129 @@ from geodataset.utils import CocoNameConvention, COCOGenerator
 from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
 
 
-
 class RasterPolygonTilerizer:
+    """
+    This class is designed to create individual image tiles for each polygon in a GeoPackages/GeoJson/GeoDataFrame associated with a raster.
+
+    Parameters
+    ----------
+    raster_path : str or pathlib.Path
+        Path to the raster (.tif, .png...).
+    labels_path : str or pathlib.Path or None
+        Path to the labels. Supported formats are: .gpkg, .geojson, .shp, .xml, .csv.
+    output_path : str or pathlib.Path
+        Path to parent folder where to save the image tiles and associated labels.
+    tile_size : int
+        If use_variable_tile_size is set to True, then this parameter defines the maximum size of the tiles in pixels (tile_size, tile_size).
+        If use_variable_tile_size is set to False, all polygon tiles will have the same size (tile_size, tile_size).
+    use_variable_tile_size: bool
+        Whether to use variable tile size. If True, the tile size will match the size of the polygon,
+         with a buffer defined by variable_tile_size_pixel_buffer.
+    variable_tile_size_pixel_buffer: int or None
+        If use_variable_tile_size is True, this parameter defines the pixel buffer to add around the polygon when creating the tile.
+    labels_gdf: geopandas.GeoDataFrame, optional
+        A GeoDataFrame containing the labels. If provided, labels_path must be None.
+    global_aoi : str or pathlib.Path or geopandas.GeoDataFrame, optional
+        Path to the global AOI file, or directly a GeoDataFrame.
+        If provided, only the tiles intersecting this AOI will be kept, even if some tiles are inside one of the aois
+        in aois_config (if AOIFromPackageConfig).
+
+        This parameter can be really useful to create a kfold dataset in association with an AOIGeneratorConfig config like this:
+
+        aois_config = AOIGeneratorConfig(aois={
+                'zone1': {'percentage': 0.2, 'position': 1, 'actual_name': f'train{kfold_id}'},
+                'zone2': {'percentage': 0.2, 'position': 2, 'actual_name': f'train{kfold_id}'},
+                'zone3': {'percentage': 0.2, 'position': 3, 'actual_name': f'valid{kfold_id}'},
+                'zone4': {'percentage': 0.2, 'position': 4, 'actual_name': f'train{kfold_id}'},
+                'zone5': {'percentage': 0.2, 'position': 5, 'actual_name': f'train{kfold_id}'}
+            },
+            aoi_type='band'
+        )
+    aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
+        An instance of AOIConfig to use, or None if all tiles should be kept in a DEFAULT_AOI_NAME AOI.
+    ground_resolution : float, optional
+        The ground resolution in meter per pixel desired when loading the raster.
+        Only one of ground_resolution and scale_factor can be set at the same time.
+    scale_factor : float, optional
+        Scale factor for rescaling the data (change pixel resolution).
+        Only one of ground_resolution and scale_factor can be set at the same time.
+    output_name_suffix : str, optional
+        Suffix to add to the output file names.
+    use_rle_for_labels : bool, optional
+        Whether to use RLE encoding for the labels. If False, the labels will be saved as polygons.
+    min_intersection_ratio : float, optional
+        When finding the associated polygon labels to a tile, this ratio will specify the minimal required intersection
+        ratio (intersecting_polygon_area / polygon_area) between a candidate polygon and the tile in order to keep this
+        polygon as a label for that tile.
+    geopackage_layer_name : str, optional
+        The name of the layer in the geopackage file to use as labels. Only used if the labels_path is a .gpkg, .geojson
+        or .shp file. Only useful when the labels geopackage file contains multiple layers.
+    main_label_category_column_name : str, optional
+        The name of the column in the labels file that contains the main category of the labels.
+    other_labels_attributes_column_names : list of str, optional
+        The names of the columns in the labels file that contains other attributes of the labels, which should be kept
+        as a dictionary in the COCO annotations data.
+    persistent_object_id_col : str, optional
+        The name of the column in the labels file that contains a unique identifier for each polygon. If not provided,
+        a new column with a default name will be created and filled with the labels GeoDataFrame index if it is unique,
+        or with a new integer index if it is not unique.
+    coco_n_workers : int, optional
+        Number of workers to use when generating the COCO dataset.
+        Useful when use_rle_for_labels=True as it is quite slow.
+    coco_categories_list : list of dict, optional
+        A list of category dictionaries in COCO format.
+
+        If provided, category ids for the annotations in the final COCO file
+        will be determined by matching the category name (defined by 'main_label_category_column_name' parameter) of
+        each polygon with the categories names in coco_categories_list.
+
+        If a polygon has a category that is not in this list, its category_id will be set to None in its COCO annotation.
+
+        If 'main_label_category_column_name' is not provided, but 'coco_categories_list' is a single
+        coco category dictionary, then it will be used for all annotations automatically.
+
+        If 'coco_categories_list' is None, the categories ids will be automatically generated from the
+        unique categories found in the 'main_label_category_column_name' column.
+
+        .. raw:: html
+
+            <br>
+
+        To assign a category_id to a polygon, the code will check the 'name' and 'other_names' fields of the categories.
+
+        .. raw:: html
+
+            <br>
+
+        **IMPORTANT**: It is strongly advised to provide this list if you want to have consistent category ids across
+        multiple COCO datasets.
+
+        .. raw:: html
+
+            <br>
+
+        Exemple of 2 categories, one being the parent of the other::
+
+            [{
+                "id": 1,
+                "name": "Pinaceae",
+                "other_names": [],
+                "supercategory": null
+            },
+            {
+                "id": 2,
+                "name": "Picea",
+                "other_names": ["PIGL", "PIMA", "PIRU"],
+                "supercategory": 1
+            }]
+    tile_batch_size : int, optional
+        The number of polygon tiles to process in a single batch when saving them to disk.
+    temp_dir : str or pathlib.Path
+        Temporary directory to store the resampled Raster, if it is too big to fit in memory.
+    """
+
+    DEFAULT_PERSISTENT_OBJECT_ID_COL = 'persistent_object_id'
+
     def __init__(self,
                  raster_path: str or Path,
                  labels_path: str or Path or None,
@@ -48,6 +169,9 @@ class RasterPolygonTilerizer:
         self.use_variable_tile_size = use_variable_tile_size
         self.variable_tile_size_pixel_buffer = variable_tile_size_pixel_buffer
         self.global_aoi = global_aoi
+        self.aois_config = aois_config
+        self.scale_factor = scale_factor
+        self.ground_resolution = ground_resolution
         self.output_name_suffix = output_name_suffix
         self.use_rle_for_labels = use_rle_for_labels
         self.min_intersection_ratio = min_intersection_ratio
@@ -56,19 +180,8 @@ class RasterPolygonTilerizer:
         self.tile_batch_size = tile_batch_size
         self.temp_dir = Path(temp_dir)
 
-        # Store the persistent object ID column name
-        if labels_gdf is not None and persistent_object_id_col is None:
-            raise ValueError("If 'labels_gdf' is provided,"
-                             "'persistent_object_id_col' must also be specified.")
-        self.persistent_object_id_col = persistent_object_id_col
-
-        assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
-                                                          " Please only specify one.")
-        if use_variable_tile_size:
-            assert variable_tile_size_pixel_buffer, "A variable_tile_size_pixel_buffer must be provided if use_variable_tile_size is True."
-
-        self.scale_factor = scale_factor
-        self.ground_resolution = ground_resolution
+        self._check_parameters()
+        self._check_aois_config()
 
         self.raster = self._load_raster()
         self.labels = self._load_labels(
@@ -78,21 +191,54 @@ class RasterPolygonTilerizer:
             other_labels_attributes_column_names=other_labels_attributes_column_names
         )
 
+        self.persistent_object_id_col = self._setup_persistent_object_id_col(persistent_object_id_col)
+
         self.output_path = Path(output_path) / self.raster.output_name
         self.tiles_folder_path = self.output_path / 'tiles'
         self.tiles_folder_path.mkdir(parents=True, exist_ok=True)
 
-        # Default AOI config logic, similar to BaseRasterTilerizer
-        if aois_config is None:
+    def _check_parameters(self):
+        assert self.raster_path.exists(), \
+            f"Raster file not found at {self.raster_path}."
+        assert isinstance(self.tile_size, int) and self.tile_size > 0, \
+            "The tile size must be and integer greater than 0."
+        assert not (self.ground_resolution and self.scale_factor), \
+            "Both a ground_resolution and a scale_factor were provided. Please only specify one."
+        if self.use_variable_tile_size:
+            assert self.variable_tile_size_pixel_buffer, "A variable_tile_size_pixel_buffer must be provided if use_variable_tile_size is True."
+
+    def _check_aois_config(self):
+        if self.aois_config is None:
             print("RasterPolygonTilerizer: No AOIs configuration provided."
                   f"Defaulting to a single '{DEFAULT_AOI_NAME}' AOI for all polygons.")
             self.aois_config = AOIGeneratorConfig(aois={DEFAULT_AOI_NAME: {'percentage': 1.0, 'position': 1}}, aoi_type='band')
-        elif isinstance(aois_config, AOIGeneratorConfig) and not aois_config.aois: # Empty AOIGeneratorConfig
+        elif isinstance(self.aois_config, AOIGeneratorConfig) and not self.aois_config.aois: # Empty AOIGeneratorConfig
             print("RasterPolygonTilerizer: Empty AOIGeneratorConfig.aois."
                   f"Defaulting to a single '{DEFAULT_AOI_NAME}' AOI.")
             self.aois_config = AOIGeneratorConfig(aois={DEFAULT_AOI_NAME: {'percentage': 1.0, 'position': 1}}, aoi_type='band')
         else:
-            self.aois_config = aois_config
+            self.aois_config = self.aois_config
+
+    def _setup_persistent_object_id_col(self, persistent_object_id_col: Optional[str]):
+        if persistent_object_id_col is None:
+            persistent_object_id_col = self.DEFAULT_PERSISTENT_OBJECT_ID_COL
+            print(f"No persistent_object_id_col provided. Generating a new column with default name '{persistent_object_id_col}'.")
+            # check if gdf index is integers with unique ids
+            if self.labels.geometries_gdf.index.is_unique:
+                print(f"Using index of labels_gdf '{persistent_object_id_col}'.")
+                # Assign the existing index values to the new column
+                self.labels.geometries_gdf[persistent_object_id_col] = self.labels.geometries_gdf.index
+            else:
+                print(f"Using a new integer index for '{persistent_object_id_col}'.")
+                # Create a fresh integer ID for each row
+                self.labels.geometries_gdf[persistent_object_id_col] = list(range(len(self.labels.geometries_gdf)))
+        else:
+            assert persistent_object_id_col in self.labels.geometries_gdf, \
+                f"The specified persistent_object_id_col '{persistent_object_id_col}' is not in the labels_gdf."
+            assert self.labels.geometries_gdf[persistent_object_id_col].is_unique, \
+                f"The specified persistent_object_id_col '{persistent_object_id_col}' must contain unique values."
+
+        return persistent_object_id_col
 
     def _load_raster(self):
         raster = Raster(path=self.raster_path,
@@ -146,7 +292,6 @@ class RasterPolygonTilerizer:
         if self.persistent_object_id_col not in polygons_for_aoi_processing.columns:
             raise ValueError(f"'{self.persistent_object_id_col}' not found in self.labels.geometries_gdf.")
 
-
         if isinstance(self.aois_config, AOIGeneratorConfig):
             is_simple_generate_all = (
                 len(self.aois_config.aois) == 1 and
@@ -156,7 +301,10 @@ class RasterPolygonTilerizer:
                 aoi_name = next(iter(self.aois_config.aois.keys())) # Get the actual name ('train', 'infer', etc.)
                 aois_polygons = {aoi_name: polygons_for_aoi_processing}
                 raster_extent_poly = box(0, 0, self.raster.metadata['width'], self.raster.metadata['height'])
-                aois_gdf = gpd.GeoDataFrame({'geometry': [raster_extent_poly], 'aoi': [aoi_name]}, crs=None)
+                aois_gdf = gpd.GeoDataFrame(
+                    {'geometry': [raster_extent_poly], 'aoi': [aoi_name]},
+                    crs=self.raster.metadata['crs']
+                )
             else:
                 # This case remains for truly complex AOIGeneratorConfigs not meant for polygon tiling
                 raise NotImplementedError(

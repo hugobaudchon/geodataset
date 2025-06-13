@@ -65,7 +65,7 @@ class RasterPolygonLabels:
 
         self.geometries_gdf = self._load_labels()
 
-    def _load_labels(self):
+    def _load_labels(self) -> gpd.GeoDataFrame:
         # Loading the labels into a GeoDataFrame
         if self.labels_gdf is not None:
             labels_gdf = self.labels_gdf

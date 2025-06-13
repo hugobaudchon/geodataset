@@ -86,12 +86,9 @@ class BaseRasterTilerizer(ABC):
         self.ground_resolution = ground_resolution
 
         self._check_parameters()
+        self._check_aois_config()
 
         self.raster = self._load_raster()
-
-        if self.aois_config is None:
-            self.aois_config = AOIGeneratorConfig(aois={DEFAULT_AOI_NAME: {'percentage': 1, 'position': 1}}, aoi_type='band')
-            print('No AOIs provided, all tiles will be kept in the DEFAULT_AOI_NAME AOI.')
 
     def _check_parameters(self):
         assert self.raster_path.exists(), \
@@ -102,6 +99,11 @@ class BaseRasterTilerizer(ABC):
             "The tile overlap must be between 0 and 1."
         assert not (self.ground_resolution and self.scale_factor), \
             "Both a ground_resolution and a scale_factor were provided. Please only specify one."
+
+    def _check_aois_config(self):
+        if self.aois_config is None:
+            self.aois_config = AOIGeneratorConfig(aois={DEFAULT_AOI_NAME: {'percentage': 1, 'position': 1}}, aoi_type='band')
+            print('No AOIs provided, all tiles will be kept in the DEFAULT_AOI_NAME AOI.')
 
     def _load_raster(self):
         raster = Raster(path=self.raster_path,

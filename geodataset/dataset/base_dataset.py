@@ -231,10 +231,10 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
                 other_attributes[attribute_name] = []
         for annotation in self.tiles[tile_id]['labels']:
             for attribute_name in self.other_attributes_names_to_pass:
-                if 'other_attributes' in annotation and attribute_name in annotation['other_attributes']:
-                    other_attributes[attribute_name].append(annotation['other_attributes'][attribute_name])
-                elif attribute_name in annotation:
+                if attribute_name in annotation:
                     other_attributes[attribute_name].append(annotation[attribute_name])
+                elif 'other_attributes' in annotation and attribute_name in annotation['other_attributes']:
+                    other_attributes[attribute_name].append(annotation['other_attributes'][attribute_name])
                 else:
                     other_attributes[attribute_name].append(None)
         return other_attributes
