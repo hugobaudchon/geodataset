@@ -77,11 +77,6 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         self._remove_tiles_not_found()
         self._filter_tiles_without_box()
 
-        # DEBUG HERE \/
-        # sub_keys = list(self.tiles.keys())[:100]
-        # self.tiles = {k: self.tiles[k] for k in sub_keys}
-        # DEBUG HERE /\
-
         if len(self.cocos_detected) == 0:
             raise Exception(f"No COCO datasets for fold '{self.fold}' were found in the specified root folder.")
         elif len(self.cocos_detected) > 0 and len(self.tiles) == 0:
@@ -164,7 +159,7 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
 
     def _find_tiles_paths(self, directories: List[Path]):
         """
-        Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
+        Finds the images associated to COCO json files by traversing the directory tree.
         """
         for directory in directories:
             tiles_names_to_paths = find_tiles_paths([directory], extensions=self.SUPPORTED_IMG_EXTENSIONS)

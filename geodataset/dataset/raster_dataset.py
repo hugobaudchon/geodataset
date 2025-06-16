@@ -515,13 +515,13 @@ class UnlabeledRasterDataset(BaseDataset):
                     if fold_directory.exists():
                         for path in fold_directory.iterdir():
                             # Iterate within the corresponding split folder
-                            if path.suffix in self.SUPPORTED_IMG_EXTENSIONS:
+                            if path.suffix[1:] in self.SUPPORTED_IMG_EXTENSIONS:
                                 self.tile_paths.append(path)
             else:
                 # If no fold is specified, load all tiles
                 for path in directory.iterdir():
                     # Iterate within the corresponding split folder
-                    if path.suffix in self.SUPPORTED_IMG_EXTENSIONS:
+                    if path.suffix[1:] in self.SUPPORTED_IMG_EXTENSIONS:
                         self.tile_paths.append(path)
 
             if directory.is_dir():
