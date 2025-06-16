@@ -499,7 +499,7 @@ class UnlabeledRasterDataset(BaseDataset):
         self._find_tiles_paths(directories=self.root_path)
 
         print(f"Found {len(self.tile_paths)} tiles for fold "
-              "{self.fold if self.fold else 'all'}.")
+              f"{self.fold if self.fold else 'all'}.")
 
     def _find_tiles_paths(self, directories: List[Path]):
         """
@@ -515,13 +515,13 @@ class UnlabeledRasterDataset(BaseDataset):
                     if fold_directory.exists():
                         for path in fold_directory.iterdir():
                             # Iterate within the corresponding split folder
-                            if path.suffix == ".tif":
+                            if path.suffix in self.SUPPORTED_IMG_EXTENSIONS:
                                 self.tile_paths.append(path)
             else:
                 # If no fold is specified, load all tiles
                 for path in directory.iterdir():
                     # Iterate within the corresponding split folder
-                    if path.suffix == ".tif":
+                    if path.suffix in self.SUPPORTED_IMG_EXTENSIONS:
                         self.tile_paths.append(path)
 
             if directory.is_dir():

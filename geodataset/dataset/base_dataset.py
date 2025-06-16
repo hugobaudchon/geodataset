@@ -14,6 +14,9 @@ class BaseDataset(ABC):
     Abstract class for a dataset. Requires the implementation of methods needed for use with PyTorch's DataLoader:
     __getitem__, __len__ and __iter__.
     """
+
+    SUPPORTED_IMG_EXTENSIONS = ['tif', 'png', 'jpg', 'jpeg']
+
     @abstractmethod
     def __getitem__(self, idx: int):
         pass
@@ -164,7 +167,7 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
         """
         for directory in directories:
-            tiles_names_to_paths = find_tiles_paths([directory], extensions=['tif', 'png', 'jpg', 'jpeg'])
+            tiles_names_to_paths = find_tiles_paths([directory], extensions=self.SUPPORTED_IMG_EXTENSIONS)
 
             for tile_name, tile_path in tiles_names_to_paths.items():
                 if tile_name in self.tiles_path_to_id_mapping:
