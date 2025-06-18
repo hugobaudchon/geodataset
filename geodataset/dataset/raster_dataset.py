@@ -8,7 +8,6 @@ from shapely import box
 
 from geodataset.dataset.base_dataset import BaseDataset, BaseLabeledRasterCocoDataset
 from geodataset.utils import decode_coco_segmentation
-from geodataset.utils.file_name_conventions import PolygonTileNameConvention
 
 
 class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
@@ -483,13 +482,11 @@ class UnlabeledRasterDataset(BaseDataset):
     def __init__(self,
                  root_path: str or List[str] or Path or List[Path],
                  transform: albumentations.core.composition.Compose = None,
-                 fold: str = None,
-                 include_polygon_id: bool = False):
+                 fold: str = None):
         self.fold = fold
         self.root_path = root_path
         self.transform = transform
         self.tile_paths = []
-        self.include_polygon_id = include_polygon_id  # Used for polygon-based datasets
 
         if isinstance(self.root_path, (str, Path)):
             self.root_path = [self.root_path]
@@ -559,20 +556,7 @@ class UnlabeledRasterDataset(BaseDataset):
 
         transformed_image = transformed_image / 255  # normalizing
 
-        if self.include_polygon_id:
-            try:
-                # Using PolygonTileNameConvention to parse tile names
-                # parse_name returns: product_name, scale_factor, ground_resolution, polygon_id, aoi
-                _, _, _, polygon_id, _ = PolygonTileNameConvention.parse_name(tile_path.name)
-                # Ensure polygon_id is of a consistent type, e.g., int
-                polygon_id = int(polygon_id)
-            except Exception as e:
-                print(f"Warning: Could not parse polygon_id from filename {tile_path.name}: {e}."
-                      "Returning None for polygon_id.")
-                polygon_id = None
-            return transformed_image, polygon_id
-        else:
-            return transformed_image
+        return transformed_image
 
     def __len__(self):
         """

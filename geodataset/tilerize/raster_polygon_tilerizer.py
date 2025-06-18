@@ -9,7 +9,7 @@ from tqdm import tqdm
 from geodataset.aoi import AOIFromPackageConfig, AOIGeneratorConfig, AOIConfig
 from geodataset.aoi.aoi_base import DEFAULT_AOI_NAME
 from geodataset.aoi.aoi_from_package import AOIFromPackageForPolygons
-from geodataset.geodata import Raster, RasterPolygonTileMetadata
+from geodataset.geodata import Raster, RasterTileMetadata
 from geodataset.geodata.raster import RasterTileSaver
 from geodataset.labels import RasterPolygonLabels
 from geodataset.utils import CocoNameConvention, COCOGenerator
@@ -78,10 +78,6 @@ class RasterPolygonTilerizer:
     other_labels_attributes_column_names : list of str, optional
         The names of the columns in the labels file that contains other attributes of the labels, which should be kept
         as a dictionary in the COCO annotations data.
-    persistent_object_id_col : str, optional
-        The name of the column in the labels file that contains a unique identifier for each polygon. If not provided,
-        a new column with a default name will be created and filled with the labels GeoDataFrame index if it is unique,
-        or with a new integer index if it is not unique.
     coco_n_workers : int, optional
         Number of workers to use when generating the COCO dataset.
         Useful when use_rle_for_labels=True as it is quite slow.
@@ -137,7 +133,7 @@ class RasterPolygonTilerizer:
         Temporary directory to store the resampled Raster, if it is too big to fit in memory.
     """
 
-    DEFAULT_PERSISTENT_OBJECT_ID_COL = 'persistent_object_id'
+    unique_polygon_id_column_name = 'polygon_id_geodataset'
 
     def __init__(self,
                  raster_path: str or Path,
@@ -157,7 +153,6 @@ class RasterPolygonTilerizer:
                  geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None,
-                 persistent_object_id_col: Optional[str] = None,
                  coco_n_workers: int = 5,
                  coco_categories_list: list[dict] = None,
                  tile_batch_size: int = 1000,
@@ -191,7 +186,7 @@ class RasterPolygonTilerizer:
             other_labels_attributes_column_names=other_labels_attributes_column_names
         )
 
-        self.persistent_object_id_col = self._setup_persistent_object_id_col(persistent_object_id_col)
+        self.labels.geometries_gdf[self.unique_polygon_id_column_name] = range(1, len(self.labels.geometries_gdf) + 1)
 
         self.output_path = Path(output_path) / self.raster.output_name
         self.tiles_folder_path = self.output_path / 'tiles'
@@ -219,27 +214,6 @@ class RasterPolygonTilerizer:
         else:
             self.aois_config = self.aois_config
 
-    def _setup_persistent_object_id_col(self, persistent_object_id_col: Optional[str]):
-        if persistent_object_id_col is None:
-            persistent_object_id_col = self.DEFAULT_PERSISTENT_OBJECT_ID_COL
-            print(f"No persistent_object_id_col provided. Generating a new column with default name '{persistent_object_id_col}'.")
-            # check if gdf index is integers with unique ids
-            if self.labels.geometries_gdf.index.is_unique:
-                print(f"Using index of labels_gdf '{persistent_object_id_col}'.")
-                # Assign the existing index values to the new column
-                self.labels.geometries_gdf[persistent_object_id_col] = self.labels.geometries_gdf.index
-            else:
-                print(f"Using a new integer index for '{persistent_object_id_col}'.")
-                # Create a fresh integer ID for each row
-                self.labels.geometries_gdf[persistent_object_id_col] = list(range(len(self.labels.geometries_gdf)))
-        else:
-            assert persistent_object_id_col in self.labels.geometries_gdf, \
-                f"The specified persistent_object_id_col '{persistent_object_id_col}' is not in the labels_gdf."
-            assert self.labels.geometries_gdf[persistent_object_id_col].is_unique, \
-                f"The specified persistent_object_id_col '{persistent_object_id_col}' must contain unique values."
-
-        return persistent_object_id_col
-
     def _load_raster(self):
         raster = Raster(path=self.raster_path,
                         output_name_suffix=self.output_name_suffix,
@@ -264,17 +238,7 @@ class RasterPolygonTilerizer:
                 main_label_category_column_name=main_label_category_column_name,
                 other_labels_attributes_column_names=other_labels_attributes_column_names
             )
-            if self.persistent_object_id_col not in labels.geometries_gdf.columns:
-                raise ValueError(
-                    f"Critical: The persistent ID column '{self.persistent_object_id_col}' "
-                    f"is missing from the GDF loaded from labels_path: {self.labels_path}."
-                )
         elif labels_gdf is not None:
-            if self.persistent_object_id_col not in labels_gdf.columns:
-                raise ValueError(
-                    f"Critical: The persistent ID column '{self.persistent_object_id_col}' "
-                    f"is missing from the input labels_gdf. Available columns: {labels_gdf.columns.tolist()}"
-                )
             labels = RasterPolygonLabels(
                 path=None,
                 labels_gdf=labels_gdf,
@@ -289,8 +253,6 @@ class RasterPolygonTilerizer:
 
     def _generate_aois_polygons(self):
         polygons_for_aoi_processing = self.labels.geometries_gdf.copy()
-        if self.persistent_object_id_col not in polygons_for_aoi_processing.columns:
-            raise ValueError(f"'{self.persistent_object_id_col}' not found in self.labels.geometries_gdf.")
 
         if isinstance(self.aois_config, AOIGeneratorConfig):
             is_simple_generate_all = (
@@ -321,14 +283,6 @@ class RasterPolygonTilerizer:
                 associated_raster=self.raster
             )
             aois_polygons, aois_gdf = aoi_engine.get_aoi_polygons()
-            # Ensure persistent ID column is preserved
-            if self.persistent_object_id_col:
-                for aoi_name, gdf_aoi in aois_polygons.items():
-                    if self.persistent_object_id_col not in gdf_aoi.columns:
-                        raise ValueError(
-                            f"'{self.persistent_object_id_col}' lost after AOI processing for AOI '{aoi_name}'. "
-                            f"Available columns: {gdf_aoi.columns.tolist()}"
-                        )
         else:
             # This should not be reached if __init__ correctly sets self.aois_config
             raise Exception(f'Internal error: aois_config type unsupported or None: {type(self.aois_config)}')    
@@ -361,22 +315,16 @@ class RasterPolygonTilerizer:
         tiles_batch = []
 
         for aoi, polygons in aois_polygons.items():
-            if self.persistent_object_id_col not in polygons.columns:
-                raise ValueError(
-                    f"The ID column '{self.persistent_object_id_col}' is missing from the polygons GeoDataFrame "
-                    f"for AOI '{aoi}' before tiling. Available columns: {polygons.columns.tolist()}"
-                )
-
             for _, polygon_row in tqdm(polygons.iterrows(),
                                        f"Generating polygon tiles for AOI {aoi}...",
                                        total=len(polygons)):
 
                 polygon = polygon_row['geometry']
-                current_persistent_id = polygon_row[self.persistent_object_id_col]
+                polygon_id = polygon_row[self.unique_polygon_id_column_name]
 
                 polygon_tile, translated_polygon = self.raster.get_polygon_tile(
                     polygon=polygon,
-                    polygon_id=current_persistent_id,
+                    polygon_id=polygon_id,
                     polygon_aoi=aoi,
                     tile_size=self.tile_size,
                     use_variable_tile_size=self.use_variable_tile_size,
@@ -403,11 +351,15 @@ class RasterPolygonTilerizer:
 
         return final_aois_tiles_paths, final_aois_polygons
 
-    def _save_tiles_batch(self, tiles: List[RasterPolygonTileMetadata], aoi: str):
+    def _save_tiles_batch(self, tiles: List[RasterTileMetadata], aoi: str):
         (self.tiles_folder_path / aoi).mkdir(parents=True, exist_ok=True)
         tiles_paths = [self.tiles_folder_path / aoi / tile.generate_name() for tile in tiles]
         tile_saver = RasterTileSaver(n_workers=self.coco_n_workers)
-        tile_saver.save_all_tiles(tiles, output_folder=self.tiles_folder_path / aoi)
+        tile_saver.save_all_tiles(
+            tiles,
+            output_folder=self.tiles_folder_path / aoi,
+            apply_mask=False,  # We don't apply mask for polygon tiles and let user handle it if needed when loading it for training/inference
+        )
         return tiles_paths
 
     def generate_coco_dataset(self):

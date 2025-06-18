@@ -770,7 +770,10 @@ def save_aois_tiles_picture(aois_tiles: dict[str, list], save_path: Path, tile_c
     """
 
     # Copy the original array to avoid altering it
-    display_array = get_tiles_array(tiles=aois_tiles['all'], tile_coordinate_step=tile_coordinate_step)
+    display_array = get_tiles_array(
+        tiles=[tile for aoi_tiles in aois_tiles.values() for tile in aoi_tiles],
+        tile_coordinate_step=tile_coordinate_step
+    )
 
     # Colors - generate dynamically based on the number of AOIs
     colors = plt.cm.tab10(np.linspace(0, 1, len(aois_tiles)))

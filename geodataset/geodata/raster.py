@@ -1,4 +1,5 @@
 import concurrent
+import threading
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -14,7 +15,10 @@ from shapely.affinity import translate
 from shapely.geometry import Polygon
 
 from geodataset.utils import read_raster, apply_affine_transform, validate_and_convert_product_name, \
-    strip_all_extensions_and_path, TileNameConvention, PolygonTileNameConvention
+    strip_all_extensions_and_path, TileNameConvention
+
+
+_thread_ds = threading.local()
 
 
 class Raster:
@@ -260,16 +264,15 @@ class Raster:
             'transform': window_transform
         }
 
-        polygon_tile = RasterPolygonTileMetadata(
+        polygon_tile = RasterTileMetadata(
             associated_raster=self,
             mask=binary_mask,
             metadata=tile_metadata,
-            output_name=self.output_name,
             ground_resolution=self.ground_resolution,
             scale_factor=self.scale_factor,
             row=window.row_off,
             col=window.col_off,
-            polygon_id=polygon_id,
+            tile_id=polygon_id,
             aoi=polygon_aoi
         )
 
@@ -426,9 +429,30 @@ class RasterTileMetadata:
         if mask is not None:
             self.update_mask(mask)
 
-    def get_pixel_data(self):
+    def get_pixel_data(self, apply_mask: bool = True):
+        """
+        Get the pixel data of the tile.
+
+        Parameters
+        ----------
+        apply_mask: bool
+            Whether to apply the mask to the tile data. Default is True.
+
+        Returns
+        -------
+        np.ndarray
+        """
         window = Window(self.col, self.row, self.metadata['width'], self.metadata['height'])
-        tile_data = self.associated_raster.data.read(window=window)
+
+        # Using a thread-local storage to avoid opening the raster file multiple times in parallel threads
+        if not hasattr(_thread_ds, "ds"):
+            ds_name = self.associated_raster.data.name
+            _thread_ds.ds = rasterio.open(ds_name)
+        ds = _thread_ds.ds
+
+        tile_data = ds.read(window=window)
+
+        # tile_data = self.associated_raster.data.read(window=window)
             
         pad_row = self.metadata['height'] - tile_data.shape[1]
         pad_col = self.metadata['width'] - tile_data.shape[2]
@@ -440,7 +464,7 @@ class RasterTileMetadata:
             padding = ((0, 0), (0, pad_row), (0, pad_col))
             tile_data = np.pad(tile_data, padding, mode='constant', constant_values=0)
 
-        if self.mask is not None:
+        if self.mask is not None and apply_mask:
             tile_data = tile_data * self.mask
 
         return tile_data
@@ -477,7 +501,9 @@ class RasterTileMetadata:
 
         return data, metadata, product_name, ground_resolution, scale_factor, row, col, aoi
 
-    def save(self, output_folder: str or Path):
+    def save(self,
+             output_folder: str or Path,
+             apply_mask: bool = True):
         """
         Save the tile as a .tif file in the output_folder.
 
@@ -485,6 +511,8 @@ class RasterTileMetadata:
         ----------
         output_folder: str or pathlib.Path
             The path to the output folder where the tile should be saved.
+        apply_mask: bool
+            Whether to apply the mask to the tile data before saving it. Default is True.
         """
 
         output_folder = Path(output_folder)
@@ -500,7 +528,7 @@ class RasterTileMetadata:
                 # predictor=2,  # For integer data; use predictor=3 for floating point if needed
                 # tiled=True  # Enables tiling, which can improve compression efficiency
         ) as tile_raster:
-            tile_raster.write(self.get_pixel_data())
+            tile_raster.write(self.get_pixel_data(apply_mask=apply_mask))
 
             # Make sure to also copy the colorinterp from the parent raster
             parent_ci = self.associated_raster.data.colorinterp
@@ -515,13 +543,17 @@ class RasterTileMetadata:
         str
             The name of the tile.
         """
-        return TileNameConvention.create_name(product_name=self.associated_raster.output_name,
-                                              ground_resolution=self.ground_resolution,
-                                              scale_factor=self.scale_factor,
-                                              row=self.row,
-                                              col=self.col,
-                                              aoi=self.aoi,
-                                              tile_size=self.metadata['height'])
+        return TileNameConvention.create_name(
+            product_name=self.associated_raster.output_name,
+            ground_resolution=self.ground_resolution,
+            scale_factor=self.scale_factor,
+            row=self.row,
+            col=self.col,
+            aoi=self.aoi,
+            width=self.metadata['width'],
+            height=self.metadata['height'],
+            tile_id=self.tile_id
+        )
 
     def get_bbox(self):
         """
@@ -555,153 +587,16 @@ class RasterTileMetadata:
             The new tile with the new AOI.
         """
 
-        return RasterTileMetadata(associated_raster=self.associated_raster,
-                                  mask=self.mask,
-                                  metadata=self.metadata,
-                                  ground_resolution=self.ground_resolution,
-                                  scale_factor=self.scale_factor,
-                                  row=self.row,
-                                  col=self.col,
-                                  aoi=new_aoi,
-                                  tile_id=new_id)
-
-
-class RasterPolygonTileMetadata:
-    """
-    Class to represent a single polygon label tile of a raster image. Generally generated by a :class:`~geodataset.geodata.raster.Raster`.
-
-    Parameters
-    ----------
-    associated_raster: Raster
-        The Raster object associated with the tile.
-    mask: np.ndarray or None
-        A binary mask to apply to the tile. If None, no mask will be applied.
-    metadata: dict
-        The metadata of the raster image. Should be compatible with rasterio.open(...) function.
-        Examples of such metadata keys are 'crs', 'transform', 'width', 'height'...
-    output_name: str
-        The name of the output product. Usually the same as the Raster name.
-        Used as the prefix for the final .tif file name when saving the tile.
-    ground_resolution : float, optional
-        The ground resolution in meter per pixel desired when loading the raster.
-        Only one of ground_resolution and scale_factor can be set at the same time.
-        Used for naming the .tif file when saving the tile.
-    scale_factor : float, optional
-        Scale factor for rescaling the data (change pixel resolution).
-        Only one of ground_resolution and scale_factor can be set at the same time.
-        Used for naming the .tif file when saving the tile.
-    row: int
-        The row index of the tile in the raster (the top left pixel row).
-        Used for naming the .tif file when saving the tile.
-    col: int
-        The column index of the tile in the raster (the top left pixel row).
-        Used for naming the .tif file when saving the tile.
-    polygon_id: int
-        The unique identifier of the polygon.
-    """
-    def __init__(self,
-                 associated_raster: Raster,
-                 mask: np.ndarray or None,
-                 metadata: dict,
-                 output_name: str,
-                 ground_resolution: float,
-                 scale_factor: float,
-                 row: int,
-                 col: int,
-                 aoi: str = None,
-                 polygon_id: int = None):
-
-        self.associated_raster = associated_raster
-        self.mask = mask
-        self.metadata = metadata
-        self.output_name = output_name
-        self.row = row
-        self.col = col
-        self.aoi = aoi
-        self.polygon_id = polygon_id
-
-        assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
-                                                          " Please only specify one.")
-        self.scale_factor = scale_factor
-        self.ground_resolution = ground_resolution
-
-    def get_pixel_data(self, keep_mask_values_only: bool = False):
-        window = Window(self.col, self.row, self.metadata['width'], self.metadata['height'])
-        
-        tile_data = self.associated_raster.data.read(window=window)
-
-        if keep_mask_values_only:
-            if self.mask is not None:
-                tile_data = tile_data * self.mask
-
-        return tile_data
-
-    def update_mask(self, additional_mask: np.ndarray):
-        """
-        Update the mask of the tile.
-
-        Parameters
-        ----------
-        additional_mask: np.ndarray
-            The additional, new mask to apply to the tile. Will be combined with the existing mask with an OR operation.
-        """
-        if self.mask is not None:
-            # combining masks
-            self.mask = self.mask | additional_mask
-        else:
-            self.mask = additional_mask
-
-    @staticmethod
-    def _load_tile(path: Path):
-        ext = path.suffix
-        if ext != '.tif':
-            raise Exception(f'The tile extension should be \'.tif\'.')
-
-        with rasterio.open(path) as src:
-            data = src.read()
-            metadata = src.profile
-
-        product_name, ground_resolution, scale_factor, polygon_id, aoi = PolygonTileNameConvention.parse_name(path.name)
-
-        return data, metadata, product_name, ground_resolution, scale_factor, polygon_id, aoi
-
-    def save(self, output_folder: Path, keep_mask_values_only: bool = False):
-        """
-        Save the tile as a .tif file in the output_folder.
-        """
-        assert output_folder.exists(), f"The output folder {output_folder} doesn't exist yet."
-
-        tile_name = self.generate_name()
-
-        with rasterio.open(
-                output_folder / tile_name,
-                'w',
-                **self.metadata,
-                # compress='zstd',  # Lossless compression
-                # predictor=2,  # For integer data; use predictor=3 for floating point if needed
-                # tiled=True  # Enables tiling, which can improve compression efficiency
-        ) as tile_raster:
-            tile_raster.write(self.get_pixel_data(keep_mask_values_only))
-
-            # Make sure to also copy the colorinterp from the parent raster
-            parent_ci = self.associated_raster.data.colorinterp
-            tile_raster.colorinterp = parent_ci
-
-    def generate_name(self):
-        """
-        Generate the name of the tile based on its metadata.
-
-        Returns
-        -------
-        str
-            The name of the tile.
-        """
-        return PolygonTileNameConvention.create_name(
-            product_name=self.output_name,
+        return RasterTileMetadata(
+            associated_raster=self.associated_raster,
+            mask=self.mask,
+            metadata=self.metadata,
             ground_resolution=self.ground_resolution,
             scale_factor=self.scale_factor,
-            polygon_id=self.polygon_id,
-            aoi=self.aoi
+            row=self.row,
+            col=self.col,
+            aoi=new_aoi,
+            tile_id=new_id
         )
 
 
@@ -719,7 +614,10 @@ class RasterTileSaver:
     def __init__(self, n_workers: int):
         self.n_workers = n_workers
 
-    def save_tile(self, tile: RasterTileMetadata or RasterPolygonTileMetadata, output_folder: Path):
+    def save_tile(self,
+                  tile: RasterTileMetadata,
+                  output_folder: Path,
+                  apply_mask: bool = True):
         """
         Save a single tile.
 
@@ -727,13 +625,20 @@ class RasterTileSaver:
         ----------
         tile: RasterTile or RasterPolygonTileMetadata
             The tile to save.
+        output_folder: Path
+            The path to the folder where the tile should be saved.
+        apply_mask: bool
+            Whether to apply the mask to the tile data before saving it. Default is True.
         """
         try:
-            tile.save(output_folder=output_folder)
+            tile.save(output_folder=output_folder, apply_mask=apply_mask)
         except Exception as e:
             print(f"Error saving tile {tile.generate_name()}: {str(e)}")
 
-    def save_all_tiles(self, tiles: List[RasterTileMetadata or RasterPolygonTileMetadata], output_folder: Path):
+    def save_all_tiles(self,
+                       tiles: List[RasterTileMetadata],
+                       output_folder: Path,
+                       apply_mask: bool = True):
         """
         Save all the tiles in parallel using ThreadPoolExecutor.
 
@@ -741,11 +646,15 @@ class RasterTileSaver:
         ----------
         tiles: List[RasterTileMetadata or RasterPolygonTileMetadata]
             The list of tiles to save.
+        output_folder: Path
+            The path to the folder where the tiles should be saved.
+        apply_mask: bool
+            Whether to apply the mask to the tile data before saving it. Default is True.
         """
         # Use ThreadPoolExecutor to manage threads
         with ThreadPoolExecutor(max_workers=self.n_workers) as executor:
             # Submit tasks to the executor
-            futures = [executor.submit(self.save_tile, tile, output_folder) for tile in tiles]
+            futures = [executor.submit(self.save_tile, tile, output_folder, apply_mask) for tile in tiles]
 
             for future in concurrent.futures.as_completed(futures):
                 try:
