@@ -421,7 +421,7 @@
                                          <span class="n">labels</span><span class="o">=</span><span class="n">category_ids</span><span class="p">)</span>
             <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">transformed</span><span class="p">[</span><span class="s1">&#39;image&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
             <span class="n">transformed_bboxes</span> <span class="o">=</span> <span class="n">transformed</span><span class="p">[</span><span class="s1">&#39;bboxes&#39;</span><span class="p">]</span>
-            <span class="n">transformed_masks</span> <span class="o">=</span>  <span class="n">transformed</span><span class="p">[</span><span class="s1">&#39;mask&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="n">transformed_masks</span> <span class="o">=</span> <span class="n">transformed</span><span class="p">[</span><span class="s1">&#39;mask&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
             <span class="n">transformed_category_ids</span> <span class="o">=</span> <span class="n">transformed</span><span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">tile</span>
@@ -451,7 +451,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">ClassificationLabeledRasterCocoDataset</span><span class="p">(</span><span class="n">BaseLabeledRasterCocoDataset</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A dataset class for classification tasks using polygon-based tiles from raster data.</span>
-<span class="sd">    Loads COCO datasets and their associated tiles. Tracks polygon IDs for regrouping/aggregation.</span>
+<span class="sd">    Loads COCO datasets and their associated tiles.</span>
 
 <span class="sd">    It can directly be used with a torch.utils.data.DataLoader.</span>
 
