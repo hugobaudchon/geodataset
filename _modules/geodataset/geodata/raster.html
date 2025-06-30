@@ -73,6 +73,7 @@
              
   <h1>Source code for geodataset.geodata.raster</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span><span class="w"> </span><span class="nn">concurrent</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
@@ -88,7 +89,10 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">Polygon</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">read_raster</span><span class="p">,</span> <span class="n">apply_affine_transform</span><span class="p">,</span> <span class="n">validate_and_convert_product_name</span><span class="p">,</span> \
-    <span class="n">strip_all_extensions_and_path</span><span class="p">,</span> <span class="n">TileNameConvention</span><span class="p">,</span> <span class="n">PolygonTileNameConvention</span>
+    <span class="n">strip_all_extensions_and_path</span><span class="p">,</span> <span class="n">TileNameConvention</span>
+
+
+<span class="n">_thread_ds</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">local</span><span class="p">()</span>
 
 
 <div class="viewcode-block" id="Raster">
@@ -341,16 +345,15 @@
             <span class="s1">&#39;transform&#39;</span><span class="p">:</span> <span class="n">window_transform</span>
         <span class="p">}</span>
 
-        <span class="n">polygon_tile</span> <span class="o">=</span> <span class="n">RasterPolygonTileMetadata</span><span class="p">(</span>
+        <span class="n">polygon_tile</span> <span class="o">=</span> <span class="n">RasterTileMetadata</span><span class="p">(</span>
             <span class="n">associated_raster</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
             <span class="n">mask</span><span class="o">=</span><span class="n">binary_mask</span><span class="p">,</span>
             <span class="n">metadata</span><span class="o">=</span><span class="n">tile_metadata</span><span class="p">,</span>
-            <span class="n">output_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>
             <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span>
             <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span>
             <span class="n">row</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">row_off</span><span class="p">,</span>
             <span class="n">col</span><span class="o">=</span><span class="n">window</span><span class="o">.</span><span class="n">col_off</span><span class="p">,</span>
-            <span class="n">polygon_id</span><span class="o">=</span><span class="n">polygon_id</span><span class="p">,</span>
+            <span class="n">tile_id</span><span class="o">=</span><span class="n">polygon_id</span><span class="p">,</span>
             <span class="n">aoi</span><span class="o">=</span><span class="n">polygon_aoi</span>
         <span class="p">)</span>
 
@@ -518,9 +521,30 @@
         <span class="k">if</span> <span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">update_mask</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">get_pixel_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_pixel_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">apply_mask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the pixel data of the tile.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        apply_mask: bool</span>
+<span class="sd">            Whether to apply the mask to the tile data. Default is True.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        np.ndarray</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">window</span> <span class="o">=</span> <span class="n">Window</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">col</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">])</span>
-        <span class="n">tile_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">associated_raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">)</span>
+
+        <span class="c1"># Using a thread-local storage to avoid opening the raster file multiple times in parallel threads</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">_thread_ds</span><span class="p">,</span> <span class="s2">&quot;ds&quot;</span><span class="p">):</span>
+            <span class="n">ds_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">associated_raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">name</span>
+            <span class="n">_thread_ds</span><span class="o">.</span><span class="n">ds</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">ds_name</span><span class="p">)</span>
+        <span class="n">ds</span> <span class="o">=</span> <span class="n">_thread_ds</span><span class="o">.</span><span class="n">ds</span>
+
+        <span class="n">tile_data</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">)</span>
+
+        <span class="c1"># tile_data = self.associated_raster.data.read(window=window)</span>
             
         <span class="n">pad_row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">tile_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
         <span class="n">pad_col</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">tile_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
@@ -532,7 +556,7 @@
             <span class="n">padding</span> <span class="o">=</span> <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pad_row</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pad_col</span><span class="p">))</span>
             <span class="n">tile_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">tile_data</span><span class="p">,</span> <span class="n">padding</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">apply_mask</span><span class="p">:</span>
             <span class="n">tile_data</span> <span class="o">=</span> <span class="n">tile_data</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span>
 
         <span class="k">return</span> <span class="n">tile_data</span>
@@ -569,7 +593,9 @@
 
         <span class="k">return</span> <span class="n">data</span><span class="p">,</span> <span class="n">metadata</span><span class="p">,</span> <span class="n">product_name</span><span class="p">,</span> <span class="n">ground_resolution</span><span class="p">,</span> <span class="n">scale_factor</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="n">aoi</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output_folder</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+             <span class="n">output_folder</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
+             <span class="n">apply_mask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Save the tile as a .tif file in the output_folder.</span>
 
@@ -577,6 +603,8 @@
 <span class="sd">        ----------</span>
 <span class="sd">        output_folder: str or pathlib.Path</span>
 <span class="sd">            The path to the output folder where the tile should be saved.</span>
+<span class="sd">        apply_mask: bool</span>
+<span class="sd">            Whether to apply the mask to the tile data before saving it. Default is True.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">output_folder</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_folder</span><span class="p">)</span>
@@ -592,7 +620,7 @@
                 <span class="c1"># predictor=2,  # For integer data; use predictor=3 for floating point if needed</span>
                 <span class="c1"># tiled=True  # Enables tiling, which can improve compression efficiency</span>
         <span class="p">)</span> <span class="k">as</span> <span class="n">tile_raster</span><span class="p">:</span>
-            <span class="n">tile_raster</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_pixel_data</span><span class="p">())</span>
+            <span class="n">tile_raster</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_pixel_data</span><span class="p">(</span><span class="n">apply_mask</span><span class="o">=</span><span class="n">apply_mask</span><span class="p">))</span>
 
             <span class="c1"># Make sure to also copy the colorinterp from the parent raster</span>
             <span class="n">parent_ci</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">associated_raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">colorinterp</span>
@@ -607,13 +635,17 @@
 <span class="sd">        str</span>
 <span class="sd">            The name of the tile.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">TileNameConvention</span><span class="o">.</span><span class="n">create_name</span><span class="p">(</span><span class="n">product_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">associated_raster</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>
-                                              <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span>
-                                              <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span>
-                                              <span class="n">row</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">,</span>
-                                              <span class="n">col</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">col</span><span class="p">,</span>
-                                              <span class="n">aoi</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">aoi</span><span class="p">,</span>
-                                              <span class="n">tile_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">TileNameConvention</span><span class="o">.</span><span class="n">create_name</span><span class="p">(</span>
+            <span class="n">product_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">associated_raster</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>
+            <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span>
+            <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span>
+            <span class="n">row</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">,</span>
+            <span class="n">col</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">col</span><span class="p">,</span>
+            <span class="n">aoi</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">aoi</span><span class="p">,</span>
+            <span class="n">width</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">],</span>
+            <span class="n">height</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">],</span>
+            <span class="n">tile_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_id</span>
+        <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">get_bbox</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -647,153 +679,16 @@
 <span class="sd">            The new tile with the new AOI.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="k">return</span> <span class="n">RasterTileMetadata</span><span class="p">(</span><span class="n">associated_raster</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">associated_raster</span><span class="p">,</span>
-                                  <span class="n">mask</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span>
-                                  <span class="n">metadata</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">,</span>
-                                  <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span>
-                                  <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span>
-                                  <span class="n">row</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">,</span>
-                                  <span class="n">col</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">col</span><span class="p">,</span>
-                                  <span class="n">aoi</span><span class="o">=</span><span class="n">new_aoi</span><span class="p">,</span>
-                                  <span class="n">tile_id</span><span class="o">=</span><span class="n">new_id</span><span class="p">)</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">RasterPolygonTileMetadata</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Class to represent a single polygon label tile of a raster image. Generally generated by a :class:`~geodataset.geodata.raster.Raster`.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    associated_raster: Raster</span>
-<span class="sd">        The Raster object associated with the tile.</span>
-<span class="sd">    mask: np.ndarray or None</span>
-<span class="sd">        A binary mask to apply to the tile. If None, no mask will be applied.</span>
-<span class="sd">    metadata: dict</span>
-<span class="sd">        The metadata of the raster image. Should be compatible with rasterio.open(...) function.</span>
-<span class="sd">        Examples of such metadata keys are &#39;crs&#39;, &#39;transform&#39;, &#39;width&#39;, &#39;height&#39;...</span>
-<span class="sd">    output_name: str</span>
-<span class="sd">        The name of the output product. Usually the same as the Raster name.</span>
-<span class="sd">        Used as the prefix for the final .tif file name when saving the tile.</span>
-<span class="sd">    ground_resolution : float, optional</span>
-<span class="sd">        The ground resolution in meter per pixel desired when loading the raster.</span>
-<span class="sd">        Only one of ground_resolution and scale_factor can be set at the same time.</span>
-<span class="sd">        Used for naming the .tif file when saving the tile.</span>
-<span class="sd">    scale_factor : float, optional</span>
-<span class="sd">        Scale factor for rescaling the data (change pixel resolution).</span>
-<span class="sd">        Only one of ground_resolution and scale_factor can be set at the same time.</span>
-<span class="sd">        Used for naming the .tif file when saving the tile.</span>
-<span class="sd">    row: int</span>
-<span class="sd">        The row index of the tile in the raster (the top left pixel row).</span>
-<span class="sd">        Used for naming the .tif file when saving the tile.</span>
-<span class="sd">    col: int</span>
-<span class="sd">        The column index of the tile in the raster (the top left pixel row).</span>
-<span class="sd">        Used for naming the .tif file when saving the tile.</span>
-<span class="sd">    polygon_id: int</span>
-<span class="sd">        The unique identifier of the polygon.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
-                 <span class="n">associated_raster</span><span class="p">:</span> <span class="n">Raster</span><span class="p">,</span>
-                 <span class="n">mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
-                 <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
-                 <span class="n">output_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-                 <span class="n">ground_resolution</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-                 <span class="n">scale_factor</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-                 <span class="n">row</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-                 <span class="n">col</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-                 <span class="n">aoi</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                 <span class="n">polygon_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">associated_raster</span> <span class="o">=</span> <span class="n">associated_raster</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">mask</span> <span class="o">=</span> <span class="n">mask</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">metadata</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">output_name</span> <span class="o">=</span> <span class="n">output_name</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">row</span> <span class="o">=</span> <span class="n">row</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">col</span> <span class="o">=</span> <span class="n">col</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">aoi</span> <span class="o">=</span> <span class="n">aoi</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">polygon_id</span> <span class="o">=</span> <span class="n">polygon_id</span>
-
-        <span class="k">assert</span> <span class="ow">not</span> <span class="p">(</span><span class="n">ground_resolution</span> <span class="ow">and</span> <span class="n">scale_factor</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;Both a ground_resolution and a scale_factor were provided.&quot;</span>
-                                                          <span class="s2">&quot; Please only specify one.&quot;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span> <span class="o">=</span> <span class="n">scale_factor</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span> <span class="o">=</span> <span class="n">ground_resolution</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">get_pixel_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keep_mask_values_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
-        <span class="n">window</span> <span class="o">=</span> <span class="n">Window</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">col</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">])</span>
-        
-        <span class="n">tile_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">associated_raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="n">keep_mask_values_only</span><span class="p">:</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">tile_data</span> <span class="o">=</span> <span class="n">tile_data</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span>
-
-        <span class="k">return</span> <span class="n">tile_data</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">update_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">additional_mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Update the mask of the tile.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        additional_mask: np.ndarray</span>
-<span class="sd">            The additional, new mask to apply to the tile. Will be combined with the existing mask with an OR operation.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="c1"># combining masks</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">mask</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span> <span class="o">|</span> <span class="n">additional_mask</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">mask</span> <span class="o">=</span> <span class="n">additional_mask</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_load_tile</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">):</span>
-        <span class="n">ext</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">suffix</span>
-        <span class="k">if</span> <span class="n">ext</span> <span class="o">!=</span> <span class="s1">&#39;.tif&#39;</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;The tile extension should be </span><span class="se">\&#39;</span><span class="s1">.tif</span><span class="se">\&#39;</span><span class="s1">.&#39;</span><span class="p">)</span>
-
-        <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
-            <span class="n">data</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
-            <span class="n">metadata</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">profile</span>
-
-        <span class="n">product_name</span><span class="p">,</span> <span class="n">ground_resolution</span><span class="p">,</span> <span class="n">scale_factor</span><span class="p">,</span> <span class="n">polygon_id</span><span class="p">,</span> <span class="n">aoi</span> <span class="o">=</span> <span class="n">PolygonTileNameConvention</span><span class="o">.</span><span class="n">parse_name</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">data</span><span class="p">,</span> <span class="n">metadata</span><span class="p">,</span> <span class="n">product_name</span><span class="p">,</span> <span class="n">ground_resolution</span><span class="p">,</span> <span class="n">scale_factor</span><span class="p">,</span> <span class="n">polygon_id</span><span class="p">,</span> <span class="n">aoi</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output_folder</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">keep_mask_values_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Save the tile as a .tif file in the output_folder.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">assert</span> <span class="n">output_folder</span><span class="o">.</span><span class="n">exists</span><span class="p">(),</span> <span class="sa">f</span><span class="s2">&quot;The output folder </span><span class="si">{</span><span class="n">output_folder</span><span class="si">}</span><span class="s2"> doesn&#39;t exist yet.&quot;</span>
-
-        <span class="n">tile_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">generate_name</span><span class="p">()</span>
-
-        <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
-                <span class="n">output_folder</span> <span class="o">/</span> <span class="n">tile_name</span><span class="p">,</span>
-                <span class="s1">&#39;w&#39;</span><span class="p">,</span>
-                <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">,</span>
-                <span class="c1"># compress=&#39;zstd&#39;,  # Lossless compression</span>
-                <span class="c1"># predictor=2,  # For integer data; use predictor=3 for floating point if needed</span>
-                <span class="c1"># tiled=True  # Enables tiling, which can improve compression efficiency</span>
-        <span class="p">)</span> <span class="k">as</span> <span class="n">tile_raster</span><span class="p">:</span>
-            <span class="n">tile_raster</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_pixel_data</span><span class="p">(</span><span class="n">keep_mask_values_only</span><span class="p">))</span>
-
-            <span class="c1"># Make sure to also copy the colorinterp from the parent raster</span>
-            <span class="n">parent_ci</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">associated_raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">colorinterp</span>
-            <span class="n">tile_raster</span><span class="o">.</span><span class="n">colorinterp</span> <span class="o">=</span> <span class="n">parent_ci</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">generate_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Generate the name of the tile based on its metadata.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        str</span>
-<span class="sd">            The name of the tile.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">PolygonTileNameConvention</span><span class="o">.</span><span class="n">create_name</span><span class="p">(</span>
-            <span class="n">product_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>
+        <span class="k">return</span> <span class="n">RasterTileMetadata</span><span class="p">(</span>
+            <span class="n">associated_raster</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">associated_raster</span><span class="p">,</span>
+            <span class="n">mask</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span>
+            <span class="n">metadata</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">,</span>
             <span class="n">ground_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span><span class="p">,</span>
             <span class="n">scale_factor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">,</span>
-            <span class="n">polygon_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">polygon_id</span><span class="p">,</span>
-            <span class="n">aoi</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">aoi</span>
+            <span class="n">row</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">,</span>
+            <span class="n">col</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">col</span><span class="p">,</span>
+            <span class="n">aoi</span><span class="o">=</span><span class="n">new_aoi</span><span class="p">,</span>
+            <span class="n">tile_id</span><span class="o">=</span><span class="n">new_id</span>
         <span class="p">)</span>
 
 
@@ -811,7 +706,10 @@
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_workers</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">n_workers</span> <span class="o">=</span> <span class="n">n_workers</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">save_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tile</span><span class="p">:</span> <span class="n">RasterTileMetadata</span> <span class="ow">or</span> <span class="n">RasterPolygonTileMetadata</span><span class="p">,</span> <span class="n">output_folder</span><span class="p">:</span> <span class="n">Path</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">save_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                  <span class="n">tile</span><span class="p">:</span> <span class="n">RasterTileMetadata</span><span class="p">,</span>
+                  <span class="n">output_folder</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+                  <span class="n">apply_mask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Save a single tile.</span>
 
@@ -819,13 +717,20 @@
 <span class="sd">        ----------</span>
 <span class="sd">        tile: RasterTile or RasterPolygonTileMetadata</span>
 <span class="sd">            The tile to save.</span>
+<span class="sd">        output_folder: Path</span>
+<span class="sd">            The path to the folder where the tile should be saved.</span>
+<span class="sd">        apply_mask: bool</span>
+<span class="sd">            Whether to apply the mask to the tile data before saving it. Default is True.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">tile</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">output_folder</span><span class="o">=</span><span class="n">output_folder</span><span class="p">)</span>
+            <span class="n">tile</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">output_folder</span><span class="o">=</span><span class="n">output_folder</span><span class="p">,</span> <span class="n">apply_mask</span><span class="o">=</span><span class="n">apply_mask</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error saving tile </span><span class="si">{</span><span class="n">tile</span><span class="o">.</span><span class="n">generate_name</span><span class="p">()</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">save_all_tiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tiles</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">RasterTileMetadata</span> <span class="ow">or</span> <span class="n">RasterPolygonTileMetadata</span><span class="p">],</span> <span class="n">output_folder</span><span class="p">:</span> <span class="n">Path</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">save_all_tiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                       <span class="n">tiles</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">RasterTileMetadata</span><span class="p">],</span>
+                       <span class="n">output_folder</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+                       <span class="n">apply_mask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Save all the tiles in parallel using ThreadPoolExecutor.</span>
 
@@ -833,11 +738,15 @@
 <span class="sd">        ----------</span>
 <span class="sd">        tiles: List[RasterTileMetadata or RasterPolygonTileMetadata]</span>
 <span class="sd">            The list of tiles to save.</span>
+<span class="sd">        output_folder: Path</span>
+<span class="sd">            The path to the folder where the tiles should be saved.</span>
+<span class="sd">        apply_mask: bool</span>
+<span class="sd">            Whether to apply the mask to the tile data before saving it. Default is True.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Use ThreadPoolExecutor to manage threads</span>
         <span class="k">with</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_workers</span><span class="p">)</span> <span class="k">as</span> <span class="n">executor</span><span class="p">:</span>
             <span class="c1"># Submit tasks to the executor</span>
-            <span class="n">futures</span> <span class="o">=</span> <span class="p">[</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save_tile</span><span class="p">,</span> <span class="n">tile</span><span class="p">,</span> <span class="n">output_folder</span><span class="p">)</span> <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles</span><span class="p">]</span>
+            <span class="n">futures</span> <span class="o">=</span> <span class="p">[</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save_tile</span><span class="p">,</span> <span class="n">tile</span><span class="p">,</span> <span class="n">output_folder</span><span class="p">,</span> <span class="n">apply_mask</span><span class="p">)</span> <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles</span><span class="p">]</span>
 
             <span class="k">for</span> <span class="n">future</span> <span class="ow">in</span> <span class="n">concurrent</span><span class="o">.</span><span class="n">futures</span><span class="o">.</span><span class="n">as_completed</span><span class="p">(</span><span class="n">futures</span><span class="p">):</span>
                 <span class="k">try</span><span class="p">:</span>

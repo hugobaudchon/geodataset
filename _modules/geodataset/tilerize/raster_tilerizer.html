@@ -84,6 +84,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.aoi</span><span class="w"> </span><span class="kn">import</span> <span class="n">AOIGeneratorForTiles</span><span class="p">,</span> <span class="n">AOIFromPackageForTiles</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.aoi</span><span class="w"> </span><span class="kn">import</span> <span class="n">AOIConfig</span><span class="p">,</span> <span class="n">AOIGeneratorConfig</span><span class="p">,</span> <span class="n">AOIFromPackageConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.aoi.aoi_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_AOI_NAME</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.geodata</span><span class="w"> </span><span class="kn">import</span> <span class="n">Raster</span><span class="p">,</span> <span class="n">RasterTileMetadata</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">save_aois_tiles_picture</span><span class="p">,</span> <span class="n">AoiTilesImageConvention</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.utils.file_name_conventions</span><span class="w"> </span><span class="kn">import</span> <span class="n">AoiGeoPackageConvention</span>
@@ -118,7 +119,7 @@
 <span class="sd">            aoi_type=&#39;band&#39;</span>
 <span class="sd">        )</span>
 <span class="sd">    aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None</span>
-<span class="sd">        An instance of AOIConfig to use, or None if all tiles should be kept in an &#39;all&#39; AOI.</span>
+<span class="sd">        An instance of AOIConfig to use, or None if all tiles should be kept in a DEFAULT_AOI_NAME AOI.</span>
 <span class="sd">    ground_resolution : float, optional</span>
 <span class="sd">        The ground resolution in meter per pixel desired when loading the raster.</span>
 <span class="sd">        Only one of ground_resolution and scale_factor can be set at the same time.</span>
@@ -159,12 +160,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span> <span class="o">=</span> <span class="n">ground_resolution</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_check_parameters</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_aois_config</span><span class="p">()</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">raster</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_raster</span><span class="p">()</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span> <span class="o">=</span> <span class="n">AOIGeneratorConfig</span><span class="p">(</span><span class="n">aois</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;percentage&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;position&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}},</span> <span class="n">aoi_type</span><span class="o">=</span><span class="s1">&#39;band&#39;</span><span class="p">)</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No AOIs provided, all tiles will be kept in the &quot;all&quot; AOI.&#39;</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_check_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster_path</span><span class="o">.</span><span class="n">exists</span><span class="p">(),</span> \
@@ -175,6 +173,11 @@
             <span class="s2">&quot;The tile overlap must be between 0 and 1.&quot;</span>
         <span class="k">assert</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ground_resolution</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">),</span> \
             <span class="s2">&quot;Both a ground_resolution and a scale_factor were provided. Please only specify one.&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_aois_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span> <span class="o">=</span> <span class="n">AOIGeneratorConfig</span><span class="p">(</span><span class="n">aois</span><span class="o">=</span><span class="p">{</span><span class="n">DEFAULT_AOI_NAME</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;percentage&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;position&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}},</span> <span class="n">aoi_type</span><span class="o">=</span><span class="s1">&#39;band&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No AOIs provided, all tiles will be kept in the DEFAULT_AOI_NAME AOI.&#39;</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_load_raster</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">raster</span> <span class="o">=</span> <span class="n">Raster</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">raster_path</span><span class="p">,</span>
@@ -302,7 +305,7 @@
 <span class="sd">            aoi_type=&#39;band&#39;</span>
 <span class="sd">        )</span>
 <span class="sd">    aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None</span>
-<span class="sd">        An instance of AOIConfig to use, or None if all tiles should be kept in an &#39;all&#39; AOI.</span>
+<span class="sd">        An instance of AOIConfig to use, or None if all tiles should be kept in a DEFAULT_AOI_NAME AOI.</span>
 <span class="sd">    ground_resolution : float</span>
 <span class="sd">        The ground resolution in meter per pixel desired when loading the raster.</span>
 <span class="sd">        Only one of ground_resolution and scale_factor can be set at the same time.</span>
@@ -402,7 +405,7 @@
 <span class="sd">            aoi_type=&#39;band&#39;</span>
 <span class="sd">        )</span>
 <span class="sd">    aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None</span>
-<span class="sd">        An instance of AOIConfig to use, or None if all tiles should be kept in an &#39;all&#39; AOI.</span>
+<span class="sd">        An instance of AOIConfig to use, or None if all tiles should be kept in a DEFAULT_AOI_NAME AOI.</span>
 <span class="sd">    ground_resolution : float</span>
 <span class="sd">        The ground resolution in meter per pixel desired when loading the raster.</span>
 <span class="sd">        Only one of ground_resolution and scale_factor can be set at the same time.</span>
@@ -451,7 +454,6 @@
 
         <span class="n">tiles</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_tiles</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_get_tiles_per_aoi</span><span class="p">(</span><span class="n">tiles</span><span class="o">=</span><span class="n">tiles</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="p">[</span><span class="s1">&#39;all&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">tile</span> <span class="k">for</span> <span class="n">tile_list</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tile_list</span><span class="p">]</span>
 
         <span class="n">save_aois_tiles_picture</span><span class="p">(</span><span class="n">aois_tiles</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="p">,</span>
                                 <span class="n">save_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">/</span> <span class="n">AoiTilesImageConvention</span><span class="o">.</span><span class="n">create_name</span><span class="p">(</span>
@@ -466,10 +468,6 @@
 
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Saving tiles...&quot;</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">aoi</span> <span class="o">==</span> <span class="s1">&#39;all&#39;</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="c1"># don&#39;t save the &#39;all&#39; tiles if aois were provided.</span>
-                <span class="k">continue</span>
-
             <span class="c1"># Save the tile images</span>
             <span class="n">tiles_path_aoi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tiles_path</span> <span class="o">/</span> <span class="n">aoi</span>
             <span class="n">tiles_path_aoi</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -497,7 +495,7 @@
 <span class="sd">    tile_overlap : float</span>
 <span class="sd">        The overlap between the tiles (0 &lt;= overlap &lt; 1).</span>
 <span class="sd">    aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None</span>
-<span class="sd">        An instance of AOIConfig to use, or None if all tiles should be kept in an &#39;all&#39; AOI.</span>
+<span class="sd">        An instance of AOIConfig to use, or None if all tiles should be kept in an DEFAULT_AOI_NAME AOI.</span>
 <span class="sd">    ground_resolution : float, optional</span>
 <span class="sd">        The ground resolution in meter per pixel desired when loading the raster.</span>
 <span class="sd">        Only one of ground_resolution and scale_factor can be set at the same time.</span>
@@ -552,9 +550,6 @@
             <span class="p">},</span>
             <span class="n">crs</span><span class="o">=</span><span class="kc">None</span>
         <span class="p">)</span>
-
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">aois_tiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="n">tiles_gdf</span> <span class="o">=</span> <span class="n">tiles_gdf</span><span class="p">[</span><span class="n">tiles_gdf</span><span class="p">[</span><span class="s1">&#39;aoi&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;all&#39;</span><span class="p">]</span>
 
         <span class="k">return</span> <span class="n">tiles_gdf</span></div>
 </div>

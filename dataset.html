@@ -51,7 +51,10 @@
 <li class="toctree-l2"><a class="reference internal" href="tilerize.html">Tilerizers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="aoi.html">AOI (Area Of Interest)</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Dataset</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#geodataset.dataset.BaseDataset"><code class="docutils literal notranslate"><span class="pre">BaseDataset</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodataset.dataset.BaseDataset"><code class="docutils literal notranslate"><span class="pre">BaseDataset</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#geodataset.dataset.BaseDataset.SUPPORTED_IMG_EXTENSIONS"><code class="docutils literal notranslate"><span class="pre">BaseDataset.SUPPORTED_IMG_EXTENSIONS</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="#geodataset.dataset.UnlabeledRasterDataset"><code class="docutils literal notranslate"><span class="pre">UnlabeledRasterDataset</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#geodataset.dataset.UnlabeledRasterDataset.__getitem__"><code class="docutils literal notranslate"><span class="pre">UnlabeledRasterDataset.__getitem__()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#geodataset.dataset.UnlabeledRasterDataset.__iter__"><code class="docutils literal notranslate"><span class="pre">UnlabeledRasterDataset.__iter__()</span></code></a></li>
@@ -114,6 +117,11 @@
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
 <p>Abstract class for a dataset. Requires the implementation of methods needed for use with PyTorch’s DataLoader:
 __getitem__, __len__ and __iter__.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="geodataset.dataset.BaseDataset.SUPPORTED_IMG_EXTENSIONS">
+<span class="sig-name descname"><span class="pre">SUPPORTED_IMG_EXTENSIONS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['tif',</span> <span class="pre">'png',</span> <span class="pre">'jpg',</span> <span class="pre">'jpeg']</span></em><a class="headerlink" href="#geodataset.dataset.BaseDataset.SUPPORTED_IMG_EXTENSIONS" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
 </dd></dl>
 
 <dl class="py class">
@@ -137,17 +145,22 @@ It will recursively search for all ‘.tif’ files in the specified root and it
 <dl class="py method">
 <dt class="sig sig-object py" id="geodataset.dataset.UnlabeledRasterDataset.__getitem__">
 <span class="sig-name descname"><span class="pre">__getitem__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">idx</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/dataset/raster_dataset.html#UnlabeledRasterDataset.__getitem__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.dataset.UnlabeledRasterDataset.__getitem__" title="Link to this definition"></a></dt>
-<dd><p>Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,
+<dd><p>Retrieves a tile and its annotations by index, applying the transform
+passed to the constructor of the class,
 if any. It also normalizes the tile data between 0 and 1.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>idx</strong> (<em>int</em>) – The index of the tile to retrieve</p>
 </dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The transformed tile (image) data, normalized between 0 and 1.</p>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code>, <code class="xref py py-data docutils literal notranslate"><span class="pre">Tuple</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code>, <code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code>]]</span></p>
 </dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>numpy.ndarray</p>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><em>numpy.ndarray</em> – The transformed tile (image) data, normalized between 0 and 1.</p></li>
+<li><p>If <cite>include_polygon_id</cite> is True, returns a tuple of (transformed_image, polygon_id).</p></li>
+</ul>
+</p>
 </dd>
 </dl>
 </dd></dl>

@@ -73,7 +73,7 @@
              
   <h1>Source code for geodataset.dataset.raster_dataset</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Tuple</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Any</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">albumentations</span>
@@ -478,7 +478,7 @@
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">fold</span><span class="o">=</span><span class="n">fold</span><span class="p">,</span> <span class="n">root_path</span><span class="o">=</span><span class="n">root_path</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">,</span> <span class="n">other_attributes_names_to_pass</span><span class="o">=</span><span class="n">other_attributes_names_to_pass</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">force_binary_class</span> <span class="o">=</span> <span class="n">force_binary_class</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">dict</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Retrieves a tile and its class label by index, applying transforms if specified.</span>
 
@@ -489,14 +489,7 @@
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        Union[Tuple[np.ndarray, int], Tuple[np.ndarray, int, int]]</span>
-<span class="sd">            If include_polygon_id is False:</span>
-<span class="sd">                - The tile image data (normalized between 0 and 1)</span>
-<span class="sd">                - The class label</span>
-<span class="sd">            If include_polygon_id is True:</span>
-<span class="sd">                - The tile image data (normalized between 0 and 1)</span>
-<span class="sd">                - The class label</span>
-<span class="sd">                - The polygon ID</span>
+<span class="sd">        Tuple[np.ndarray, dict[str, Any]]</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">tile_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tiles</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
 
@@ -544,13 +537,14 @@
         <span class="c1"># Normalize the image data</span>
         <span class="n">transformed_image</span> <span class="o">=</span> <span class="n">transformed_image</span> <span class="o">/</span> <span class="mf">255.0</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names_to_pass</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">other_attributes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_other_attributes_to_pass</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">other_attributes</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;labels&#39;</span><span class="p">:</span> <span class="n">category_id</span><span class="p">,</span>
+        <span class="p">}</span>
 
-        <span class="c1"># Return image and class label and other_attributes (which may be None)</span>
-        <span class="k">return</span> <span class="n">transformed_image</span><span class="p">,</span> <span class="n">category_id</span><span class="p">,</span> <span class="n">other_attributes</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">other_attributes_names_to_pass</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">targets</span><span class="p">[</span><span class="s1">&#39;other_attributes&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_other_attributes_to_pass</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">transformed_image</span><span class="p">,</span> <span class="n">targets</span>
 
 
 <div class="viewcode-block" id="UnlabeledRasterDataset">
@@ -589,7 +583,8 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_find_tiles_paths</span><span class="p">(</span><span class="n">directories</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">root_path</span><span class="p">)</span>
 
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_paths</span><span class="p">)</span><span class="si">}</span><span class="s2"> tiles for fold </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">fold</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_paths</span><span class="p">)</span><span class="si">}</span><span class="s2"> tiles for fold &quot;</span>
+              <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">fold</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">fold</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;all&#39;</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_find_tiles_paths</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">directories</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Path</span><span class="p">]):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -605,13 +600,13 @@
                     <span class="k">if</span> <span class="n">fold_directory</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
                         <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">fold_directory</span><span class="o">.</span><span class="n">iterdir</span><span class="p">():</span>
                             <span class="c1"># Iterate within the corresponding split folder</span>
-                            <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s2">&quot;.tif&quot;</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">suffix</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">SUPPORTED_IMG_EXTENSIONS</span><span class="p">:</span>
                                 <span class="bp">self</span><span class="o">.</span><span class="n">tile_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># If no fold is specified, load all tiles</span>
                 <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">directory</span><span class="o">.</span><span class="n">iterdir</span><span class="p">():</span>
                     <span class="c1"># Iterate within the corresponding split folder</span>
-                    <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s2">&quot;.tif&quot;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">suffix</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">SUPPORTED_IMG_EXTENSIONS</span><span class="p">:</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">tile_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">directory</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
@@ -621,9 +616,10 @@
 
 <div class="viewcode-block" id="UnlabeledRasterDataset.__getitem__">
 <a class="viewcode-back" href="../../../dataset.html#geodataset.dataset.UnlabeledRasterDataset.__getitem__">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,</span>
+<span class="sd">        Retrieves a tile and its annotations by index, applying the transform</span>
+<span class="sd">        passed to the constructor of the class,</span>
 <span class="sd">        if any. It also normalizes the tile data between 0 and 1.</span>
 
 <span class="sd">        Parameters</span>
@@ -635,6 +631,7 @@
 <span class="sd">        -------</span>
 <span class="sd">        numpy.ndarray</span>
 <span class="sd">            The transformed tile (image) data, normalized between 0 and 1.</span>
+<span class="sd">        If `include_polygon_id` is True, returns a tuple of (transformed_image, polygon_id).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">tile_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_paths</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
 

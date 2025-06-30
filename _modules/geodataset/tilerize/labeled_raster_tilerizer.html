@@ -94,7 +94,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">LabeledRasterTilerizer</span><span class="p">(</span><span class="n">BaseDiskRasterTilerizer</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This class is used to create image tiles from a raster and their associated labels from a .geojson, .gpkg or .csv file.</span>
-<span class="sd">    COCO json files are generated for each AOI (or for the &#39;all&#39; AOI).</span>
+<span class="sd">    COCO json files are generated for each AOI (or for the DEFAULT_AOI_NAME AOI).</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -127,7 +127,7 @@
 <span class="sd">            aoi_type=&#39;band&#39;</span>
 <span class="sd">        )</span>
 <span class="sd">    aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None</span>
-<span class="sd">        An instance of AOIConfig to use, or None if all tiles should be kept in an &#39;all&#39; AOI.</span>
+<span class="sd">        An instance of AOIConfig to use, or None if all tiles should be kept in a DEFAULT_AOI_NAME AOI.</span>
 <span class="sd">    ground_resolution : float, optional</span>
 <span class="sd">        The ground resolution in meter per pixel desired when loading the raster.</span>
 <span class="sd">        Only one of ground_resolution and scale_factor can be set at the same time.</span>
@@ -291,7 +291,7 @@
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_generate_aois_tiles</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Get the tiles for each AOI (or for the &#39;all&#39; AOI) and the associated labels.</span>
+<span class="sd">        Get the tiles for each AOI (or for the DEFAULT_AOI_NAME AOI) and the associated labels.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">tiles</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_tiles</span><span class="p">()</span>
 
@@ -314,13 +314,9 @@
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;You must call the _get_aois_tiles method first.&quot;</span>
 
         <span class="c1"># As some tiles may have been duplicated/removed, we have to re-compute the associated labels</span>
-        <span class="c1"># First, getting a list of tiles from every aois, except &#39;all&#39; if there are multiple aois,</span>
-        <span class="c1"># as &#39;all&#39; would be a duplication of the other ones.</span>
-        <span class="n">tiles</span> <span class="o">=</span> <span class="p">[</span>
-            <span class="n">tile</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">tiles</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;all&#39;</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles</span>
-        <span class="p">]</span>
+
+        <span class="c1"># First, getting a list of tiles from every aois</span>
+        <span class="n">tiles</span> <span class="o">=</span> <span class="p">[</span><span class="n">tile</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">tiles</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles</span><span class="p">]</span>
 
         <span class="p">(</span><span class="n">intersecting_labels_raster_coords</span><span class="p">,</span>
          <span class="n">intersecting_labels_tiles_coords</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_find_associated_labels</span><span class="p">(</span><span class="n">tiles</span><span class="o">=</span><span class="n">tiles</span><span class="p">)</span>
@@ -333,8 +329,8 @@
         <span class="n">intersecting_labels_aois_raster_coords</span><span class="p">[</span><span class="s1">&#39;intersection_ratio&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">intersecting_labels_aois_raster_coords</span><span class="p">[</span><span class="s1">&#39;intersection_area&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">intersecting_labels_aois_raster_coords</span><span class="p">[</span><span class="s1">&#39;label_area&#39;</span><span class="p">]</span>
         <span class="n">intersecting_labels_aois_raster_coords</span> <span class="o">=</span> <span class="n">intersecting_labels_aois_raster_coords</span><span class="p">[</span><span class="n">intersecting_labels_aois_raster_coords</span><span class="p">[</span><span class="s1">&#39;intersection_ratio&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_intersection_ratio</span><span class="p">]</span>
 
-        <span class="n">final_aois_tiles</span> <span class="o">=</span> <span class="p">{</span><span class="n">aoi</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;all&#39;</span><span class="p">]}</span>
-        <span class="n">final_aois_labels</span> <span class="o">=</span> <span class="p">{</span><span class="n">aoi</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;all&#39;</span><span class="p">]}</span>
+        <span class="n">final_aois_tiles</span> <span class="o">=</span> <span class="p">{</span><span class="n">aoi</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())}</span>
+        <span class="n">final_aois_labels</span> <span class="o">=</span> <span class="p">{</span><span class="n">aoi</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())}</span>
         <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">]:</span>
                 <span class="c1"># Use the AOI-cropped label geometries directly</span>
@@ -364,8 +360,6 @@
 
                 <span class="n">final_aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile</span><span class="p">)</span>
                 <span class="n">final_aois_labels</span><span class="p">[</span><span class="n">aoi</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">labels_tiles_coords</span><span class="p">)</span>
-                <span class="n">final_aois_tiles</span><span class="p">[</span><span class="s1">&#39;all&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile</span><span class="p">)</span>
-                <span class="n">final_aois_labels</span><span class="p">[</span><span class="s1">&#39;all&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">labels_tiles_coords</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">final_aois_tiles</span><span class="p">,</span> <span class="n">final_aois_labels</span>
 
@@ -414,9 +408,6 @@
                        <span class="n">tiles_paths_aoi</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Path</span><span class="p">],</span>
                        <span class="n">labels</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">],</span>
                        <span class="n">save_tiles_folder</span><span class="p">:</span> <span class="n">Path</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">aoi</span> <span class="o">==</span> <span class="s1">&#39;all&#39;</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="c1"># don&#39;t save the &#39;all&#39; tiles if aois were provided.</span>
-            <span class="k">return</span>
 
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tiles</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No tiles found for AOI </span><span class="si">{</span><span class="n">aoi</span><span class="si">}</span><span class="s2">. Skipping...&quot;</span><span class="p">)</span>
@@ -468,7 +459,7 @@
 <a class="viewcode-back" href="../../../tilerize.html#geodataset.tilerize.LabeledRasterTilerizer.generate_coco_dataset">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">generate_coco_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Generate the tiles and the COCO dataset(s) for each AOI (or for the &#39;all&#39; AOI) and save everything to the disk.</span>
+<span class="sd">        Generate the tiles and the COCO dataset(s) for each AOI (or for the DEFAULT_AOI_NAME AOI) and save everything to the disk.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_generate_aois_tiles</span><span class="p">()</span>
         <span class="n">aois_tiles</span><span class="p">,</span> <span class="n">aois_labels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_tiles_and_labels_per_aoi</span><span class="p">()</span>
