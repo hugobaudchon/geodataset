@@ -265,7 +265,7 @@ class RasterPolygonTilerizer:
                 raster_extent_poly = box(0, 0, self.raster.metadata['width'], self.raster.metadata['height'])
                 aois_gdf = gpd.GeoDataFrame(
                     {'geometry': [raster_extent_poly], 'aoi': [aoi_name]},
-                    crs=self.raster.metadata['crs']
+                    crs=None     # the AOI is in pixel coordinates, so no CRS is needed
                 )
             else:
                 # This case remains for truly complex AOIGeneratorConfigs not meant for polygon tiling
