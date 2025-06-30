@@ -68,13 +68,16 @@ class FileNameConvention(ABC):
 
 
 class TileNameConvention(FileNameConvention):
+    pattern_aoi_tile_width_height_id = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_[a-zA-Z0-9]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+_[0-9]+_[0-9]+_[0-9]+\.tif$"
     pattern_aoi_tile_size = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_[a-zA-Z0-9]+_[0-9]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
     pattern_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_[a-zA-Z0-9]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
     pattern_no_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_tile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+_[0-9]+\.tif$"
 
     @staticmethod
     def _validate_name(name):
-        if re.match(TileNameConvention.pattern_aoi_tile_size, name):
+        if re.match(TileNameConvention.pattern_aoi_tile_width_height_id, name):
+            return 'pattern_aoi_tile_width_height_id'
+        elif re.match(TileNameConvention.pattern_aoi_tile_size, name):
             return 'pattern_aoi_tile_size'
         elif re.match(TileNameConvention.pattern_aoi, name):
             return 'pattern_aoi'
@@ -84,9 +87,23 @@ class TileNameConvention(FileNameConvention):
             raise ValueError(f"tile_name {name} does not match any of the supported patterns.")
 
     @staticmethod
-    def create_name(product_name: str, col: int, row: int, scale_factor=None, ground_resolution=None, aoi=None, tile_size=None):
+    def create_name(product_name: str,
+                    col: int,
+                    row: int,
+                    scale_factor=None,
+                    ground_resolution=None,
+                    aoi=None,
+                    tile_size=None,
+                    width=None,
+                    height=None,
+                    tile_id=None):
+
         specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
-        if tile_size:
+        if width and height and tile_id:
+            tile_name = f"{product_name}_tile_{aoi if aoi else 'noaoi'}_{specifier}_{col}_{row}_{width}_{height}_{tile_id}.tif"
+        elif width and height:
+            tile_name = f"{product_name}_tile_{aoi if aoi else 'noaoi'}_{specifier}_{col}_{row}_{width}_{height}.tif"
+        elif tile_size:
             tile_name = f"{product_name}_tile_{aoi if aoi else 'noaoi'}_{tile_size}_{specifier}_{col}_{row}.tif"
         else:
             tile_name = f"{product_name}_tile_{aoi if aoi else 'noaoi'}_{specifier}_{col}_{row}.tif"
@@ -98,77 +115,51 @@ class TileNameConvention(FileNameConvention):
         pattern_name = TileNameConvention._validate_name(tile_name)
 
         parts = tile_name.split("_")
-        row = int(parts[-1].replace('.tif', ''))
-        col = int(parts[-2])
-        specifier = parts[-3]
-        scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
-        if pattern_name == 'pattern_aoi_tile_size':
-            tile_size = int(parts[-4])
-            aoi = parts[-5]
+        if pattern_name == 'pattern_aoi_tile_width_height_id':
+            tile_id = int(parts[-1].replace('.tif', ''))
+            height = int(parts[-2])
+            width = int(parts[-3])
+            row = int(parts[-4])
+            col = int(parts[-5])
+            specifier = parts[-6]
+            scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
+
+            tile_size = (width, height)
+
+            aoi = parts[-7]
             if aoi == 'noaoi':
                 aoi = None
-            product_name = "_".join(parts[:-6])
-        elif pattern_name == 'pattern_aoi':
-            aoi = parts[-4]
-            if aoi == 'noaoi':
-                aoi = None
-            product_name = "_".join(parts[:-5])
-            tile_size = None
-        elif pattern_name == 'pattern_no_aoi':
-            aoi = None
-            product_name = "_".join(parts[:-4])
-            tile_size = None
+            product_name = "_".join(parts[:-7])
         else:
-            raise ValueError(f"pattern_name {pattern_name} is not supported.")
+            # Older name conventions
+            row = int(parts[-1].replace('.tif', ''))
+            col = int(parts[-2])
+            specifier = parts[-3]
+            scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
+
+            if pattern_name == 'pattern_aoi_tile_size':
+                tile_size = (int(parts[-4]), int(parts[-4]))
+                aoi = parts[-5]
+                if aoi == 'noaoi':
+                    aoi = None
+                product_name = "_".join(parts[:-6])
+            elif pattern_name == 'pattern_aoi':
+                aoi = parts[-4]
+                if aoi == 'noaoi':
+                    aoi = None
+                product_name = "_".join(parts[:-5])
+                tile_size = None
+            elif pattern_name == 'pattern_no_aoi':
+                aoi = None
+                product_name = "_".join(parts[:-4])
+                tile_size = None
+            else:
+                raise ValueError(f"pattern_name {pattern_name} is not supported.")
 
         if return_tile_size:
             return product_name, scale_factor, ground_resolution, col, row, aoi, tile_size
         else:
             return product_name, scale_factor, ground_resolution, col, row, aoi
-
-
-class PolygonTileNameConvention(FileNameConvention):
-    pattern_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_polygontile_[a-zA-Z0-9]+_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+\.tif$"
-    pattern_no_aoi = r"^([a-zA-Z0-9]+_)*[a-zA-Z0-9]+_polygontile_((sf[0-9]+p[0-9]+)|(gr[0-9]+p[0-9]+))_[0-9]+\.tif$"
-
-    @staticmethod
-    def _validate_name(name):
-        if re.match(PolygonTileNameConvention.pattern_aoi, name):
-            return 'pattern_aoi'
-        elif re.match(PolygonTileNameConvention.pattern_no_aoi, name):
-            return 'pattern_no_aoi'
-        else:
-            raise ValueError(f"tile_name {name} does not match any of the supported patterns.")
-
-    @staticmethod
-    def create_name(product_name: str, polygon_id: int, scale_factor=None, ground_resolution=None, aoi=None):
-        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution)
-        tile_name = f"{product_name}_polygontile_{aoi if aoi else 'noaoi'}_{specifier}_{polygon_id}.tif"
-        PolygonTileNameConvention._validate_name(tile_name)
-        return tile_name
-
-    @staticmethod
-    def parse_name(tile_name: str):
-        pattern_name = PolygonTileNameConvention._validate_name(tile_name)
-
-        parts = tile_name.split("_")
-        polygon_id = parts[-1].replace('.tif', '')
-        specifier = parts[-2]
-
-        if pattern_name == 'pattern_aoi':
-            aoi = parts[-3]
-            if aoi == 'noaoi':
-                aoi = None
-            product_name = "_".join(parts[:-4])
-        elif pattern_name == 'pattern_no_aoi':
-            aoi = None
-            product_name = "_".join(parts[:-3])
-        else:
-            raise ValueError(f"pattern_name {pattern_name} is not supported.")
-
-        scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
-
-        return product_name, scale_factor, ground_resolution, polygon_id, aoi
 
 
 class CocoNameConvention(FileNameConvention):
@@ -198,6 +189,7 @@ class CocoNameConvention(FileNameConvention):
 
         return product_name, scale_factor, ground_resolution, fold
 
+
 class PointCloudCocoNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
@@ -224,7 +216,8 @@ class PointCloudCocoNameConvention(FileNameConvention):
         scale_factor, ground_resolution, voxel_size = FileNameConvention.parse_specifier(specifier)
 
         return product_name, scale_factor, ground_resolution, voxel_size, fold 
-    
+
+
 class GeoJsonNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):

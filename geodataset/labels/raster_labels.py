@@ -65,7 +65,7 @@ class RasterPolygonLabels:
 
         self.geometries_gdf = self._load_labels()
 
-    def _load_labels(self):
+    def _load_labels(self) -> gpd.GeoDataFrame:
         # Loading the labels into a GeoDataFrame
         if self.labels_gdf is not None:
             labels_gdf = self.labels_gdf
@@ -81,8 +81,11 @@ class RasterPolygonLabels:
 
         # Making sure we are working with Polygons and not Multipolygons
         if (labels_gdf['geometry'].type == 'MultiPolygon').any():
-            labels_gdf['geometry'] = labels_gdf['geometry'].astype(object).apply(try_cast_multipolygon_to_polygon)
+            labels_gdf['geometry'] = labels_gdf['geometry'].astype(object).apply(
+                lambda geom: try_cast_multipolygon_to_polygon(geom, strategy="largest_part")
+            )
             n_poly_before = len(labels_gdf)
+
             labels_gdf = labels_gdf.dropna(subset=['geometry'])
             warnings.warn(f"Removed {n_poly_before - len(labels_gdf)} out of {n_poly_before} labels as they are MultiPolygons"
                           f" that can't be cast to Polygons.")

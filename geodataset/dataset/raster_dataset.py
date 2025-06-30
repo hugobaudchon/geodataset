@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Union, Optional, Dict, Tuple
+from typing import List, Union, Optional, Dict, Tuple, Any
 from pathlib import Path
 
 import albumentations
@@ -392,7 +392,7 @@ class ClassificationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         super().__init__(fold=fold, root_path=root_path, transform=transform, other_attributes_names_to_pass=other_attributes_names_to_pass)
         self.force_binary_class = force_binary_class
 
-    def __getitem__(self, idx: int) -> Tuple[np.ndarray, int, dict or None]:
+    def __getitem__(self, idx: int) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Retrieves a tile and its class label by index, applying transforms if specified.
 
@@ -403,14 +403,7 @@ class ClassificationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
 
         Returns
         -------
-        Union[Tuple[np.ndarray, int], Tuple[np.ndarray, int, int]]
-            If include_polygon_id is False:
-                - The tile image data (normalized between 0 and 1)
-                - The class label
-            If include_polygon_id is True:
-                - The tile image data (normalized between 0 and 1)
-                - The class label
-                - The polygon ID
+        Tuple[np.ndarray, dict[str, Any]]
         """
         tile_info = self.tiles[idx]
 
@@ -458,13 +451,14 @@ class ClassificationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         # Normalize the image data
         transformed_image = transformed_image / 255.0
 
-        if self.other_attributes_names_to_pass is not None:
-            other_attributes = self._get_other_attributes_to_pass(idx)
-        else:
-            other_attributes = None
+        targets = {
+            'labels': category_id,
+        }
 
-        # Return image and class label and other_attributes (which may be None)
-        return transformed_image, category_id, other_attributes
+        if self.other_attributes_names_to_pass is not None:
+            targets['other_attributes'] = self._get_other_attributes_to_pass(idx)
+
+        return transformed_image, targets
 
 
 class UnlabeledRasterDataset(BaseDataset):
@@ -501,7 +495,8 @@ class UnlabeledRasterDataset(BaseDataset):
 
         self._find_tiles_paths(directories=self.root_path)
 
-        print(f"Found {len(self.tile_paths)} tiles for fold {self.fold}.")
+        print(f"Found {len(self.tile_paths)} tiles for fold "
+              f"{self.fold if self.fold else 'all'}.")
 
     def _find_tiles_paths(self, directories: List[Path]):
         """
@@ -517,13 +512,13 @@ class UnlabeledRasterDataset(BaseDataset):
                     if fold_directory.exists():
                         for path in fold_directory.iterdir():
                             # Iterate within the corresponding split folder
-                            if path.suffix == ".tif":
+                            if path.suffix[1:] in self.SUPPORTED_IMG_EXTENSIONS:
                                 self.tile_paths.append(path)
             else:
                 # If no fold is specified, load all tiles
                 for path in directory.iterdir():
                     # Iterate within the corresponding split folder
-                    if path.suffix == ".tif":
+                    if path.suffix[1:] in self.SUPPORTED_IMG_EXTENSIONS:
                         self.tile_paths.append(path)
 
             if directory.is_dir():
@@ -531,9 +526,10 @@ class UnlabeledRasterDataset(BaseDataset):
                     if path.is_dir():
                         self._find_tiles_paths(directories=[path])
 
-    def __getitem__(self, idx: int):
+    def __getitem__(self, idx: int) -> Union[np.ndarray, Tuple[np.ndarray, Any]]:
         """
-        Retrieves a tile and its annotations by index, applying the transform passed to the constructor of the class,
+        Retrieves a tile and its annotations by index, applying the transform
+        passed to the constructor of the class,
         if any. It also normalizes the tile data between 0 and 1.
 
         Parameters
@@ -545,6 +541,7 @@ class UnlabeledRasterDataset(BaseDataset):
         -------
         numpy.ndarray
             The transformed tile (image) data, normalized between 0 and 1.
+        If `include_polygon_id` is True, returns a tuple of (transformed_image, polygon_id).
         """
         tile_path = self.tile_paths[idx]
 

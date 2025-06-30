@@ -14,6 +14,9 @@ class BaseDataset(ABC):
     Abstract class for a dataset. Requires the implementation of methods needed for use with PyTorch's DataLoader:
     __getitem__, __len__ and __iter__.
     """
+
+    SUPPORTED_IMG_EXTENSIONS = ['tif', 'png', 'jpg', 'jpeg']
+
     @abstractmethod
     def __getitem__(self, idx: int):
         pass
@@ -73,11 +76,6 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         self._find_tiles_paths(directories=self.root_path)
         self._remove_tiles_not_found()
         self._filter_tiles_without_box()
-
-        # DEBUG HERE \/
-        # sub_keys = list(self.tiles.keys())[:100]
-        # self.tiles = {k: self.tiles[k] for k in sub_keys}
-        # DEBUG HERE /\
 
         if len(self.cocos_detected) == 0:
             raise Exception(f"No COCO datasets for fold '{self.fold}' were found in the specified root folder.")
@@ -161,10 +159,10 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
 
     def _find_tiles_paths(self, directories: List[Path]):
         """
-        Loads the dataset by traversing the directory tree and loading relevant COCO JSON files.
+        Finds the images associated to COCO json files by traversing the directory tree.
         """
         for directory in directories:
-            tiles_names_to_paths = find_tiles_paths([directory], extensions=['tif', 'png', 'jpg', 'jpeg'])
+            tiles_names_to_paths = find_tiles_paths([directory], extensions=self.SUPPORTED_IMG_EXTENSIONS)
 
             for tile_name, tile_path in tiles_names_to_paths.items():
                 if tile_name in self.tiles_path_to_id_mapping:
@@ -231,10 +229,10 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
                 other_attributes[attribute_name] = []
         for annotation in self.tiles[tile_id]['labels']:
             for attribute_name in self.other_attributes_names_to_pass:
-                if 'other_attributes' in annotation and attribute_name in annotation['other_attributes']:
-                    other_attributes[attribute_name].append(annotation['other_attributes'][attribute_name])
-                elif attribute_name in annotation:
+                if attribute_name in annotation:
                     other_attributes[attribute_name].append(annotation[attribute_name])
+                elif 'other_attributes' in annotation and attribute_name in annotation['other_attributes']:
+                    other_attributes[attribute_name].append(annotation['other_attributes'][attribute_name])
                 else:
                     other_attributes[attribute_name].append(None)
         return other_attributes

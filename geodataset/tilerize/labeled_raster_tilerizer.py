@@ -18,7 +18,7 @@ from geodataset.tilerize.raster_tilerizer import BaseDiskRasterTilerizer
 class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
     """
     This class is used to create image tiles from a raster and their associated labels from a .geojson, .gpkg or .csv file.
-    COCO json files are generated for each AOI (or for the 'all' AOI).
+    COCO json files are generated for each AOI (or for the DEFAULT_AOI_NAME AOI).
 
     Parameters
     ----------
@@ -51,7 +51,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             aoi_type='band'
         )
     aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
-        An instance of AOIConfig to use, or None if all tiles should be kept in an 'all' AOI.
+        An instance of AOIConfig to use, or None if all tiles should be kept in a DEFAULT_AOI_NAME AOI.
     ground_resolution : float, optional
         The ground resolution in meter per pixel desired when loading the raster.
         Only one of ground_resolution and scale_factor can be set at the same time.
@@ -215,7 +215,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
     def _generate_aois_tiles(self):
         """
-        Get the tiles for each AOI (or for the 'all' AOI) and the associated labels.
+        Get the tiles for each AOI (or for the DEFAULT_AOI_NAME AOI) and the associated labels.
         """
         tiles = self._create_tiles()
 
@@ -238,13 +238,9 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         assert self.aois_tiles is not None, "You must call the _get_aois_tiles method first."
 
         # As some tiles may have been duplicated/removed, we have to re-compute the associated labels
-        # First, getting a list of tiles from every aois, except 'all' if there are multiple aois,
-        # as 'all' would be a duplication of the other ones.
-        tiles = [
-            tile for key, tiles in self.aois_tiles.items()
-            if not (key == 'all' and len(self.aois_tiles) > 1)
-            for tile in tiles
-        ]
+
+        # First, getting a list of tiles from every aois
+        tiles = [tile for key, tiles in self.aois_tiles.items() for tile in tiles]
 
         (intersecting_labels_raster_coords,
          intersecting_labels_tiles_coords) = self._find_associated_labels(tiles=tiles)
@@ -257,8 +253,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         intersecting_labels_aois_raster_coords['intersection_ratio'] = intersecting_labels_aois_raster_coords['intersection_area'] / intersecting_labels_aois_raster_coords['label_area']
         intersecting_labels_aois_raster_coords = intersecting_labels_aois_raster_coords[intersecting_labels_aois_raster_coords['intersection_ratio'] > self.min_intersection_ratio]
 
-        final_aois_tiles = {aoi: [] for aoi in list(self.aois_tiles.keys()) + ['all']}
-        final_aois_labels = {aoi: [] for aoi in list(self.aois_tiles.keys()) + ['all']}
+        final_aois_tiles = {aoi: [] for aoi in list(self.aois_tiles.keys())}
+        final_aois_labels = {aoi: [] for aoi in list(self.aois_tiles.keys())}
         for aoi in self.aois_tiles:
             for tile in self.aois_tiles[aoi]:
                 # Use the AOI-cropped label geometries directly
@@ -288,8 +284,6 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
                 final_aois_tiles[aoi].append(tile)
                 final_aois_labels[aoi].append(labels_tiles_coords)
-                final_aois_tiles['all'].append(tile)
-                final_aois_labels['all'].append(labels_tiles_coords)
 
         return final_aois_tiles, final_aois_labels
 
@@ -338,9 +332,6 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                        tiles_paths_aoi: List[Path],
                        labels: list[gpd.GeoDataFrame],
                        save_tiles_folder: Path or None):
-        if aoi == 'all' and len(self.aois_tiles.keys()) > 1:
-            # don't save the 'all' tiles if aois were provided.
-            return
 
         if len(tiles) == 0:
             print(f"No tiles found for AOI {aoi}. Skipping...")
@@ -390,7 +381,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
     def generate_coco_dataset(self):
         """
-        Generate the tiles and the COCO dataset(s) for each AOI (or for the 'all' AOI) and save everything to the disk.
+        Generate the tiles and the COCO dataset(s) for each AOI (or for the DEFAULT_AOI_NAME AOI) and save everything to the disk.
         """
         self._generate_aois_tiles()
         aois_tiles, aois_labels = self._get_tiles_and_labels_per_aoi()
