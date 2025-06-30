@@ -335,7 +335,7 @@ class InstanceSegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset)
                                          labels=category_ids)
             transformed_image = transformed['image'].transpose((2, 0, 1))
             transformed_bboxes = transformed['bboxes']
-            transformed_masks =  transformed['mask'].transpose((2, 0, 1))
+            transformed_masks = transformed['mask'].transpose((2, 0, 1))
             transformed_category_ids = transformed['labels']
         else:
             transformed_image = tile
@@ -365,7 +365,7 @@ class InstanceSegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset)
 class ClassificationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
     """
     A dataset class for classification tasks using polygon-based tiles from raster data.
-    Loads COCO datasets and their associated tiles. Tracks polygon IDs for regrouping/aggregation.
+    Loads COCO datasets and their associated tiles.
 
     It can directly be used with a torch.utils.data.DataLoader.
 
