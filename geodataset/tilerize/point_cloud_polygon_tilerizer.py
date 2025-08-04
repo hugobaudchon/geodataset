@@ -6,15 +6,20 @@ import pandas as pd
 from shapely import box
 from tqdm import tqdm
 from laspy import CopcReader
+import laspy
+import rasterio
+import numpy as np
+import open3d as o3d
 
 from geodataset.aoi import AOIFromPackageConfig, AOIGeneratorConfig, AOIConfig
 from geodataset.aoi.aoi_base import DEFAULT_AOI_NAME
 from geodataset.aoi.aoi_from_package import AOIFromPackageForPolygons
-from geodataset.geodata import PointCloud, RasterTileMetadata
+from geodataset.geodata import Raster
 from geodataset.geodata.point_cloud import PointCloudTileMetadata, PointCloudTileMetadataCollection
+from geodataset.labels.base_labels import PolygonLabels
+from geodataset.utils import CocoNameConvention, COCOGenerator, strip_all_extensions_and_path
+from geodataset.utils.file_name_conventions import AoiGeoPackageConvention, PointCloudTileNameConvention, validate_and_convert_product_name
 from geodataset.labels import RasterPolygonLabels
-from geodataset.utils import CocoNameConvention, COCOGenerator
-from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
 
 
 class PointCloudPolygonTilerizer:
@@ -128,6 +133,8 @@ class PointCloudPolygonTilerizer:
                 "other_names": ["PIGL", "PIMA", "PIRU"],
                 "supercategory": 1
             }]
+    keep_dims : List[str], optional
+        List of dimensions to keep.
     tile_batch_size : int, optional
         The number of polygon tiles to process in a single batch when saving them to disk.
     temp_dir : str or pathlib.Path
@@ -158,10 +165,14 @@ class PointCloudPolygonTilerizer:
                  other_labels_attributes_column_names: List[str] = None,
                  coco_n_workers: int = 5,
                  coco_categories_list: list[dict] = None,
+                 keep_dims: List[str] = None,
                  tile_batch_size: int = 1000,
                  temp_dir: str or Path = './tmp'):
 
         self.point_cloud_path = Path(point_cloud_path)
+        self.product_name = validate_and_convert_product_name(
+            strip_all_extensions_and_path(self.point_cloud_path)
+        )
         self.labels_path = Path(labels_path) if labels_path is not None else None
         self.tile_size = tile_size
         self.use_variable_tile_size = use_variable_tile_size
@@ -170,6 +181,7 @@ class PointCloudPolygonTilerizer:
         self.aois_config = aois_config
         self.scale_factor = scale_factor
         self.ground_resolution = ground_resolution
+        self.keep_dims = keep_dims if keep_dims is not None else "ALL"
         self.downsample_voxel_size = downsample_voxel_size
         self.reference_raster_path = reference_raster_path
         self.output_name_suffix = output_name_suffix
@@ -183,6 +195,14 @@ class PointCloudPolygonTilerizer:
         self._check_parameters()
         self._check_aois_config()
 
+        self.category_to_id_map = self.create_category_to_id_map()
+        """self.labels = self._load_labels(
+            geopackage_layer=geopackage_layer_name,
+            main_label_category_column_name=main_label_category_column_name,
+            other_labels_attributes_column_names=other_labels_attributes_column_names,
+            keep_categories=list(self.category_to_id_map.keys()),
+        )"""
+        self.raster = self._load_raster()
         self.labels = self._load_labels(
             labels_gdf=labels_gdf,
             geopackage_layer_name=geopackage_layer_name,
@@ -190,11 +210,15 @@ class PointCloudPolygonTilerizer:
             other_labels_attributes_column_names=other_labels_attributes_column_names
         )
 
+        self.labels.geometries_gdf[self.unique_polygon_id_column_name] = range(1, len(self.labels.geometries_gdf) + 1)
+
         # Calculate the real world distance equivalent to tile_size pixels
         if self.reference_raster_path:
             self._align_with_reference_raster()
         else:
             self._calculate_tile_side_length()
+
+        self.output_path = Path(output_path) / f"{Path(output_path).name}_pcd"
 
         self.pc_tiles_folder_path = (
             self.output_path / f"pc_tiles_{self.downsample_voxel_size}"
@@ -204,12 +228,6 @@ class PointCloudPolygonTilerizer:
 
         # Generate tiles metadata
         self.tiles_metadata = self._generate_tiles_metadata()
-
-        self.labels.geometries_gdf[self.unique_polygon_id_column_name] = range(1, len(self.labels.geometries_gdf) + 1)
-
-        self.output_path = Path(output_path) / self.point_cloud.output_name
-        self.tiles_folder_path = self.output_path / 'tiles'
-        self.tiles_folder_path.mkdir(parents=True, exist_ok=True)
 
     def _check_parameters(self):
         assert self.point_cloud_path.exists(), \
@@ -253,12 +271,6 @@ class PointCloudPolygonTilerizer:
             # Calculate tile side length in world coordinates
             self.tile_side_length_x = self.tile_size * self.x_resolution
             self.tile_side_length_y = self.tile_size * self.y_resolution
-            
-            if self.verbose:
-                print(f"Reference raster bounds: {bounds}")
-                print(f"Reference resolution: {self.x_resolution}m/px, {self.y_resolution}m/px")
-                print(f"Tile side length: {self.tile_side_length_x}m x {self.tile_side_length_y}m")
-                print(f"Using reference raster CRS: {crs}")
                 
             # Set the point cloud reader CRS to match the raster if needed
             self.point_cloud_crs = crs
@@ -286,12 +298,34 @@ class PointCloudPolygonTilerizer:
                 # Default to 1 meter per pixel if neither is provided
                 self.x_resolution = self.y_resolution = 1.0
                 self.tile_side_length_x = self.tile_side_length_y = self.tile_size
-                
-            if self.verbose:
-                print(f"Point cloud bounds: X={self.min_x}-{self.max_x}, Y={self.min_y}-{self.max_y}")
-                print(f"Resolution: {self.x_resolution}m/px")
-                print(f"Tile side length: {self.tile_side_length_x}m")
-                print(f"Point cloud CRS: {self.point_cloud_crs}")
+
+    def create_category_to_id_map(self):
+        """Create a mapping from category names to IDs"""
+        category_id_map = {}
+        if self.coco_categories_list:
+            for category_dict in self.coco_categories_list:
+                category_id_map[category_dict["name"]] = category_dict["id"]
+                for name in category_dict.get("other_names", []):
+                    category_id_map[name] = category_dict["id"]
+
+        return category_id_map
+
+
+    """ def _load_labels(
+        self,
+        geopackage_layer=None,
+        main_label_category_column_name="labels",
+        other_labels_attributes_column_names=None,
+        keep_categories=None,
+    ) -> PolygonLabels:
+        labels = PolygonLabels(
+            path=self.labels_path,
+            geopackage_layer_name=geopackage_layer,
+            main_label_category_column_name=main_label_category_column_name,
+            other_labels_attributes_column_names=other_labels_attributes_column_names,
+            keep_categories=keep_categories,
+        )
+        return labels """
 
     def _load_labels(self,
                      labels_gdf: gpd.GeoDataFrame,
@@ -329,8 +363,11 @@ class PointCloudPolygonTilerizer:
         tile_id = 0
 
         aois_polygons, _ = self._generate_aois_polygons()
+
+        print(f"Number of items in aois_polygons: {len(aois_polygons)}")
         
-        for aois_polygons, _ = self._generate_aois_polygons():
+        for aoi, polygons in aois_polygons.items():
+            print(f"Processing AOI: {aoi} with {len(polygons)} polygons.")
             for _, polygon_row in tqdm(polygons.iterrows(),
                                        f"Generating polygon tiles for AOI {aoi}...",
                                        total=len(polygons)):
@@ -338,25 +375,37 @@ class PointCloudPolygonTilerizer:
                 polygon = polygon_row['geometry']
                 polygon_id = polygon_row[self.unique_polygon_id_column_name]
 
-                x_pix, y_pix = polygon.centroid.coords[0]
-                x_pix, y_pix = int(x_pix), int(y_pix)
+                x_centroid, y_centroid = polygon.centroid.coords[0]
+                x_centroid, y_centroid = int(x_centroid), int(y_centroid)
 
-                x = x_pix * self.tile_side_length_x + 0.5 * self.x_resolution
-                y = y_pix * self.tile_side_length_y + 0.5 * self.y_resolution
+                start_row = y_centroid - int(0.5 * self.tile_size)
+                start_col = x_centroid - int(0.5 * self.tile_size)
+
+                x = self.min_x + self.x_resolution * start_col
+                y = self.min_y + self.y_resolution * start_row
 
                 # Define tile bounds
-                x_bound = [x - 0.5 * self.tile_side_length_x, x + 0.5 * self.tile_side_length_x]
-                y_bound = [y - 0.5 * self.tile_side_length_y, y + 0.5 * self.tile_side_length_y]
+                x_bound = [x, x + self.tile_side_length_x]
+                y_bound = [y, y + self.tile_side_length_y]
 
                 tile_name = name_convention.create_name(
                     product_name=self.product_name,
-                    row=y_pix,
-                    col=x_pix,
+                    row=start_row,
+                    col=start_col,
                     voxel_size=self.downsample_voxel_size,
                     ground_resolution=self.ground_resolution,
-                    scale_factor=self.scale_factor
+                    scale_factor=self.scale_factor,
+                    aoi=aoi,
                 )
-                
+
+                """
+                print(f"x_bound: {x_bound}, y_bound: {y_bound}")
+                print(f"start_row: {start_row}, start_col: {start_col}")
+                print(f"product_name: {self.product_name}, ")
+                print(f"Creating tile {tile_name} at bounds {x_bound}, {y_bound} for polygon ID {polygon_id}.")
+                raise ValueError("Tile creation failed.")
+                """
+
                 tile_md = PointCloudTileMetadata(
                     x_bound=x_bound,
                     y_bound=y_bound,
@@ -371,6 +420,8 @@ class PointCloudPolygonTilerizer:
                 
                 tiles_metadata.append(tile_md)
                 tile_id += 1
+        
+        print(f"Generated {len(tiles_metadata)} tiles for point cloud {self.point_cloud_path.name}.")
         
         return PointCloudTileMetadataCollection(
             tiles_metadata, product_name=self.product_name
@@ -405,32 +456,22 @@ class PointCloudPolygonTilerizer:
                 labels=self.labels,
                 global_aoi=self.global_aoi,
                 aois_config=self.aois_config,
-                associated_raster=self.raster
+                associated_raster=self.raster,
             )
             aois_polygons, aois_gdf = aoi_engine.get_aoi_polygons()
         else:
             # This should not be reached if __init__ correctly sets self.aois_config
-            raise Exception(f'Internal error: aois_config type unsupported or None: {type(self.aois_config)}')    
-
-        # Saving the AOIs to disk
-        for aoi in aois_gdf['aoi'].unique():
-            if aoi in aois_polygons and len(aois_polygons[aoi]) > 0:
-                aoi_gdf = aois_gdf[aois_gdf['aoi'] == aoi]
-                aoi_gdf = self.raster.revert_polygons_pixels_coordinates_to_crs(aoi_gdf)
-                aoi_file_name = AoiGeoPackageConvention.create_name(
-                    product_name=self.raster.output_name,
-                    aoi=aoi,
-                    ground_resolution=self.ground_resolution,
-                    scale_factor=self.scale_factor
-                )
-                aoi_gdf.drop(columns=['id'], inplace=True, errors='ignore')
-                aoi_gdf.to_file(self.output_path / aoi_file_name, driver='GPKG')
-                print(f"Final AOI '{aoi}' saved to {self.output_path / aoi_file_name}.")
-            else:
-                print(f"Skipping save of AOI boundary for '{aoi}'"
-                      "as no polygons were assigned to it.")
-
+            raise Exception(f'Internal error: aois_config type unsupported or None: {type(self.aois_config)}')
+        del self.raster  # Clear the raster reference to free memory
         return aois_polygons, aois_gdf
+
+    def _load_raster(self):
+        raster = Raster(path=self.reference_raster_path,
+                        output_name_suffix=self.output_name_suffix,
+                        ground_resolution=self.ground_resolution,
+                        scale_factor=self.scale_factor,
+                        temp_dir=self.temp_dir)
+        return raster
 
     def query_tile(self, tile_md, reader):
         """
@@ -497,8 +538,7 @@ class PointCloudPolygonTilerizer:
                 data = self.query_tile(tile_md, reader)
                 
                 if len(data) == 0:
-                    if self.verbose:
-                        print(f"Skipping empty tile {tile_md.tile_name}")
+                    print(f"Skipping empty tile {tile_md.tile_name}")
                     continue
                     
                 # Convert to Open3D format
@@ -616,11 +656,6 @@ class PointCloudPolygonTilerizer:
         for attr in pcd.point:
             if attr != "positions":
                 map_to_tensors[attr] = getattr(pcd.point, attr)[ind]
-
-        if self.verbose:
-            n_removed = positions.shape[0] - unique_pc.shape[0]
-            percentage_removed = (n_removed / positions.shape[0]) * 100 if positions.shape[0] > 0 else 0
-            print(f"Removed {n_removed} duplicate points ({percentage_removed:.2f}%)")
             
         return o3d.t.geometry.PointCloud(map_to_tensors)
 
@@ -644,11 +679,6 @@ class PointCloudPolygonTilerizer:
             return pcd
             
         downsampled = pcd.voxel_down_sample(voxel_size=voxel_size)
-        
-        if self.verbose:
-            n_removed = pcd.point.positions.shape[0] - downsampled.point.positions.shape[0]
-            percentage_removed = (n_removed / pcd.point.positions.shape[0]) * 100
-            print(f"Downsampling removed {n_removed} points ({percentage_removed:.2f}%)")
             
         return downsampled
 
@@ -728,11 +758,6 @@ class PointCloudPolygonTilerizer:
         for attr in pcd.point:
             if attr != "positions":
                 map_to_tensors[attr] = getattr(pcd.point, attr)[indices_in_aoi]
-                
-        if self.verbose:
-            n_removed = positions.shape[0] - positions_in_aoi.shape[0]
-            percentage_removed = (n_removed / positions.shape[0]) * 100
-            print(f"Removed {n_removed} points outside AOI {tile_md.aoi} ({percentage_removed:.2f}%)")
         
         return o3d.t.geometry.PointCloud(map_to_tensors)
     
