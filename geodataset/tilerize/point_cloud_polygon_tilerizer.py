@@ -360,7 +360,6 @@ class PointCloudPolygonTilerizer:
         """Generate tile metadata for all tiles covering the point cloud"""
         name_convention = PointCloudTileNameConvention()
         tiles_metadata = []
-        tile_id = 0
 
         aois_polygons, _ = self._generate_aois_polygons()
 
@@ -396,6 +395,9 @@ class PointCloudPolygonTilerizer:
                     ground_resolution=self.ground_resolution,
                     scale_factor=self.scale_factor,
                     aoi=aoi,
+                    width=self.tile_size,
+                    height=self.tile_size,
+                    tile_id=polygon_id,
                 )
 
                 """
@@ -407,19 +409,19 @@ class PointCloudPolygonTilerizer:
                 """
 
                 tile_md = PointCloudTileMetadata(
+                    tile_id=polygon_id,
                     x_bound=x_bound,
                     y_bound=y_bound,
                     crs=self.point_cloud_crs,
                     tile_name=tile_name,
-                    tile_id=tile_id,
                     height=self.tile_size,
                     width=self.tile_size,
+                    aoi=aoi,
                     ground_resolution=self.ground_resolution,
                     scale_factor=self.scale_factor
                 )
                 
                 tiles_metadata.append(tile_md)
-                tile_id += 1
         
         print(f"Generated {len(tiles_metadata)} tiles for point cloud {self.point_cloud_path.name}.")
         
@@ -507,72 +509,45 @@ class PointCloudPolygonTilerizer:
 
         b = laspy.copc.Bounds(mins=mins, maxs=maxs)
         data = reader.query(b)
-        return data
-
-    def tilerize(self):
-        """
-        Generate point cloud polygon tiles for the entire dataset.
-        
-        Returns
-        -------
-        PointCloudTileMetadataCollection
-            Collection of tiles metadata
-        """
-        # Tilerize the point cloud
-        self._tilerize()
-        
-        # Plot AOIs if available
-        if hasattr(self, 'aoi_engine') and self.aoi_engine:
-            self.plot_aois()
-            
-        return self.tiles_metadata
+        return data         
     
-    def _tilerize(self):
-        """
-        Internal implementation of tilerization.
-        """
+    def generate_coco_dataset(self):
         new_tile_md_list = []
         with CopcReader.open(self.point_cloud_path) as reader:
             for tile_md in tqdm(self.tiles_metadata, desc="Processing tiles"):
                 # Query points within this tile
                 data = self.query_tile(tile_md, reader)
-                
                 if len(data) == 0:
-                    print(f"Skipping empty tile {tile_md.tile_name}")
-                    continue
-                    
+                    raise ValueError(
+                        f"No points found in tile {tile_md.tile_name}. "
+                        "This might indicate an issue with the AOI filtering or point cloud data."
+                    )
                 # Convert to Open3D format
                 pcd = self._laspy_to_o3d(
                     data, 
                     self.keep_dims.copy() if type(self.keep_dims) is not str else self.keep_dims
                 )
-                
-                # Apply downsampling if requested
-                if self.downsample_voxel_size:
-                    pcd = self._downsample_tile(pcd, self.downsample_voxel_size)
-                    
+                # Apply downsampling
+                pcd = self._downsample_tile(pcd, self.downsample_voxel_size)
                 # Remove duplicate points
                 pcd = self._keep_unique_points(pcd)
-                
                 # Remove points outside the tile's AOI if assigned
                 if hasattr(self, 'aoi_engine') and tile_md.aoi:
                     pcd = self._remove_points_outside_aoi(pcd, tile_md, reader.header.parse_crs())
-                    
                 # Save the tile only if it has points
                 if pcd.point.positions.shape[0] > 0:
                     new_tile_md_list.append(tile_md)
-                    
                     # Save the tile to disk
                     output_dir = self.pc_tiles_folder_path / f"{tile_md.aoi if tile_md.aoi else 'noaoi'}"
                     output_dir.mkdir(parents=True, exist_ok=True)
                     output_file = output_dir / tile_md.tile_name
-                    
                     o3d.t.io.write_point_cloud(str(output_file), pcd)
-
+                else:
+                    raise ValueError(
+                        f"Tile {tile_md.tile_name} has no points after processing. "
+                        "This might indicate an issue with the AOI filtering or point cloud data."
+                    )
         print(f"Finished tilerizing. Generated {len(new_tile_md_list)} tiles with points.")
-        self.tiles_metadata = PointCloudTileMetadataCollection(
-            new_tile_md_list, product_name=self.tiles_metadata.product_name
-        )
 
     def _laspy_to_o3d(self, pc_file, keep_dims):
         """
@@ -760,25 +735,3 @@ class PointCloudPolygonTilerizer:
                 map_to_tensors[attr] = getattr(pcd.point, attr)[indices_in_aoi]
         
         return o3d.t.geometry.PointCloud(map_to_tensors)
-    
-    def plot_aois(self):
-        """Plot the AOIs and tiles"""
-        fig, ax = self.tiles_metadata.plot()
-        
-        # Add AOIs to the plot if available
-        if hasattr(self, 'aoi_engine'):
-            palette = {
-                "blue": "#26547C",
-                "red": "#EF476F",
-                "yellow": "#FFD166",
-                "green": "#06D6A0",
-            }
-            
-            for aoi_name, color in zip(self.aoi_engine.loaded_aois.keys(), palette.values()):
-                if aoi_name in self.aoi_engine.loaded_aois:
-                    self.aoi_engine.loaded_aois[aoi_name].plot(
-                        ax=ax, color=color, alpha=0.5
-                    )
-        
-        plt.savefig(self.output_path / f"{self.tiles_metadata.product_name}_aois.png")
-        return fig, ax
