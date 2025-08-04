@@ -332,17 +332,34 @@ class AoiGeoPackageConvention(FileNameConvention):
 class PointCloudTileNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^.*pctile_[a-zA-Z0-9]+_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+\.(ply|las|pcd)$"
+        pattern = r"^.*_pc_tile_[a-zA-Z0-9]+_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+(_[0-9]+)?(_[0-9]+)?(_[0-9]+)?\.(ply|las|pcd)$"
         if not re.match(pattern, name):
             raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
         else:
             return True
 
     @staticmethod
-    def create_name(product_name: str, scale_factor=None, ground_resolution=None, voxel_size=None, extension='pcd', row=None, col=None, aoi=None):
+    def create_name(product_name: str,
+                    scale_factor=None,
+                    ground_resolution=None,
+                    voxel_size=None,
+                    extension='pcd',
+                    row=None,
+                    col=None,
+                    aoi=None,
+                    width=None,
+                    height=None,
+                    tile_id=None):
         assert extension in ["pcd", "ply", "las"], f"Extension must be either 'pcd', 'ply' or 'las', not {extension}."
         specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size)
-        tile_name = f"{product_name}_pctile_{aoi if aoi else 'noaoi'}_{specifier}_{col}_{row}.{extension}"
+        name_parts = [product_name, "pc_tile", aoi if aoi else 'noaoi', specifier, str(col), str(row)]
+        if width:
+            name_parts.append(str(width))
+        if height:
+            name_parts.append(str(height))
+        if tile_id:
+            name_parts.append(str(tile_id))
+        tile_name = "_".join(name_parts) + f".{extension}"
         PointCloudTileNameConvention._validate_name(tile_name)
         return tile_name
 
@@ -350,14 +367,21 @@ class PointCloudTileNameConvention(FileNameConvention):
     def parse_name(tile_name: str):
         PointCloudTileNameConvention._validate_name(tile_name)
 
-        parts = tile_name.split("_pctile_")
+        parts = tile_name.split("_pc_tile_")
         product_name = parts[0]
-        aoi, specifier, col, row, _, tile_id_extension = parts[1].rsplit("_", 4)
-        tile_id, extension = tile_id_extension.split(".")
+        remaining_parts = parts[1].rsplit(".", 1)[0].split("_")
+        extension = parts[1].rsplit(".", 1)[1]
+        aoi = remaining_parts[0]
+        specifier = remaining_parts[1]
+        col = int(remaining_parts[2])
+        row = int(remaining_parts[3])
+        width = int(remaining_parts[4]) if len(remaining_parts) > 4 else None
+        height = int(remaining_parts[5]) if len(remaining_parts) > 5 else None
+        tile_id = int(remaining_parts[6]) if len(remaining_parts) > 6 else None
 
         if aoi == 'noaoi':
             aoi = None
 
         scale_factor, ground_resolution, voxel_size = FileNameConvention.parse_specifier(specifier)
-        return product_name, scale_factor, ground_resolution, voxel_size, int(col), int(row), int(tile_id), aoi
+        return product_name, scale_factor, ground_resolution, voxel_size, int(col), int(row), tile_id, aoi, width, height
     
