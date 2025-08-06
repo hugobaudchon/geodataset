@@ -332,7 +332,7 @@ class AoiGeoPackageConvention(FileNameConvention):
 class PointCloudTileNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^.*_pc_tile_[a-zA-Z0-9]+_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+(_[0-9]+)?(_[0-9]+)?(_[0-9]+)?\.(ply|las|pcd)$"
+        pattern = r"^.*_pc_tile_[a-zA-Z0-9]+_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+(_[0-9]+)?(_[0-9]+)?(_[0-9]+)?\.(ply|las|pcd|laz)$"
         if not re.match(pattern, name):
             raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
         else:
@@ -343,14 +343,14 @@ class PointCloudTileNameConvention(FileNameConvention):
                     scale_factor=None,
                     ground_resolution=None,
                     voxel_size=None,
-                    extension='pcd',
+                    extension='laz',
                     row=None,
                     col=None,
                     aoi=None,
                     width=None,
                     height=None,
                     tile_id=None):
-        assert extension in ["pcd", "ply", "las"], f"Extension must be either 'pcd', 'ply' or 'las', not {extension}."
+        assert extension in ["pcd", "ply", "las", "laz"], f"Extension must be either 'pcd', 'ply', 'las' or 'laz', not {extension}."
         specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size)
         name_parts = [product_name, "pc_tile", aoi if aoi else 'noaoi', specifier, str(col), str(row)]
         if width:

@@ -5,11 +5,15 @@ import geopandas as gpd
 import pandas as pd
 from shapely import box
 from tqdm import tqdm
-from laspy import CopcReader
+from laspy import CopcReader, PointFormat, ExtraBytesParams
 import laspy
 import rasterio
+from rasterio.windows import Window
 import numpy as np
-import open3d as o3d
+from shapely.affinity import translate
+import cv2
+import re
+from pyproj import CRS
 
 from geodataset.aoi import AOIFromPackageConfig, AOIGeneratorConfig, AOIConfig
 from geodataset.aoi.aoi_base import DEFAULT_AOI_NAME
@@ -35,13 +39,7 @@ class PointCloudPolygonTilerizer:
     output_path : str or pathlib.Path
         Path to parent folder where to save the point cloud tiles and associated labels.
     tile_size : int
-        If use_variable_tile_size is set to True, then this parameter defines the maximum size of the tiles in pixels (tile_size, tile_size).
-        If use_variable_tile_size is set to False, all polygon tiles will have the same size (tile_size, tile_size).
-    use_variable_tile_size: bool
-        Whether to use variable tile size. If True, the tile size will match the size of the polygon,
-         with a buffer defined by variable_tile_size_pixel_buffer.
-    variable_tile_size_pixel_buffer: int or None
-        If use_variable_tile_size is True, this parameter defines the pixel buffer to add around the polygon when creating the tile.
+        All polygon tiles will have the same size (tile_size, tile_size).
     labels_gdf: geopandas.GeoDataFrame, optional
         A GeoDataFrame containing the labels. If provided, labels_path must be None.
     global_aoi : str or pathlib.Path or geopandas.GeoDataFrame, optional
@@ -70,12 +68,6 @@ class PointCloudPolygonTilerizer:
         Only one of ground_resolution and scale_factor can be set at the same time.
     output_name_suffix : str, optional
         Suffix to add to the output file names.
-    use_rle_for_labels : bool, optional
-        Whether to use RLE encoding for the labels. If False, the labels will be saved as polygons.
-    min_intersection_ratio : float, optional
-        When finding the associated polygon labels to a tile, this ratio will specify the minimal required intersection
-        ratio (intersecting_polygon_area / polygon_area) between a candidate polygon and the tile in order to keep this
-        polygon as a label for that tile.
     geopackage_layer_name : str, optional
         The name of the layer in the geopackage file to use as labels. Only used if the labels_path is a .gpkg, .geojson
         or .shp file. Only useful when the labels geopackage file contains multiple layers.
@@ -84,59 +76,6 @@ class PointCloudPolygonTilerizer:
     other_labels_attributes_column_names : list of str, optional
         The names of the columns in the labels file that contains other attributes of the labels, which should be kept
         as a dictionary in the COCO annotations data.
-    coco_n_workers : int, optional
-        Number of workers to use when generating the COCO dataset.
-        Useful when use_rle_for_labels=True as it is quite slow.
-    coco_categories_list : list of dict, optional
-        A list of category dictionaries in COCO format.
-
-        If provided, category ids for the annotations in the final COCO file
-        will be determined by matching the category name (defined by 'main_label_category_column_name' parameter) of
-        each polygon with the categories names in coco_categories_list.
-
-        If a polygon has a category that is not in this list, its category_id will be set to None in its COCO annotation.
-
-        If 'main_label_category_column_name' is not provided, but 'coco_categories_list' is a single
-        coco category dictionary, then it will be used for all annotations automatically.
-
-        If 'coco_categories_list' is None, the categories ids will be automatically generated from the
-        unique categories found in the 'main_label_category_column_name' column.
-
-        .. raw:: html
-
-            <br>
-
-        To assign a category_id to a polygon, the code will check the 'name' and 'other_names' fields of the categories.
-
-        .. raw:: html
-
-            <br>
-
-        **IMPORTANT**: It is strongly advised to provide this list if you want to have consistent category ids across
-        multiple COCO datasets.
-
-        .. raw:: html
-
-            <br>
-
-        Exemple of 2 categories, one being the parent of the other::
-
-            [{
-                "id": 1,
-                "name": "Pinaceae",
-                "other_names": [],
-                "supercategory": null
-            },
-            {
-                "id": 2,
-                "name": "Picea",
-                "other_names": ["PIGL", "PIMA", "PIRU"],
-                "supercategory": 1
-            }]
-    keep_dims : List[str], optional
-        List of dimensions to keep.
-    tile_batch_size : int, optional
-        The number of polygon tiles to process in a single batch when saving them to disk.
     temp_dir : str or pathlib.Path
         Temporary directory to store the resampled Raster, if it is too big to fit in memory.
     """
@@ -148,25 +87,17 @@ class PointCloudPolygonTilerizer:
                  labels_path: str or Path or None,
                  output_path: str or Path,
                  tile_size: int,
-                 use_variable_tile_size: bool,
-                 variable_tile_size_pixel_buffer: int or None,
+                 reference_raster_path: str or Path,
                  labels_gdf: gpd.GeoDataFrame = None,
                  global_aoi: str or Path or gpd.GeoDataFrame = None,
                  aois_config: Optional[AOIConfig] = None,
                  ground_resolution: float = None,
                  scale_factor: float = None,
                  downsample_voxel_size: float = None,
-                 reference_raster_path: str or Path = None,
                  output_name_suffix: str = None,
-                 use_rle_for_labels: bool = True,
-                 min_intersection_ratio: float = 0.5,
                  geopackage_layer_name: str = None,
                  main_label_category_column_name: str = None,
                  other_labels_attributes_column_names: List[str] = None,
-                 coco_n_workers: int = 5,
-                 coco_categories_list: list[dict] = None,
-                 keep_dims: List[str] = None,
-                 tile_batch_size: int = 1000,
                  temp_dir: str or Path = './tmp'):
 
         self.point_cloud_path = Path(point_cloud_path)
@@ -175,33 +106,18 @@ class PointCloudPolygonTilerizer:
         )
         self.labels_path = Path(labels_path) if labels_path is not None else None
         self.tile_size = tile_size
-        self.use_variable_tile_size = use_variable_tile_size
-        self.variable_tile_size_pixel_buffer = variable_tile_size_pixel_buffer
         self.global_aoi = global_aoi
         self.aois_config = aois_config
         self.scale_factor = scale_factor
         self.ground_resolution = ground_resolution
-        self.keep_dims = keep_dims if keep_dims is not None else "ALL"
         self.downsample_voxel_size = downsample_voxel_size
         self.reference_raster_path = reference_raster_path
         self.output_name_suffix = output_name_suffix
-        self.use_rle_for_labels = use_rle_for_labels
-        self.min_intersection_ratio = min_intersection_ratio
-        self.coco_n_workers = coco_n_workers
-        self.coco_categories_list = coco_categories_list
-        self.tile_batch_size = tile_batch_size
         self.temp_dir = Path(temp_dir)
 
         self._check_parameters()
         self._check_aois_config()
 
-        self.category_to_id_map = self.create_category_to_id_map()
-        """self.labels = self._load_labels(
-            geopackage_layer=geopackage_layer_name,
-            main_label_category_column_name=main_label_category_column_name,
-            other_labels_attributes_column_names=other_labels_attributes_column_names,
-            keep_categories=list(self.category_to_id_map.keys()),
-        )"""
         self.raster = self._load_raster()
         self.labels = self._load_labels(
             labels_gdf=labels_gdf,
@@ -212,11 +128,7 @@ class PointCloudPolygonTilerizer:
 
         self.labels.geometries_gdf[self.unique_polygon_id_column_name] = range(1, len(self.labels.geometries_gdf) + 1)
 
-        # Calculate the real world distance equivalent to tile_size pixels
-        if self.reference_raster_path:
-            self._align_with_reference_raster()
-        else:
-            self._calculate_tile_side_length()
+        self._align_with_reference_raster()
 
         self.output_path = Path(output_path) / f"{Path(output_path).name}_pcd"
 
@@ -236,8 +148,6 @@ class PointCloudPolygonTilerizer:
             "The tile size must be and integer greater than 0."
         assert not (self.ground_resolution and self.scale_factor), \
             "Both a ground_resolution and a scale_factor were provided. Please only specify one."
-        if self.use_variable_tile_size:
-            assert self.variable_tile_size_pixel_buffer, "A variable_tile_size_pixel_buffer must be provided if use_variable_tile_size is True."
 
     def _check_aois_config(self):
         if self.aois_config is None:
@@ -254,78 +164,8 @@ class PointCloudPolygonTilerizer:
     def _align_with_reference_raster(self):
         """Align point cloud tiles with an existing raster"""
         with rasterio.open(self.reference_raster_path) as src:
-            transform = src.transform
-            crs = src.crs
-            self.raster_height = src.height
-            self.raster_width = src.width
-            
-            # Get bounds in world coordinates
-            bounds = src.bounds
-            self.min_x, self.min_y = bounds.left, bounds.bottom
-            self.max_x, self.max_y = bounds.right, bounds.top
-            
-            # Calculate meters per pixel from the transform
-            self.x_resolution = transform.a
-            self.y_resolution = abs(transform.e)
-            
-            # Calculate tile side length in world coordinates
-            self.tile_side_length_x = self.tile_size * self.x_resolution
-            self.tile_side_length_y = self.tile_size * self.y_resolution
-                
-            # Set the point cloud reader CRS to match the raster if needed
-            self.point_cloud_crs = crs
-                
-    def _calculate_tile_side_length(self):
-        """Calculate tile side length based on ground resolution or scale factor"""
-        # Read point cloud bounds
-        with CopcReader.open(self.point_cloud_path) as reader:
-            self.min_x, self.min_y = reader.header.x_min, reader.header.y_min
-            self.max_x, self.max_y = reader.header.x_max, reader.header.y_max
-            self.point_cloud_crs = reader.header.parse_crs()
-            
-            if self.ground_resolution:
-                # Ground resolution is in meters/pixel
-                self.x_resolution = self.y_resolution = self.ground_resolution
-                self.tile_side_length_x = self.tile_side_length_y = self.tile_size * self.ground_resolution
-            elif self.scale_factor:
-                # Need to estimate a reasonable resolution from point cloud density
-                # This is approximate and might need adjustment
-                point_density = reader.header.point_count / ((self.max_x - self.min_x) * (self.max_y - self.min_y))
-                base_resolution = 1.0 / math.sqrt(point_density)  # Estimated meters per point
-                self.x_resolution = self.y_resolution = base_resolution * self.scale_factor
-                self.tile_side_length_x = self.tile_side_length_y = self.tile_size * self.x_resolution
-            else:
-                # Default to 1 meter per pixel if neither is provided
-                self.x_resolution = self.y_resolution = 1.0
-                self.tile_side_length_x = self.tile_side_length_y = self.tile_size
-
-    def create_category_to_id_map(self):
-        """Create a mapping from category names to IDs"""
-        category_id_map = {}
-        if self.coco_categories_list:
-            for category_dict in self.coco_categories_list:
-                category_id_map[category_dict["name"]] = category_dict["id"]
-                for name in category_dict.get("other_names", []):
-                    category_id_map[name] = category_dict["id"]
-
-        return category_id_map
-
-
-    """ def _load_labels(
-        self,
-        geopackage_layer=None,
-        main_label_category_column_name="labels",
-        other_labels_attributes_column_names=None,
-        keep_categories=None,
-    ) -> PolygonLabels:
-        labels = PolygonLabels(
-            path=self.labels_path,
-            geopackage_layer_name=geopackage_layer,
-            main_label_category_column_name=main_label_category_column_name,
-            other_labels_attributes_column_names=other_labels_attributes_column_names,
-            keep_categories=keep_categories,
-        )
-        return labels """
+            self.transform = src.transform
+            self.point_cloud_crs = src.crs
 
     def _load_labels(self,
                      labels_gdf: gpd.GeoDataFrame,
@@ -376,16 +216,99 @@ class PointCloudPolygonTilerizer:
 
                 x_centroid, y_centroid = polygon.centroid.coords[0]
                 x_centroid, y_centroid = int(x_centroid), int(y_centroid)
+                binary_mask = np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
+                mask_box = box(x_centroid - 0.5 * self.tile_size,
+                       y_centroid - 0.5 * self.tile_size,
+                       x_centroid + 0.5 * self.tile_size,
+                       y_centroid + 0.5 * self.tile_size)
+                # Making sure the polygon is valid
+                polygon = polygon.buffer(0)
+                polygon_intersection = mask_box.intersection(polygon)
+                translated_polygon_intersection = translate(
+                    polygon_intersection,
+                    xoff=-mask_box.bounds[0],
+                    yoff=-mask_box.bounds[1]
+                )
+                # Making sure the polygon is a Polygon and not a GeometryCollection (GeometryCollection can happen on Raster edges due to intersection)
+                # Use an empty Polygon as the default value
+                if translated_polygon_intersection.geom_type != 'Polygon':
+                    # Get the Polygon with the largest area
+                    translated_polygon_intersection = max(translated_polygon_intersection.geoms, key=lambda x: x.area, default=Polygon())
+                # Ensure the result has an exterior before accessing its coordinates
+                if not translated_polygon_intersection.is_empty:
+                    contours = np.array(translated_polygon_intersection.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
+                else:
+                    # Handle the case when the intersection is empty (e.g., set contours to an empty array)
+                    contours = np.array([])
 
-                start_row = y_centroid - int(0.5 * self.tile_size)
-                start_col = x_centroid - int(0.5 * self.tile_size)
+                # Check if contours is not empty before calling cv2.fillPoly
+                if contours.size > 0:
+                    cv2.fillPoly(binary_mask, [contours], 1)
+                else:
+                    # Handle the case where there are no contours (e.g., skip filling the polygon)
+                    pass
 
-                x = self.min_x + self.x_resolution * start_col
-                y = self.min_y + self.y_resolution * start_row
+                # Getting the pixels from the raster
+                mask_bounds = mask_box.bounds
+                mask_bounds = [int(x) for x in mask_bounds]
+
+                # Handling bounds outside the data
+                start_row = mask_bounds[1]
+                end_row = mask_bounds[3]
+                start_col = mask_bounds[0]
+                end_col = mask_bounds[2]
+
+                if len(self.raster.data.shape) > 2:
+                    import ipdb; ipdb.set_trace()
+                # Padding to tile_size if necessary
+                pre_row_pad = max(0, -mask_bounds[1])
+                post_row_pad = max(0, mask_bounds[3] - self.raster.data.shape[0])
+                pre_col_pad = max(0, -mask_bounds[0])
+                post_col_pad = max(0, mask_bounds[2] - self.raster.data.shape[1])
+
+                if self.tile_size - (end_row - start_row + pre_row_pad + post_row_pad) == 1:
+                    post_row_pad += 1
+                if self.tile_size - (end_col - start_col + pre_col_pad + post_col_pad) == 1:
+                    post_col_pad += 1
+
+                # Padding the mask to the final tile size
+                start_row = max(0, start_row - pre_row_pad)
+                end_row = min(self.raster.data.shape[0], end_row + post_row_pad)
+                start_col = max(0, start_col - pre_col_pad)
+                end_col = min(self.raster.data.shape[1], end_col + post_col_pad)
+
+                # Creating the PolygonTile, with the appropriate metadata
+                window = Window(
+                    col_off=start_col,
+                    row_off=start_row,
+                    width=end_col - start_col,
+                    height=end_row - start_row
+                )
+
+
+                left, bottom, right, top = rasterio.windows.bounds(window, transform=self.transform)
+
+                x_bound = [left, right]
+                y_bound = [bottom, top]
+                
+                #start_row = y_centroid - int(0.5 * self.tile_size)
+                #start_col = x_centroid - int(0.5 * self.tile_size)
+
+                #x, y = self.transform * (start_col, start_row)
 
                 # Define tile bounds
-                x_bound = [x, x + self.tile_side_length_x]
-                y_bound = [y, y + self.tile_side_length_y]
+                #x_bound = [x, x + self.tile_side_length_x]
+                #y_bound = [y, y + self.tile_side_length_y]
+
+                #x_left, y_top = rasterio.transform.xy(
+                #    self.transform, start_row, start_col, offset='ul'
+                #)
+                #x_right, y_bottom = rasterio.transform.xy(
+                #    self.transform, end_row, end_col, offset='lr'
+                #)
+
+                #x_bound = [x_left, x_right]
+                #y_bound = [y_bottom, y_top]
 
                 tile_name = name_convention.create_name(
                     product_name=self.product_name,
@@ -399,14 +322,6 @@ class PointCloudPolygonTilerizer:
                     height=self.tile_size,
                     tile_id=polygon_id,
                 )
-
-                """
-                print(f"x_bound: {x_bound}, y_bound: {y_bound}")
-                print(f"start_row: {start_row}, start_col: {start_col}")
-                print(f"product_name: {self.product_name}, ")
-                print(f"Creating tile {tile_name} at bounds {x_bound}, {y_bound} for polygon ID {polygon_id}.")
-                raise ValueError("Tile creation failed.")
-                """
 
                 tile_md = PointCloudTileMetadata(
                     tile_id=polygon_id,
@@ -424,6 +339,8 @@ class PointCloudPolygonTilerizer:
                 tiles_metadata.append(tile_md)
         
         print(f"Generated {len(tiles_metadata)} tiles for point cloud {self.point_cloud_path.name}.")
+
+        del self.raster  # Clear the raster reference to free memory
         
         return PointCloudTileMetadataCollection(
             tiles_metadata, product_name=self.product_name
@@ -464,7 +381,6 @@ class PointCloudPolygonTilerizer:
         else:
             # This should not be reached if __init__ correctly sets self.aois_config
             raise Exception(f'Internal error: aois_config type unsupported or None: {type(self.aois_config)}')
-        del self.raster  # Clear the raster reference to free memory
         return aois_polygons, aois_gdf
 
     def _load_raster(self):
@@ -491,57 +407,35 @@ class PointCloudPolygonTilerizer:
         laspy.LasData
             The points within the tile boundary
         """
-        reader_crs = reader.header.parse_crs()
-
-        if tile_md.crs.to_epsg() != reader_crs.to_epsg():
-            # Transform bounds if CRS doesn't match
-            min_max_gdf = gpd.GeoDataFrame(
-                geometry=[box(tile_md.min_x, tile_md.min_y, tile_md.max_x, tile_md.max_y)],
-                crs=tile_md.crs
-            )
-            min_max_gdf = min_max_gdf.to_crs(reader_crs)
-            bounds = min_max_gdf.geometry[0].bounds
-            mins = np.array([bounds[0], bounds[1]])
-            maxs = np.array([bounds[2], bounds[3]])
-        else:
-            mins = np.array([tile_md.min_x, tile_md.min_y])
-            maxs = np.array([tile_md.max_x, tile_md.max_y])
-
+        mins = np.array([tile_md.min_x, tile_md.min_y])
+        maxs = np.array([tile_md.max_x, tile_md.max_y])
         b = laspy.copc.Bounds(mins=mins, maxs=maxs)
         data = reader.query(b)
-        return data         
+        return data
     
     def generate_coco_dataset(self):
         new_tile_md_list = []
         with CopcReader.open(self.point_cloud_path) as reader:
             for tile_md in tqdm(self.tiles_metadata, desc="Processing tiles"):
                 # Query points within this tile
-                data = self.query_tile(tile_md, reader)
-                if len(data) == 0:
+                las = self.query_tile(tile_md, reader)
+                if len(las) == 0:
                     raise ValueError(
                         f"No points found in tile {tile_md.tile_name}. "
                         "This might indicate an issue with the AOI filtering or point cloud data."
                     )
-                # Convert to Open3D format
-                pcd = self._laspy_to_o3d(
-                    data, 
-                    self.keep_dims.copy() if type(self.keep_dims) is not str else self.keep_dims
-                )
                 # Apply downsampling
-                pcd = self._downsample_tile(pcd, self.downsample_voxel_size)
-                # Remove duplicate points
-                pcd = self._keep_unique_points(pcd)
-                # Remove points outside the tile's AOI if assigned
-                if hasattr(self, 'aoi_engine') and tile_md.aoi:
-                    pcd = self._remove_points_outside_aoi(pcd, tile_md, reader.header.parse_crs())
+                las_downsampled = self._voxel_downsample_centroid(las, self.downsample_voxel_size, reader.header)
+                del las
                 # Save the tile only if it has points
-                if pcd.point.positions.shape[0] > 0:
+                if len(las_downsampled) > 0:
                     new_tile_md_list.append(tile_md)
                     # Save the tile to disk
                     output_dir = self.pc_tiles_folder_path / f"{tile_md.aoi if tile_md.aoi else 'noaoi'}"
                     output_dir.mkdir(parents=True, exist_ok=True)
                     output_file = output_dir / tile_md.tile_name
-                    o3d.t.io.write_point_cloud(str(output_file), pcd)
+                    las_downsampled.write(f"{output_file}")
+                    del las_downsampled
                 else:
                     raise ValueError(
                         f"Tile {tile_md.tile_name} has no points after processing. "
@@ -549,189 +443,67 @@ class PointCloudPolygonTilerizer:
                     )
         print(f"Finished tilerizing. Generated {len(new_tile_md_list)} tiles with points.")
 
-    def _laspy_to_o3d(self, pc_file, keep_dims):
-        """
-        Convert LAS point cloud to Open3D format.
-        
-        Parameters
-        ----------
-        pc_file : laspy.LasData
-            Point cloud data from LAS/LAZ file
-        keep_dims : list or str
-            Dimensions to keep
+    def _voxel_downsample_centroid(self, las: laspy.LasData, voxel_size: float, header) -> laspy.LasData:
+        coords = np.vstack((las.x, las.y, las.z)).T  # shape: (N, 3)
+        if coords.shape[0] == 0:
+            raise ValueError("No points in the tile to downsample.")
+        # Compute voxel indices
+        voxel_indices = np.floor(coords / voxel_size).astype(np.int64)
+        # Get unique voxel IDs and mapping from points to voxel ID
+        unique_voxels, inverse_indices = np.unique(voxel_indices, axis=0, return_inverse=True)
+        num_voxels = unique_voxels.shape[0]
+        original_point_count = coords.shape[0]
+        # Print compression ratio
+        compression_ratio = original_point_count / num_voxels if num_voxels > 0 else 0
+        print(f"Point cloud compressed from {original_point_count} to {num_voxels} points "
+            f"(compression ratio: {compression_ratio:.2f}x)")
+        # Prepare containers
+        centroids = np.zeros((num_voxels, 3), dtype=np.float64)
+        # Compute centroids using NumPy bincount
+        for i in range(3):
+            centroids[:, i] = np.bincount(inverse_indices, weights=coords[:, i]) / np.bincount(inverse_indices)
+        # Determine continuous fields to average
+        valid_fields = set(las.point_format.dimension_names)
+        continuous_fields = [
+            "red", "green", "blue",
+            "normal x", "normal y", "normal z",
+        ]
+        continuous_fields = [f for f in continuous_fields if f in valid_fields]
+        # Prepare dictionary for continuous fields
+        continuous_arrays = {}
+        for field in continuous_fields:
+            values = np.asarray(las[field])
+            dtype = values.dtype
+            sums = np.bincount(inverse_indices, weights=values.astype(np.float64))
+            counts = np.bincount(inverse_indices)
+            averaged = (sums / counts).astype(dtype)
+            continuous_arrays[field] = averaged
+        # Start from minimal base format (just X, Y, Z + RGB)
+        point_format = PointFormat(2)  # Format 2 includes X,Y,Z + RGB
+        # Create new header from scratch
+        new_header = laspy.LasHeader(version=header.version, point_format=point_format)
+        # Add extra dimensions for any non-standard fields
+        extra_dims = []
+        for field in continuous_fields:
+            if field not in ('red', 'green', 'blue'):
+                dtype = las[field].dtype
+                extra_dims.append(ExtraBytesParams(name=field, type=dtype))
+        if extra_dims:
+            new_header.add_extra_dims(extra_dims)
+        # Create minimal LasData
+        new_las = laspy.LasData(new_header)
             
-        Returns
-        -------
-        o3d.t.geometry.PointCloud
-            Open3D point cloud
-        """
-        float_type = np.float32
-        dimensions = list(pc_file.point_format.dimension_names)
-
-        if keep_dims == "ALL":
-            keep_dims = dimensions.copy()
-
-        # Ensure required dimensions are present
-        assert all([dim in keep_dims for dim in ["X", "Y", "Z"]])
-        assert all([dim in dimensions for dim in keep_dims])
-
-        # Get XYZ coordinates
-        pc = np.ascontiguousarray(
-            np.vstack([pc_file.x, pc_file.y, pc_file.z]).T.astype(float_type)
-        )
-
-        # Build tensor map
-        map_to_tensors = {"positions": pc}
-
-        # Remove XYZ from dimensions to keep
-        processing_dims = [d for d in keep_dims if d not in ["X", "Y", "Z"]]
-
-        # Process colors
-        if all(color in keep_dims for color in ["red", "green", "blue"]):
-            colors = np.ascontiguousarray(
-                np.vstack([pc_file.red, pc_file.green, pc_file.blue]).T.astype(float_type)
-            )
-            pc_colors = np.round(colors/255)
-            map_to_tensors["colors"] = pc_colors.astype(np.uint8)
-            
-            # Remove color dimensions from further processing
-            processing_dims = [d for d in processing_dims if d not in ["red", "green", "blue"]]
-
-        # Add remaining dimensions
-        for dim in processing_dims:
-            dim_value = np.ascontiguousarray(pc_file[dim]).astype(float_type)
-            dim_value = dim_value.reshape(-1, 1)
-            map_to_tensors[dim.lower()] = dim_value
-
-        return o3d.t.geometry.PointCloud(map_to_tensors)
+        crs = header.parse_crs()
+        crs = crs.source_crs
+        epsg_code = crs.to_epsg()
+        crs = CRS.from_epsg(epsg_code)
+        new_las.header.add_crs(crs)
         
-    def _keep_unique_points(self, pcd):
-        """
-        Remove duplicate points from point cloud
-        
-        Parameters
-        ----------
-        pcd : o3d.t.geometry.PointCloud
-            Input point cloud
-            
-        Returns
-        -------
-        o3d.t.geometry.PointCloud
-            Point cloud with duplicates removed
-        """
-        map_to_tensors = {}
-        positions = pcd.point.positions.numpy()
-        
-        # Find unique points by position
-        unique_pc, ind = np.unique(positions, axis=0, return_index=True)
-        
-        map_to_tensors["positions"] = unique_pc
-
-        # Keep the attributes for each unique point
-        for attr in pcd.point:
-            if attr != "positions":
-                map_to_tensors[attr] = getattr(pcd.point, attr)[ind]
-            
-        return o3d.t.geometry.PointCloud(map_to_tensors)
-
-    def _downsample_tile(self, pcd, voxel_size):
-        """
-        Downsample a point cloud using voxel grid
-        
-        Parameters
-        ----------
-        pcd : o3d.t.geometry.PointCloud
-            Input point cloud
-        voxel_size : float
-            Voxel size for downsampling
-            
-        Returns
-        -------
-        o3d.t.geometry.PointCloud
-            Downsampled point cloud
-        """
-        if pcd.point.positions.shape[0] == 0:
-            return pcd
-            
-        downsampled = pcd.voxel_down_sample(voxel_size=voxel_size)
-            
-        return downsampled
-
-    def _remove_points_outside_aoi(self, pcd, tile_md, reader_crs):
-        """
-        Remove points that fall outside the AOI for this tile
-        
-        Parameters
-        ----------
-        pcd : o3d.t.geometry.PointCloud
-            Input point cloud
-        tile_md : PointCloudTileMetadata
-            Metadata for the tile
-        reader_crs : PyProjCRS
-            CRS of the point cloud reader
-            
-        Returns
-        -------
-        o3d.t.geometry.PointCloud
-            Point cloud with only points inside the AOI
-        """
-        if not hasattr(self, 'aoi_engine') or tile_md.aoi is None:
-            return pcd
-            
-        aoi_gdf = self.aoi_engine.loaded_aois.get(tile_md.aoi)
-        if aoi_gdf is None:
-            if self.verbose:
-                print(f"No AOI found for {tile_md.aoi}")
-            return pcd
-            
-        # Convert AOI to point cloud CRS if needed
-        aoi_gdf = aoi_gdf.to_crs(reader_crs)
-        
-        # Check if we have points in the point cloud
-        if pcd.point.positions.shape[0] == 0:
-            return pcd
-            
-        positions = pcd.point.positions.numpy()
-        
-        # Quick check if all points are in the AOI bounds
-        aoi_bounds = aoi_gdf.total_bounds
-        min_x, min_y, max_x, max_y = aoi_bounds
-        
-        # If all points are within the AOI bounds, return the original point cloud
-        points_min_x = np.min(positions[:, 0])
-        points_max_x = np.max(positions[:, 0])
-        points_min_y = np.min(positions[:, 1])
-        points_max_y = np.max(positions[:, 1])
-        
-        if (points_min_x >= min_x and points_max_x <= max_x and 
-            points_min_y >= min_y and points_max_y <= max_y):
-            return pcd
-            
-        # If not, do a proper spatial join
-        point_gdf = gpd.GeoDataFrame(
-            geometry=[Point(x, y, z) for x, y, z in positions],
-            crs=reader_crs
-        )
-        
-        # Find points in the AOI
-        points_in_aoi = gpd.sjoin(point_gdf, aoi_gdf, predicate="within")
-        
-        if points_in_aoi.empty:
-            # No points in AOI, return empty point cloud
-            return o3d.t.geometry.PointCloud({"positions": np.zeros((0, 3))})
-            
-        # Get indices of points in the AOI
-        indices_in_aoi = points_in_aoi.index.values
-        
-        # Extract positions for points in AOI
-        positions_in_aoi = positions[indices_in_aoi]
-        
-        # Create new tensor map with only points in AOI
-        map_to_tensors = {"positions": positions_in_aoi}
-        
-        # Copy other attributes for points in AOI
-        for attr in pcd.point:
-            if attr != "positions":
-                map_to_tensors[attr] = getattr(pcd.point, attr)[indices_in_aoi]
-        
-        return o3d.t.geometry.PointCloud(map_to_tensors)
+        # Assign coordinates (centroids)
+        new_las.x = centroids[:, 0]
+        new_las.y = centroids[:, 1]
+        new_las.z = centroids[:, 2]
+        # Assign other averaged fields
+        for f, arr in continuous_arrays.items():
+            new_las[f] = arr
+        return new_las
