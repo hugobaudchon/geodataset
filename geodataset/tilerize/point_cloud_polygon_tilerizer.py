@@ -410,8 +410,8 @@ class PointCloudPolygonTilerizer:
         num_voxels = unique_voxels.shape[0]
         original_point_count = coords.shape[0]
         compression_ratio = original_point_count / num_voxels if num_voxels > 0 else 0
-        print(f"Point cloud compressed from {original_point_count} to {num_voxels} points "
-            f"(compression ratio: {compression_ratio:.2f}x)")
+        #print(f"Point cloud compressed from {original_point_count} to {num_voxels} points "
+        #    f"(compression ratio: {compression_ratio:.2f}x)")
         # Compute voxel centroids
         centroids = np.vstack([
             np.bincount(inverse_indices, weights=coords[:, i]) / np.bincount(inverse_indices)
@@ -445,8 +445,20 @@ class PointCloudPolygonTilerizer:
             new_header.add_extra_dims(extra_dims)
         # Create new LasData and assign EPSG
         new_las = laspy.LasData(new_header)
-        crs = header.parse_crs().source_crs
-        new_las.header.add_crs(CRS.from_epsg(crs.to_epsg()))
+        parsed_crs = header.parse_crs()
+        epsg_code = None
+        source_crs = getattr(parsed_crs, "source_crs", None)
+        if source_crs is not None:
+            epsg_code = source_crs.to_epsg()
+        else:
+            for crs in getattr(parsed_crs, "sub_crs_list", []):
+                base_crs = getattr(crs, "source_crs", crs)
+                epsg_code = base_crs.to_epsg()
+                if epsg_code is not None:
+                    break
+        if epsg_code is None:
+            raise ValueError("Could not determine EPSG code from CRS")
+        new_las.header.add_crs(CRS.from_epsg(epsg_code))
         # Assign centroid coordinates
         new_las.x, new_las.y, new_las.z = centroids[:, 0], centroids[:, 1], centroids[:, 2]
         # Assign averaged fields
