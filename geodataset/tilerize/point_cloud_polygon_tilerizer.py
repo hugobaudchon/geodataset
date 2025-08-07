@@ -131,7 +131,7 @@ class PointCloudPolygonTilerizer:
             for tile_md in tqdm(self.tiles_metadata, desc="Processing tiles"):
                 # Query points in the tile bounds
                 las = self._query_tile(tile_md, reader)
-                if len(las.points) == 0:
+                if len(las.x) == 0:
                     raise ValueError(
                         f"[{tile_md.tile_name}] No points found in tile. "
                         "Check AOI filtering or point cloud coverage."
@@ -140,7 +140,7 @@ class PointCloudPolygonTilerizer:
                 las_downsampled = self._voxel_downsample_centroid(
                     las, self.downsample_voxel_size, reader.header
                 )
-                if len(las_downsampled.points) == 0:
+                if len(las_downsampled.x) == 0:
                     raise ValueError(
                         f"[{tile_md.tile_name}] No points remain after downsampling. "
                         "Consider adjusting voxel size or verifying input data."
@@ -424,7 +424,8 @@ class PointCloudPolygonTilerizer:
             if f in valid_fields
         ]
         def _average_by_voxel(values: np.ndarray) -> np.ndarray:
-            return (np.bincount(inverse_indices, weights=values.astype(np.float64)) /
+            float_values = np.asarray(values).astype(np.float64)
+            return (np.bincount(inverse_indices, weights=float_values) /
                     np.bincount(inverse_indices)).astype(values.dtype)
         # Compute averaged attributes
         averaged_fields = {
