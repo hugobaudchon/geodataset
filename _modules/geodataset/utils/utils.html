@@ -769,6 +769,8 @@
                 <span class="n">resampling</span><span class="o">=</span><span class="n">Resampling</span><span class="o">.</span><span class="n">bilinear</span>
             <span class="p">)</span>
         <span class="n">memfile</span> <span class="o">=</span> <span class="n">MemoryFile</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">expected_bytes</span> <span class="o">&gt;</span> <span class="mi">4</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">**</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">profile</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">&quot;BIGTIFF&quot;</span><span class="p">:</span> <span class="s2">&quot;YES&quot;</span><span class="p">})</span>
         <span class="k">with</span> <span class="n">memfile</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="o">**</span><span class="n">profile</span><span class="p">)</span> <span class="k">as</span> <span class="n">mem_ds</span><span class="p">:</span>
             <span class="n">mem_ds</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
         <span class="n">dataset</span> <span class="o">=</span> <span class="n">memfile</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
