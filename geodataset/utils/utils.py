@@ -666,6 +666,8 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
                 resampling=Resampling.bilinear
             )
         memfile = MemoryFile()
+        if expected_bytes > 4 * 1024 ** 3:
+            profile.update({"BIGTIFF": "YES"})
         with memfile.open(**profile) as mem_ds:
             mem_ds.write(data)
         dataset = memfile.open()
