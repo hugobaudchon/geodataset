@@ -131,6 +131,9 @@ class RasterPolygonTilerizer:
         The number of polygon tiles to process in a single batch when saving them to disk.
     temp_dir : str or pathlib.Path
         Temporary directory to store the resampled Raster, if it is too big to fit in memory.
+    output_dtype : str
+        The data type to use when saving the tile. If None, the original data type will
+        be used. Currently supported values are None and 'uint8' (0-255).
     """
 
     unique_polygon_id_column_name = 'polygon_id_geodataset'
@@ -156,7 +159,8 @@ class RasterPolygonTilerizer:
                  coco_n_workers: int = 5,
                  coco_categories_list: list[dict] = None,
                  tile_batch_size: int = 1000,
-                 temp_dir: str or Path = './tmp'):
+                 temp_dir: str or Path = './tmp',
+                 output_dtype: str = None):
 
         self.raster_path = Path(raster_path)
         self.labels_path = Path(labels_path) if labels_path is not None else None
@@ -174,6 +178,7 @@ class RasterPolygonTilerizer:
         self.coco_categories_list = coco_categories_list
         self.tile_batch_size = tile_batch_size
         self.temp_dir = Path(temp_dir)
+        self.output_dtype = output_dtype
 
         self._check_parameters()
         self._check_aois_config()
@@ -359,6 +364,7 @@ class RasterPolygonTilerizer:
             tiles,
             output_folder=self.tiles_folder_path / aoi,
             apply_mask=False,  # We don't apply mask for polygon tiles and let user handle it if needed when loading it for training/inference
+            output_dtype=self.output_dtype
         )
         return tiles_paths
 

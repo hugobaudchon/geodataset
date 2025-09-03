@@ -14,6 +14,7 @@ import geopandas as gpd
 from shapely import box
 from shapely.affinity import translate
 from shapely.geometry import Polygon
+from skimage.util import img_as_ubyte
 
 from geodataset.utils import read_raster, apply_affine_transform, validate_and_convert_product_name, \
     strip_all_extensions_and_path, TileNameConvention, fix_geometry_collection, try_cast_multipolygon_to_polygon
@@ -451,7 +452,8 @@ class RasterTileMetadata:
 
     def save(self,
              output_folder: str or Path,
-             apply_mask: bool = True):
+             apply_mask: bool = True,
+             output_dtype: str = None):
         """
         Save the tile as a .tif file in the output_folder.
 
@@ -461,12 +463,23 @@ class RasterTileMetadata:
             The path to the output folder where the tile should be saved.
         apply_mask: bool
             Whether to apply the mask to the tile data before saving it. Default is True.
+        output_dtype: str
+            The data type to use when saving the tile. If None, the original data type will
+            be used. Currently supported values are None and 'uint8' (0-255).
         """
 
         output_folder = Path(output_folder)
         assert output_folder.exists(), f"The output folder {output_folder} doesn't exist yet."
 
         tile_name = self.generate_name()
+
+        data = self.get_pixel_data(apply_mask=apply_mask)
+        if output_dtype is not None:
+            if output_dtype == 'uint8' and self.metadata['dtype'] != 'uint8':
+                data = img_as_ubyte(data)
+                self.metadata['dtype'] = 'uint8'
+            else:
+                raise NotImplementedError(f"The output dtype {output_dtype} is not supported yet.")
 
         with rasterio.open(
                 output_folder / tile_name,
@@ -476,7 +489,8 @@ class RasterTileMetadata:
                 # predictor=2,  # For integer data; use predictor=3 for floating point if needed
                 # tiled=True  # Enables tiling, which can improve compression efficiency
         ) as tile_raster:
-            tile_raster.write(self.get_pixel_data(apply_mask=apply_mask))
+
+            tile_raster.write(data)
 
             # Make sure to also copy the colorinterp from the parent raster
             parent_ci = self.associated_raster.data.colorinterp
@@ -565,7 +579,8 @@ class RasterTileSaver:
     def save_tile(self,
                   tile: RasterTileMetadata,
                   output_folder: Path,
-                  apply_mask: bool = True):
+                  apply_mask: bool = True,
+                  output_dtype: str = None):
         """
         Save a single tile.
 
@@ -577,16 +592,20 @@ class RasterTileSaver:
             The path to the folder where the tile should be saved.
         apply_mask: bool
             Whether to apply the mask to the tile data before saving it. Default is True.
+        output_dtype: str
+            The data type to use when saving the tile. If None, the original data type will
+            be used. Currently supported values are None and  'uint8' (0-255).
         """
         try:
-            tile.save(output_folder=output_folder, apply_mask=apply_mask)
+            tile.save(output_folder=output_folder, apply_mask=apply_mask, output_dtype=output_dtype)
         except Exception as e:
             print(f"Error saving tile {tile.generate_name()}: {str(e)}")
 
     def save_all_tiles(self,
                        tiles: List[RasterTileMetadata],
                        output_folder: Path,
-                       apply_mask: bool = True):
+                       apply_mask: bool = True,
+                       output_dtype: str = None):
         """
         Save all the tiles in parallel using ThreadPoolExecutor.
 
@@ -598,11 +617,14 @@ class RasterTileSaver:
             The path to the folder where the tiles should be saved.
         apply_mask: bool
             Whether to apply the mask to the tile data before saving it. Default is True.
+        output_dtype: str
+            The data type to use when saving the tile. If None, the original data type will
+            be used. Currently supported values are None and  'uint8' (0-255).
         """
         # Use ThreadPoolExecutor to manage threads
         with ThreadPoolExecutor(max_workers=self.n_workers) as executor:
             # Submit tasks to the executor
-            futures = [executor.submit(self.save_tile, tile, output_folder, apply_mask) for tile in tiles]
+            futures = [executor.submit(self.save_tile, tile, output_folder, apply_mask, output_dtype) for tile in tiles]
 
             for future in concurrent.futures.as_completed(futures):
                 try:
