@@ -2,6 +2,7 @@ import concurrent
 import threading
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+from math import floor
 from pathlib import Path
 from typing import Tuple, List
 
@@ -15,8 +16,7 @@ from shapely.affinity import translate
 from shapely.geometry import Polygon
 
 from geodataset.utils import read_raster, apply_affine_transform, validate_and_convert_product_name, \
-    strip_all_extensions_and_path, TileNameConvention
-
+    strip_all_extensions_and_path, TileNameConvention, fix_geometry_collection, try_cast_multipolygon_to_polygon
 
 _thread_ds = threading.local()
 
@@ -134,15 +134,14 @@ class Raster:
                          variable_tile_size_pixel_buffer: int) -> Tuple["RasterPolygonTileMetadata", Polygon]:
 
         """
-        Generates and returns a PolygonTile from a Polygon geometry, along with the possibly cropped original Polygon.
-        The PolygonTile (object representing an image containing the pixels of the Raster where the Polygon is)
+        Generates and returns a RasterTileMetadata from a Polygon geometry, along with the possibly cropped original Polygon.
+        The RasterTileMetadata (object representing an image containing the pixels extent and metadata of the Raster where the Polygon is)
         will be centered on the Polygon's centroid.
-        The pixels of the generated PolygonTile that are outside the Polygon will be blacked-out (masked).
 
         Parameters
         ----------
         polygon: Polygon
-            The Polygon geometry to generate the PolygonTile from.
+            The Polygon geometry to generate the RasterTileMetadata from.
         polygon_id: int
             The id of the polygon. Used in the tile name, and should be unique across a dataset.
         polygon_aoi: str
@@ -154,12 +153,11 @@ class Raster:
         use_variable_tile_size: bool
             If True, the tile size will be automatically adjusted to the Polygon's extent,
             up to the tile_size value, which in this case acts as a 'maximum size'.
-            This avoids having too many blacked-out pixels around the Polygon of interest.
             It should be combined with the variable_tile_size_pixel_buffer parameter to add a
             fixed pixel buffer around the Polygon.
             This parameter is recommended if saving disk space is a concern.
         variable_tile_size_pixel_buffer: int
-            The number of blacked-out pixels to add around the Polygon's extent as a buffer.
+            The number of pixels to add around the Polygon's extent as a buffer.
             Only used when use_variable_tile_size is set to 'True'.
 
         Returns
@@ -167,42 +165,52 @@ class Raster:
         Tuple[RasterPolygonTileMetadata, Polygon]
         """
 
+        # find largest polygon and center tile around it
+        polygon = fix_geometry_collection(polygon)
+        polygon = try_cast_multipolygon_to_polygon(polygon, strategy='largest_part')
         x, y = polygon.centroid.coords[0]
-        x, y = int(x), int(y)
+        cx, cy = polygon.centroid.coords[0]
 
         if use_variable_tile_size:
-            max_dist_to_polygon_border = max([x - polygon.bounds[0], polygon.bounds[2] - x, y - polygon.bounds[1], polygon.bounds[3] - y])
+            # Variable tile size centered on the polygon centroid, with a minimum size of tile_size and that doesn't go outside the raster bounds
+            max_dist_to_polygon_border = max(
+                [x - polygon.bounds[0], polygon.bounds[2] - cx, cy - polygon.bounds[1], polygon.bounds[3] - cy])
             final_tile_size = int(min(tile_size, max_dist_to_polygon_border * 2 + variable_tile_size_pixel_buffer * 2))
         else:
-            # Finding the box centered on the polygon's centroid
+            # Fixed tile size centered on the polygon centroid
             final_tile_size = tile_size
 
+        col_off = int(floor(cx - final_tile_size / 2))
+        row_off = int(floor(cy - final_tile_size / 2))
+        window = Window(col_off=col_off, row_off=row_off, width=final_tile_size, height=final_tile_size)
         binary_mask = np.zeros((final_tile_size, final_tile_size), dtype=np.uint8)
-        mask_box = box(x - 0.5 * final_tile_size,
-                       y - 0.5 * final_tile_size,
-                       x + 0.5 * final_tile_size,
-                       y + 0.5 * final_tile_size)
 
-        # Making sure the polygon is valid
+        window_transform = rasterio.windows.transform(window, self.metadata['transform'])
+        tile_metadata = {
+            'driver': 'GTiff',
+            'height': final_tile_size,
+            'width': final_tile_size,
+            'count': self.metadata['count'],
+            'dtype': self.metadata['dtype'],
+            'crs': self.metadata['crs'],
+            'transform': window_transform
+        }
+
+        # Ensure polygon validity
         polygon = polygon.buffer(0)
 
-        polygon_intersection = mask_box.intersection(polygon)
+        # Clip to the window bounds (in pixel coords), then make sure there is still only one polygon
+        win_bbox = box(col_off, row_off, col_off + final_tile_size, row_off + final_tile_size)
+        inter = polygon.intersection(win_bbox)
+        inter = fix_geometry_collection(inter)
+        inter = try_cast_multipolygon_to_polygon(inter, strategy='largest_part')
 
-        translated_polygon_intersection = translate(
-            polygon_intersection,
-            xoff=-mask_box.bounds[0],
-            yoff=-mask_box.bounds[1]
-        )
-
-        # Making sure the polygon is a Polygon and not a GeometryCollection (GeometryCollection can happen on Raster edges due to intersection)
-        # Use an empty Polygon as the default value
-        if translated_polygon_intersection.geom_type != 'Polygon':
-            # Get the Polygon with the largest area
-            translated_polygon_intersection = max(translated_polygon_intersection.geoms, key=lambda x: x.area, default=Polygon())
+        # Translate the polygon into the tile frame of reference
+        translated_inter = translate(inter, xoff=-col_off, yoff=-row_off)
 
         # Ensure the result has an exterior before accessing its coordinates
-        if not translated_polygon_intersection.is_empty:
-            contours = np.array(translated_polygon_intersection.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
+        if not translated_inter.is_empty:
+            contours = np.array(translated_inter.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
         else:
             # Handle the case when the intersection is empty (e.g., set contours to an empty array)
             contours = np.array([])
@@ -214,56 +222,7 @@ class Raster:
             # Handle the case where there are no contours (e.g., skip filling the polygon)
             pass
 
-        # Getting the pixels from the raster
-        mask_bounds = mask_box.bounds
-        mask_bounds = [int(x) for x in mask_bounds]
-
-        # Handling bounds outside the data
-        start_row = mask_bounds[1]
-        end_row = mask_bounds[3]
-        start_col = mask_bounds[0]
-        end_col = mask_bounds[2]
-
-        if len(self.data.shape) > 2:
-            import ipdb; ipdb.set_trace()
-        # Padding to tile_size if necessary
-        pre_row_pad = max(0, -mask_bounds[1])
-        post_row_pad = max(0, mask_bounds[3] - self.data.shape[0])
-        pre_col_pad = max(0, -mask_bounds[0])
-        post_col_pad = max(0, mask_bounds[2] - self.data.shape[1])
-
-        if final_tile_size - (end_row - start_row + pre_row_pad + post_row_pad) == 1:
-            post_row_pad += 1
-        if final_tile_size - (end_col - start_col + pre_col_pad + post_col_pad) == 1:
-            post_col_pad += 1
-
-        # Padding the mask to the final tile size
-        start_row = max(0, start_row - pre_row_pad)
-        end_row = min(self.data.shape[0], end_row + post_row_pad)
-        start_col = max(0, start_col - pre_col_pad)
-        end_col = min(self.data.shape[1], end_col + post_col_pad)
-        binary_mask = np.pad(binary_mask, ((pre_row_pad, post_row_pad), (pre_col_pad, post_col_pad)),
-                             mode='constant', constant_values=0)
-
-        # Creating the PolygonTile, with the appropriate metadata
-        window = Window(
-            col_off=start_col,
-            row_off=start_row,
-            width=end_col - start_col,
-            height=end_row - start_row
-        )
-        window_transform = rasterio.windows.transform(window, self.metadata['transform'])
-
-        tile_metadata = {
-            'driver': 'GTiff',
-            'height': window.height,
-            'width': window.width,
-            'count': self.metadata['count'],
-            'dtype': self.metadata['dtype'],
-            'crs': self.metadata['crs'],
-            'transform': window_transform
-        }
-
+        # Creating the RasterTileMetadata, with the appropriate metadata
         polygon_tile = RasterTileMetadata(
             associated_raster=self,
             mask=binary_mask,
@@ -276,7 +235,7 @@ class Raster:
             aoi=polygon_aoi
         )
 
-        return polygon_tile, translated_polygon_intersection
+        return polygon_tile, translated_inter
 
     def adjust_geometries_to_raster_crs_if_necessary(self, gdf: gpd.GeoDataFrame):
         """
@@ -450,19 +409,8 @@ class RasterTileMetadata:
             _thread_ds.ds = rasterio.open(ds_name)
         ds = _thread_ds.ds
 
-        tile_data = ds.read(window=window)
-
+        tile_data = ds.read(window=window, boundless=True, masked=False, fill_value=0)
         # tile_data = self.associated_raster.data.read(window=window)
-            
-        pad_row = self.metadata['height'] - tile_data.shape[1]
-        pad_col = self.metadata['width'] - tile_data.shape[2]
-
-        if pad_row > 0 or pad_col > 0:
-            # RasterTileMetadata is always padded at the bottom and right because when tiled,
-            # the minimum possible row and col are 0, so the top and left are always within the Raster,
-            # but the bottom and right could go outside the Raster bounds.
-            padding = ((0, 0), (0, pad_row), (0, pad_col))
-            tile_data = np.pad(tile_data, padding, mode='constant', constant_values=0)
 
         if self.mask is not None and apply_mask:
             tile_data = tile_data * self.mask
