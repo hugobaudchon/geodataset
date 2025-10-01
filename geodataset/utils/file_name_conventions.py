@@ -17,15 +17,17 @@ def validate_and_convert_product_name(product_name_stem: str):
 
 class FileNameConvention(ABC):
     @staticmethod
-    def create_specifier(scale_factor=None, ground_resolution=None, voxel_size=None):
+    def create_specifier(scale_factor=None, ground_resolution=None, voxel_size=None, num_points=None):
         if scale_factor is not None:
             specifier = f"sf{str(float(scale_factor)).replace('.', 'p')}"
         elif ground_resolution is not None:
             specifier =  f"gr{str(float(ground_resolution)).replace('.', 'p')}"
         else:
-            return FileNameConvention.create_specifier(scale_factor=1.0, voxel_size=voxel_size)
+            return FileNameConvention.create_specifier(scale_factor=1.0, voxel_size=voxel_size, num_points=num_points)
         if voxel_size is not None:
             specifier = specifier + f"_vs{str(voxel_size).replace('.', 'p')}"
+        elif num_points is not None:
+            specifier = specifier + f"_np{str(num_points)}"
 
         return specifier
 
@@ -34,6 +36,7 @@ class FileNameConvention(ABC):
         scale_factor = None
         ground_resolution = None
         voxel_size = None
+        num_points = None
 
         if 'sf' in specifier:
             # Extract the part after 'sf' up to the next specifier or end of string
@@ -45,11 +48,14 @@ class FileNameConvention(ABC):
         if 'vs' in specifier:
             vs_part = specifier.split('vs')[1].split('_')[0]
             voxel_size = float(vs_part.replace('p', '.'))
+        if 'np' in specifier:
+            np_part = specifier.split('np')[1].split('_')[0]
+            num_points = int(np_part)
 
         if scale_factor is None and ground_resolution is None:
             raise ValueError("Specifier must contain either 'sf' for scale factor or 'gr' for ground resolution.")
 
-        return scale_factor, ground_resolution, voxel_size
+        return scale_factor, ground_resolution, voxel_size, num_points
     
     @staticmethod
     @abstractmethod
@@ -185,7 +191,7 @@ class CocoNameConvention(FileNameConvention):
         specifier = parts[-2]
         fold = parts[-1].replace(".json", "")
 
-        scale_factor, ground_resolution, _ = FileNameConvention.parse_specifier(specifier)
+        scale_factor, ground_resolution, _, _ = FileNameConvention.parse_specifier(specifier)
 
         return product_name, scale_factor, ground_resolution, fold
 
@@ -193,13 +199,13 @@ class CocoNameConvention(FileNameConvention):
 class PointCloudCocoNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r'^.*pccoco_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[a-zA-Z0-9]+\.json$'
+        pattern = r'^.*pccoco_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?(np[0-9]+_)?[a-zA-Z0-9]+\.json$'
         if not re.match(pattern, name):
             raise ValueError(f"coco_name {name} does not match the expected format {pattern}.")
 
     @staticmethod
-    def create_name(product_name: str, fold: str, scale_factor=None, ground_resolution=None, voxel_size=None):
-        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size)
+    def create_name(product_name: str, fold: str, scale_factor=None, ground_resolution=None, voxel_size=None, num_points=None):
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size, num_points=num_points)
         coco_name = f"{product_name}_pccoco_{specifier}_{fold}.json"
         PointCloudCocoNameConvention._validate_name(coco_name)
         return coco_name
@@ -213,9 +219,9 @@ class PointCloudCocoNameConvention(FileNameConvention):
         specifier, fold_extension = parts[1].rsplit("_", 1)
         fold, extension = fold_extension.split(".")
 
-        scale_factor, ground_resolution, voxel_size = FileNameConvention.parse_specifier(specifier)
+        scale_factor, ground_resolution, voxel_size, num_points = FileNameConvention.parse_specifier(specifier)
 
-        return product_name, scale_factor, ground_resolution, voxel_size, fold 
+        return product_name, scale_factor, ground_resolution, voxel_size, num_points, fold 
 
 
 class GeoJsonNameConvention(FileNameConvention):
@@ -332,7 +338,7 @@ class AoiGeoPackageConvention(FileNameConvention):
 class PointCloudTileNameConvention(FileNameConvention):
     @staticmethod
     def _validate_name(name):
-        pattern = r"^.*_pc_tile_[a-zA-Z0-9]+_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?[0-9]+_[0-9]+(_[0-9]+)?(_[0-9]+)?(_[0-9]+)?\.(ply|las|pcd|laz)$"
+        pattern = r"^.*_pc_tile_[a-zA-Z0-9]+_((sf|gr)[0-9]+p[0-9]+_)?(vs[0-9]+p[0-9]+_)?(np[0-9]+_)?[0-9]+_[0-9]+(_[0-9]+)?(_[0-9]+)?(_[0-9]+)?\.(ply|las|pcd|laz)$"
         if not re.match(pattern, name):
             raise ValueError(f"tile_name {name} does not match the expected format {pattern}.")
         else:
@@ -343,6 +349,7 @@ class PointCloudTileNameConvention(FileNameConvention):
                     scale_factor=None,
                     ground_resolution=None,
                     voxel_size=None,
+                    num_points=None,
                     extension='laz',
                     row=None,
                     col=None,
@@ -351,7 +358,7 @@ class PointCloudTileNameConvention(FileNameConvention):
                     height=None,
                     tile_id=None):
         assert extension in ["pcd", "ply", "las", "laz"], f"Extension must be either 'pcd', 'ply', 'las' or 'laz', not {extension}."
-        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size)
+        specifier = FileNameConvention.create_specifier(scale_factor=scale_factor, ground_resolution=ground_resolution, voxel_size=voxel_size, num_points=num_points)
         name_parts = [product_name, "pc_tile", aoi if aoi else 'noaoi', specifier, str(col), str(row)]
         if width:
             name_parts.append(str(width))
@@ -382,6 +389,6 @@ class PointCloudTileNameConvention(FileNameConvention):
         if aoi == 'noaoi':
             aoi = None
 
-        scale_factor, ground_resolution, voxel_size = FileNameConvention.parse_specifier(specifier)
-        return product_name, scale_factor, ground_resolution, voxel_size, int(col), int(row), tile_id, aoi, width, height
+        scale_factor, ground_resolution, voxel_size, num_points = FileNameConvention.parse_specifier(specifier)
+        return product_name, scale_factor, ground_resolution, voxel_size, num_points, int(col), int(row), tile_id, aoi, width, height
     

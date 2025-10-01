@@ -13,38 +13,6 @@ from geodataset.utils.file_name_conventions import PointCloudTileNameConvention,
 import pandas as pd
 
 
-class PointCloud:
-    """
-    Represents a point cloud dataset.
-    
-    This class is a placeholder for future implementations related to point clouds.
-    Currently, it does not contain any methods or attributes.
-    """
-    def __init__(self,
-                 path: str or Path,
-                 output_name_suffix: str = None,
-                 ground_resolution: float = None,
-                 scale_factor: float = None,
-                 temp_dir: str or Path = './tmp'):
-        self.path = Path(path)
-        self.name = self.path.name
-        self.ext = self.path.suffix
-        self.product_name = validate_and_convert_product_name(strip_all_extensions_and_path(self.path))
-        self.output_name = self.product_name + (f"_{output_name_suffix}" if output_name_suffix else "")
-        self.temp_dir = Path(temp_dir)
-
-        assert not (ground_resolution and scale_factor), ("Both a ground_resolution and a scale_factor were provided."
-                                                          " Please only specify one.")
-        self.ground_resolution = ground_resolution
-        self.scale_factor = scale_factor
-
-        (self.data,
-         self.metadata,
-         self.x_scale_factor,
-         self.y_scale_factor,
-         self.temp_path) = self._load_data()
-
-
 class PointCloudTileMetadata:
     """
     Represents metadata for a point cloud tile aligned with a raster tile grid.
