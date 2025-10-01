@@ -57,7 +57,8 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
                  fold: str,
                  root_path: str or List[str] or Path or List[Path],
                  transform: albumentations.core.composition.Compose = None,
-                 other_attributes_names_to_pass: List[str] = None):
+                 other_attributes_names_to_pass: List[str] = None,
+                 keep_unlabeled: bool = True,):
         self.fold = fold
         self.root_path = root_path
         self.transform = transform
@@ -76,6 +77,8 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         self._find_tiles_paths(directories=self.root_path)
         self._remove_tiles_not_found()
         self._filter_tiles_without_box()
+        if not keep_unlabeled:
+            self._filter_unlabeled_tiles()
 
         if len(self.cocos_detected) == 0:
             raise Exception(f"No COCO datasets for fold '{self.fold}' were found in the specified root folder.")
@@ -92,7 +95,7 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         """
         for directory in directories:
             for path in directory.iterdir():
-                if path.is_file() and path.name.endswith(f".json"):
+                if path.is_file() and path.name.endswith(f".json") and "rgb" in path.name:
                     try:
                         product_name, scale_factor, ground_resolution, fold = CocoNameConvention.parse_name(path.name)
                         if fold == self.fold:
@@ -109,7 +112,6 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         Parameters:
         - json_path: pathlib.Path, the path to the COCO JSON file.
         """
-
         with open(json_path) as f:
             coco_data = json.load(f)
         self._reindex_coco_data(coco_data=coco_data)
@@ -210,6 +212,29 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         if original_tiles_number != new_tiles_number:
             warn(f"Had to remove {original_tiles_number - new_tiles_number} tiles out of {original_tiles_number}"
                  f" as they do not contain annotation in the training set.")
+            # Need to reindex the tile ids for __getitem__
+            self._reindex_tiles()
+
+    def _filter_unlabeled_tiles(self):
+        # Remove tiles without annotation for training
+        original_tiles_number = len(self.tiles)
+
+        tile_ids_unlabeled = []
+        for tile_id, tile in self.tiles.items():
+            labels = tile['labels']
+            category_id = labels[0]['category_id']
+            if category_id == -1:
+                tile_ids_unlabeled.append(tile_id)
+
+        for tile_id in tile_ids_unlabeled:
+            del self.tiles_path_to_id_mapping[self.tiles[tile_id]['name']]
+            del self.tiles[tile_id]
+
+        new_tiles_number = len(self.tiles)
+
+        if original_tiles_number != new_tiles_number:
+            print(f"Had to remove {original_tiles_number - new_tiles_number} tiles out of {original_tiles_number}"
+                 f" as they are unlabeled.")
             # Need to reindex the tile ids for __getitem__
             self._reindex_tiles()
 
