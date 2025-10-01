@@ -52,6 +52,7 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             root_path=root_path,
             transform=None,
             other_attributes_names_to_pass=other_attributes_names_to_pass,
+            keep_unlabeled=False,
         )
         self.dataset_name = dataset_name
         self.modalities = modalities
