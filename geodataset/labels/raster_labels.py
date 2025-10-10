@@ -125,7 +125,7 @@ class RasterPolygonLabels:
             warnings.warn(f"Less than 10% of the labels are intersecting the Raster."
                           f" Something probably went wrong with the CRS, transform or scaling factor.")
 
-        return labels_gdf
+        return labels_in_raster_gdf
 
     def _load_geopandas_labels(self):
         # Load polygons

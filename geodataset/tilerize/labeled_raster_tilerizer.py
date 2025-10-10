@@ -130,7 +130,9 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
     temp_dir : str or pathlib.Path
         Temporary directory to store the resampled Raster, if it is too big to fit in memory.
-
+    output_dtype : str
+        The data type to use when saving the tile. If None, the original data type will
+        be used. Currently supported values are None and 'uint8' (0-255).
     """
 
     def __init__(self,
@@ -154,7 +156,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
                  other_labels_attributes_column_names: List[str] = None,
                  coco_n_workers: int = 5,
                  coco_categories_list: list[dict] = None,
-                 temp_dir: str or Path = './tmp'):
+                 temp_dir: str or Path = './tmp',
+                 output_dtype: str = None):
 
         super().__init__(
             raster_path=raster_path,
@@ -167,7 +170,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
             scale_factor=scale_factor,
             output_name_suffix=output_name_suffix,
             ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold,
-            temp_dir=temp_dir
+            temp_dir=temp_dir,
+            output_dtype=output_dtype
         )
 
         self.labels_path = Path(labels_path) if labels_path else None
@@ -341,7 +345,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         if save_tiles_folder:
             save_tiles_folder.mkdir(parents=True, exist_ok=True)
             for tile in tiles:
-                tile.save(output_folder=save_tiles_folder)
+                tile.save(output_folder=save_tiles_folder, output_dtype=self.output_dtype)
 
         coco_output_file_path = self.output_path / CocoNameConvention.create_name(
             product_name=self.raster.output_name,

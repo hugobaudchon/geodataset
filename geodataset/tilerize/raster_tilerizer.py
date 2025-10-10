@@ -244,6 +244,9 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
         Threshold ratio of black, white or transparent pixels in a tile to skip it
     temp_dir : str or pathlib.Path
         Temporary directory to store the resampled Raster, if it is too big to fit in memory.
+    output_dtype : str
+        The data type to use when saving the tile. If None, the original data type will
+        be used. Currently supported values are None and 'uint8' (0-255).
     """
 
     def __init__(self,
@@ -257,7 +260,8 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
                  scale_factor: float = None,
                  output_name_suffix: str = None,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8,
-                 temp_dir: str or Path = './tmp'):
+                 temp_dir: str or Path = './tmp',
+                 output_dtype: str = None):
 
         super().__init__(raster_path=raster_path,
                          tile_size=tile_size,
@@ -273,6 +277,7 @@ class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
         self.output_path = Path(output_path) / self.raster.output_name
         self.tiles_path = self.output_path / 'tiles'
         self.tiles_path.mkdir(parents=True, exist_ok=True)
+        self.output_dtype = output_dtype
         self.aois_tiles = None
         self.aois_gdf = None
 
@@ -342,6 +347,9 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
         Threshold ratio of black, white or transparent pixels in a tile to skip it. Default is 0.8.
     temp_dir : str or pathlib.Path
         Temporary directory to store the resampled Raster, if it is too big to fit in memory.
+    output_dtype : str
+        The data type to use when saving the tile. If None, the original data type will
+        be used. Currently supported values are None and 'uint8' (0-255).
     """
 
     def __init__(self,
@@ -355,7 +363,8 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                  scale_factor: float = None,
                  output_name_suffix: str = None,
                  ignore_black_white_alpha_tiles_threshold: float = 0.8,
-                 temp_dir: str or Path = './tmp'):
+                 temp_dir: str or Path = './tmp',
+                 output_dtype: str = None):
 
         super().__init__(raster_path=raster_path,
                          output_path=output_path,
@@ -367,7 +376,8 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                          scale_factor=scale_factor,
                          output_name_suffix=output_name_suffix,
                          ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold,
-                         temp_dir=temp_dir)
+                         temp_dir=temp_dir,
+                         output_dtype=output_dtype)
 
     def generate_tiles(self):
         """
@@ -395,7 +405,7 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
             tiles_path_aoi.mkdir(parents=True, exist_ok=True)
 
             for tile in self.aois_tiles[aoi]:
-                tile.save(output_folder=tiles_path_aoi)
+                tile.save(output_folder=tiles_path_aoi, output_dtype=self.output_dtype)
 
         print(f"The tiles have been saved to {self.tiles_path}.")
 
