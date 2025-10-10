@@ -206,7 +206,9 @@
 
 <span class="sd">    temp_dir : str or pathlib.Path</span>
 <span class="sd">        Temporary directory to store the resampled Raster, if it is too big to fit in memory.</span>
-
+<span class="sd">    output_dtype : str</span>
+<span class="sd">        The data type to use when saving the tile. If None, the original data type will</span>
+<span class="sd">        be used. Currently supported values are None and &#39;uint8&#39; (0-255).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
@@ -230,7 +232,8 @@
                  <span class="n">other_labels_attributes_column_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">coco_n_workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
                  <span class="n">coco_categories_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                 <span class="n">temp_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="s1">&#39;./tmp&#39;</span><span class="p">):</span>
+                 <span class="n">temp_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="s1">&#39;./tmp&#39;</span><span class="p">,</span>
+                 <span class="n">output_dtype</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
             <span class="n">raster_path</span><span class="o">=</span><span class="n">raster_path</span><span class="p">,</span>
@@ -243,7 +246,8 @@
             <span class="n">scale_factor</span><span class="o">=</span><span class="n">scale_factor</span><span class="p">,</span>
             <span class="n">output_name_suffix</span><span class="o">=</span><span class="n">output_name_suffix</span><span class="p">,</span>
             <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="o">=</span><span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">,</span>
-            <span class="n">temp_dir</span><span class="o">=</span><span class="n">temp_dir</span>
+            <span class="n">temp_dir</span><span class="o">=</span><span class="n">temp_dir</span><span class="p">,</span>
+            <span class="n">output_dtype</span><span class="o">=</span><span class="n">output_dtype</span>
         <span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">labels_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">labels_path</span><span class="p">)</span> <span class="k">if</span> <span class="n">labels_path</span> <span class="k">else</span> <span class="kc">None</span>
@@ -417,7 +421,7 @@
         <span class="k">if</span> <span class="n">save_tiles_folder</span><span class="p">:</span>
             <span class="n">save_tiles_folder</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles</span><span class="p">:</span>
-                <span class="n">tile</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">output_folder</span><span class="o">=</span><span class="n">save_tiles_folder</span><span class="p">)</span>
+                <span class="n">tile</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">output_folder</span><span class="o">=</span><span class="n">save_tiles_folder</span><span class="p">,</span> <span class="n">output_dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dtype</span><span class="p">)</span>
 
         <span class="n">coco_output_file_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">/</span> <span class="n">CocoNameConvention</span><span class="o">.</span><span class="n">create_name</span><span class="p">(</span>
             <span class="n">product_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">output_name</span><span class="p">,</span>

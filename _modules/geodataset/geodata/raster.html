@@ -76,6 +76,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">math</span><span class="w"> </span><span class="kn">import</span> <span class="n">floor</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">List</span>
 
@@ -87,10 +88,10 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">shapely</span><span class="w"> </span><span class="kn">import</span> <span class="n">box</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.affinity</span><span class="w"> </span><span class="kn">import</span> <span class="n">translate</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">Polygon</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">skimage.util</span><span class="w"> </span><span class="kn">import</span> <span class="n">img_as_ubyte</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">read_raster</span><span class="p">,</span> <span class="n">apply_affine_transform</span><span class="p">,</span> <span class="n">validate_and_convert_product_name</span><span class="p">,</span> \
-    <span class="n">strip_all_extensions_and_path</span><span class="p">,</span> <span class="n">TileNameConvention</span>
-
+    <span class="n">strip_all_extensions_and_path</span><span class="p">,</span> <span class="n">TileNameConvention</span><span class="p">,</span> <span class="n">fix_geometry_collection</span><span class="p">,</span> <span class="n">try_cast_multipolygon_to_polygon</span>
 
 <span class="n">_thread_ds</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">local</span><span class="p">()</span>
 
@@ -215,15 +216,14 @@
                          <span class="n">variable_tile_size_pixel_buffer</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="s2">&quot;RasterPolygonTileMetadata&quot;</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">]:</span>
 
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Generates and returns a PolygonTile from a Polygon geometry, along with the possibly cropped original Polygon.</span>
-<span class="sd">        The PolygonTile (object representing an image containing the pixels of the Raster where the Polygon is)</span>
+<span class="sd">        Generates and returns a RasterTileMetadata from a Polygon geometry, along with the possibly cropped original Polygon.</span>
+<span class="sd">        The RasterTileMetadata (object representing an image containing the pixels extent and metadata of the Raster where the Polygon is)</span>
 <span class="sd">        will be centered on the Polygon&#39;s centroid.</span>
-<span class="sd">        The pixels of the generated PolygonTile that are outside the Polygon will be blacked-out (masked).</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        polygon: Polygon</span>
-<span class="sd">            The Polygon geometry to generate the PolygonTile from.</span>
+<span class="sd">            The Polygon geometry to generate the RasterTileMetadata from.</span>
 <span class="sd">        polygon_id: int</span>
 <span class="sd">            The id of the polygon. Used in the tile name, and should be unique across a dataset.</span>
 <span class="sd">        polygon_aoi: str</span>
@@ -235,12 +235,11 @@
 <span class="sd">        use_variable_tile_size: bool</span>
 <span class="sd">            If True, the tile size will be automatically adjusted to the Polygon&#39;s extent,</span>
 <span class="sd">            up to the tile_size value, which in this case acts as a &#39;maximum size&#39;.</span>
-<span class="sd">            This avoids having too many blacked-out pixels around the Polygon of interest.</span>
 <span class="sd">            It should be combined with the variable_tile_size_pixel_buffer parameter to add a</span>
 <span class="sd">            fixed pixel buffer around the Polygon.</span>
 <span class="sd">            This parameter is recommended if saving disk space is a concern.</span>
 <span class="sd">        variable_tile_size_pixel_buffer: int</span>
-<span class="sd">            The number of blacked-out pixels to add around the Polygon&#39;s extent as a buffer.</span>
+<span class="sd">            The number of pixels to add around the Polygon&#39;s extent as a buffer.</span>
 <span class="sd">            Only used when use_variable_tile_size is set to &#39;True&#39;.</span>
 
 <span class="sd">        Returns</span>
@@ -248,42 +247,52 @@
 <span class="sd">        Tuple[RasterPolygonTileMetadata, Polygon]</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
+        <span class="c1"># find largest polygon and center tile around it</span>
+        <span class="n">polygon</span> <span class="o">=</span> <span class="n">fix_geometry_collection</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span>
+        <span class="n">polygon</span> <span class="o">=</span> <span class="n">try_cast_multipolygon_to_polygon</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="n">strategy</span><span class="o">=</span><span class="s1">&#39;largest_part&#39;</span><span class="p">)</span>
         <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">centroid</span><span class="o">.</span><span class="n">coords</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+        <span class="n">cx</span><span class="p">,</span> <span class="n">cy</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">centroid</span><span class="o">.</span><span class="n">coords</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
         <span class="k">if</span> <span class="n">use_variable_tile_size</span><span class="p">:</span>
-            <span class="n">max_dist_to_polygon_border</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="n">x</span> <span class="o">-</span> <span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">-</span> <span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">y</span><span class="p">])</span>
+            <span class="c1"># Variable tile size centered on the polygon centroid, with a minimum size of tile_size and that doesn&#39;t go outside the raster bounds</span>
+            <span class="n">max_dist_to_polygon_border</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">x</span> <span class="o">-</span> <span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">cx</span><span class="p">,</span> <span class="n">cy</span> <span class="o">-</span> <span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">polygon</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">cy</span><span class="p">])</span>
             <span class="n">final_tile_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">tile_size</span><span class="p">,</span> <span class="n">max_dist_to_polygon_border</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">variable_tile_size_pixel_buffer</span> <span class="o">*</span> <span class="mi">2</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># Finding the box centered on the polygon&#39;s centroid</span>
+            <span class="c1"># Fixed tile size centered on the polygon centroid</span>
             <span class="n">final_tile_size</span> <span class="o">=</span> <span class="n">tile_size</span>
 
+        <span class="n">col_off</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">floor</span><span class="p">(</span><span class="n">cx</span> <span class="o">-</span> <span class="n">final_tile_size</span> <span class="o">/</span> <span class="mi">2</span><span class="p">))</span>
+        <span class="n">row_off</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">floor</span><span class="p">(</span><span class="n">cy</span> <span class="o">-</span> <span class="n">final_tile_size</span> <span class="o">/</span> <span class="mi">2</span><span class="p">))</span>
+        <span class="n">window</span> <span class="o">=</span> <span class="n">Window</span><span class="p">(</span><span class="n">col_off</span><span class="o">=</span><span class="n">col_off</span><span class="p">,</span> <span class="n">row_off</span><span class="o">=</span><span class="n">row_off</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="n">final_tile_size</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="n">final_tile_size</span><span class="p">)</span>
         <span class="n">binary_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">final_tile_size</span><span class="p">,</span> <span class="n">final_tile_size</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
-        <span class="n">mask_box</span> <span class="o">=</span> <span class="n">box</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">final_tile_size</span><span class="p">,</span>
-                       <span class="n">y</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">final_tile_size</span><span class="p">,</span>
-                       <span class="n">x</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">final_tile_size</span><span class="p">,</span>
-                       <span class="n">y</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">final_tile_size</span><span class="p">)</span>
 
-        <span class="c1"># Making sure the polygon is valid</span>
+        <span class="n">window_transform</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">windows</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">window</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">])</span>
+        <span class="n">tile_metadata</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;driver&#39;</span><span class="p">:</span> <span class="s1">&#39;GTiff&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;height&#39;</span><span class="p">:</span> <span class="n">final_tile_size</span><span class="p">,</span>
+            <span class="s1">&#39;width&#39;</span><span class="p">:</span> <span class="n">final_tile_size</span><span class="p">,</span>
+            <span class="s1">&#39;count&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;dtype&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;crs&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;transform&#39;</span><span class="p">:</span> <span class="n">window_transform</span>
+        <span class="p">}</span>
+
+        <span class="c1"># Ensure polygon validity</span>
         <span class="n">polygon</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">buffer</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 
-        <span class="n">polygon_intersection</span> <span class="o">=</span> <span class="n">mask_box</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span>
+        <span class="c1"># Clip to the window bounds (in pixel coords), then make sure there is still only one polygon</span>
+        <span class="n">win_bbox</span> <span class="o">=</span> <span class="n">box</span><span class="p">(</span><span class="n">col_off</span><span class="p">,</span> <span class="n">row_off</span><span class="p">,</span> <span class="n">col_off</span> <span class="o">+</span> <span class="n">final_tile_size</span><span class="p">,</span> <span class="n">row_off</span> <span class="o">+</span> <span class="n">final_tile_size</span><span class="p">)</span>
+        <span class="n">inter</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">win_bbox</span><span class="p">)</span>
+        <span class="n">inter</span> <span class="o">=</span> <span class="n">fix_geometry_collection</span><span class="p">(</span><span class="n">inter</span><span class="p">)</span>
+        <span class="n">inter</span> <span class="o">=</span> <span class="n">try_cast_multipolygon_to_polygon</span><span class="p">(</span><span class="n">inter</span><span class="p">,</span> <span class="n">strategy</span><span class="o">=</span><span class="s1">&#39;largest_part&#39;</span><span class="p">)</span>
 
-        <span class="n">translated_polygon_intersection</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span>
-            <span class="n">polygon_intersection</span><span class="p">,</span>
-            <span class="n">xoff</span><span class="o">=-</span><span class="n">mask_box</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
-            <span class="n">yoff</span><span class="o">=-</span><span class="n">mask_box</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-        <span class="p">)</span>
-
-        <span class="c1"># Making sure the polygon is a Polygon and not a GeometryCollection (GeometryCollection can happen on Raster edges due to intersection)</span>
-        <span class="c1"># Use an empty Polygon as the default value</span>
-        <span class="k">if</span> <span class="n">translated_polygon_intersection</span><span class="o">.</span><span class="n">geom_type</span> <span class="o">!=</span> <span class="s1">&#39;Polygon&#39;</span><span class="p">:</span>
-            <span class="c1"># Get the Polygon with the largest area</span>
-            <span class="n">translated_polygon_intersection</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">translated_polygon_intersection</span><span class="o">.</span><span class="n">geoms</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">area</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">Polygon</span><span class="p">())</span>
+        <span class="c1"># Translate the polygon into the tile frame of reference</span>
+        <span class="n">translated_inter</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span><span class="n">inter</span><span class="p">,</span> <span class="n">xoff</span><span class="o">=-</span><span class="n">col_off</span><span class="p">,</span> <span class="n">yoff</span><span class="o">=-</span><span class="n">row_off</span><span class="p">)</span>
 
         <span class="c1"># Ensure the result has an exterior before accessing its coordinates</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">translated_polygon_intersection</span><span class="o">.</span><span class="n">is_empty</span><span class="p">:</span>
-            <span class="n">contours</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">translated_polygon_intersection</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">translated_inter</span><span class="o">.</span><span class="n">is_empty</span><span class="p">:</span>
+            <span class="n">contours</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">translated_inter</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># Handle the case when the intersection is empty (e.g., set contours to an empty array)</span>
             <span class="n">contours</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])</span>
@@ -295,56 +304,7 @@
             <span class="c1"># Handle the case where there are no contours (e.g., skip filling the polygon)</span>
             <span class="k">pass</span>
 
-        <span class="c1"># Getting the pixels from the raster</span>
-        <span class="n">mask_bounds</span> <span class="o">=</span> <span class="n">mask_box</span><span class="o">.</span><span class="n">bounds</span>
-        <span class="n">mask_bounds</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">mask_bounds</span><span class="p">]</span>
-
-        <span class="c1"># Handling bounds outside the data</span>
-        <span class="n">start_row</span> <span class="o">=</span> <span class="n">mask_bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-        <span class="n">end_row</span> <span class="o">=</span> <span class="n">mask_bounds</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
-        <span class="n">start_col</span> <span class="o">=</span> <span class="n">mask_bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">end_col</span> <span class="o">=</span> <span class="n">mask_bounds</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
-
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="kn">import</span><span class="w"> </span><span class="nn">ipdb</span><span class="p">;</span> <span class="n">ipdb</span><span class="o">.</span><span class="n">set_trace</span><span class="p">()</span>
-        <span class="c1"># Padding to tile_size if necessary</span>
-        <span class="n">pre_row_pad</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">mask_bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
-        <span class="n">post_row_pad</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">mask_bounds</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-        <span class="n">pre_col_pad</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">mask_bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-        <span class="n">post_col_pad</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">mask_bounds</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
-
-        <span class="k">if</span> <span class="n">final_tile_size</span> <span class="o">-</span> <span class="p">(</span><span class="n">end_row</span> <span class="o">-</span> <span class="n">start_row</span> <span class="o">+</span> <span class="n">pre_row_pad</span> <span class="o">+</span> <span class="n">post_row_pad</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="n">post_row_pad</span> <span class="o">+=</span> <span class="mi">1</span>
-        <span class="k">if</span> <span class="n">final_tile_size</span> <span class="o">-</span> <span class="p">(</span><span class="n">end_col</span> <span class="o">-</span> <span class="n">start_col</span> <span class="o">+</span> <span class="n">pre_col_pad</span> <span class="o">+</span> <span class="n">post_col_pad</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="n">post_col_pad</span> <span class="o">+=</span> <span class="mi">1</span>
-
-        <span class="c1"># Padding the mask to the final tile size</span>
-        <span class="n">start_row</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">start_row</span> <span class="o">-</span> <span class="n">pre_row_pad</span><span class="p">)</span>
-        <span class="n">end_row</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">end_row</span> <span class="o">+</span> <span class="n">post_row_pad</span><span class="p">)</span>
-        <span class="n">start_col</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">start_col</span> <span class="o">-</span> <span class="n">pre_col_pad</span><span class="p">)</span>
-        <span class="n">end_col</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">end_col</span> <span class="o">+</span> <span class="n">post_col_pad</span><span class="p">)</span>
-        <span class="n">binary_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">binary_mask</span><span class="p">,</span> <span class="p">((</span><span class="n">pre_row_pad</span><span class="p">,</span> <span class="n">post_row_pad</span><span class="p">),</span> <span class="p">(</span><span class="n">pre_col_pad</span><span class="p">,</span> <span class="n">post_col_pad</span><span class="p">)),</span>
-                             <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-
-        <span class="c1"># Creating the PolygonTile, with the appropriate metadata</span>
-        <span class="n">window</span> <span class="o">=</span> <span class="n">Window</span><span class="p">(</span>
-            <span class="n">col_off</span><span class="o">=</span><span class="n">start_col</span><span class="p">,</span>
-            <span class="n">row_off</span><span class="o">=</span><span class="n">start_row</span><span class="p">,</span>
-            <span class="n">width</span><span class="o">=</span><span class="n">end_col</span> <span class="o">-</span> <span class="n">start_col</span><span class="p">,</span>
-            <span class="n">height</span><span class="o">=</span><span class="n">end_row</span> <span class="o">-</span> <span class="n">start_row</span>
-        <span class="p">)</span>
-        <span class="n">window_transform</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">windows</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">window</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">])</span>
-
-        <span class="n">tile_metadata</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="s1">&#39;driver&#39;</span><span class="p">:</span> <span class="s1">&#39;GTiff&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;height&#39;</span><span class="p">:</span> <span class="n">window</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
-            <span class="s1">&#39;width&#39;</span><span class="p">:</span> <span class="n">window</span><span class="o">.</span><span class="n">width</span><span class="p">,</span>
-            <span class="s1">&#39;count&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">],</span>
-            <span class="s1">&#39;dtype&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">],</span>
-            <span class="s1">&#39;crs&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">],</span>
-            <span class="s1">&#39;transform&#39;</span><span class="p">:</span> <span class="n">window_transform</span>
-        <span class="p">}</span>
-
+        <span class="c1"># Creating the RasterTileMetadata, with the appropriate metadata</span>
         <span class="n">polygon_tile</span> <span class="o">=</span> <span class="n">RasterTileMetadata</span><span class="p">(</span>
             <span class="n">associated_raster</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
             <span class="n">mask</span><span class="o">=</span><span class="n">binary_mask</span><span class="p">,</span>
@@ -357,7 +317,7 @@
             <span class="n">aoi</span><span class="o">=</span><span class="n">polygon_aoi</span>
         <span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">polygon_tile</span><span class="p">,</span> <span class="n">translated_polygon_intersection</span></div>
+        <span class="k">return</span> <span class="n">polygon_tile</span><span class="p">,</span> <span class="n">translated_inter</span></div>
 
 
 <div class="viewcode-block" id="Raster.adjust_geometries_to_raster_crs_if_necessary">
@@ -542,19 +502,8 @@
             <span class="n">_thread_ds</span><span class="o">.</span><span class="n">ds</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">ds_name</span><span class="p">)</span>
         <span class="n">ds</span> <span class="o">=</span> <span class="n">_thread_ds</span><span class="o">.</span><span class="n">ds</span>
 
-        <span class="n">tile_data</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">)</span>
-
+        <span class="n">tile_data</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span> <span class="n">boundless</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">masked</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fill_value</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
         <span class="c1"># tile_data = self.associated_raster.data.read(window=window)</span>
-            
-        <span class="n">pad_row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">tile_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-        <span class="n">pad_col</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">tile_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
-
-        <span class="k">if</span> <span class="n">pad_row</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">pad_col</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="c1"># RasterTileMetadata is always padded at the bottom and right because when tiled,</span>
-            <span class="c1"># the minimum possible row and col are 0, so the top and left are always within the Raster,</span>
-            <span class="c1"># but the bottom and right could go outside the Raster bounds.</span>
-            <span class="n">padding</span> <span class="o">=</span> <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pad_row</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pad_col</span><span class="p">))</span>
-            <span class="n">tile_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">tile_data</span><span class="p">,</span> <span class="n">padding</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">apply_mask</span><span class="p">:</span>
             <span class="n">tile_data</span> <span class="o">=</span> <span class="n">tile_data</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span>
@@ -595,7 +544,8 @@
 
     <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
              <span class="n">output_folder</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">,</span>
-             <span class="n">apply_mask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+             <span class="n">apply_mask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+             <span class="n">output_dtype</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Save the tile as a .tif file in the output_folder.</span>
 
@@ -605,12 +555,23 @@
 <span class="sd">            The path to the output folder where the tile should be saved.</span>
 <span class="sd">        apply_mask: bool</span>
 <span class="sd">            Whether to apply the mask to the tile data before saving it. Default is True.</span>
+<span class="sd">        output_dtype: str</span>
+<span class="sd">            The data type to use when saving the tile. If None, the original data type will</span>
+<span class="sd">            be used. Currently supported values are None and &#39;uint8&#39; (0-255).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">output_folder</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_folder</span><span class="p">)</span>
         <span class="k">assert</span> <span class="n">output_folder</span><span class="o">.</span><span class="n">exists</span><span class="p">(),</span> <span class="sa">f</span><span class="s2">&quot;The output folder </span><span class="si">{</span><span class="n">output_folder</span><span class="si">}</span><span class="s2"> doesn&#39;t exist yet.&quot;</span>
 
         <span class="n">tile_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">generate_name</span><span class="p">()</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_pixel_data</span><span class="p">(</span><span class="n">apply_mask</span><span class="o">=</span><span class="n">apply_mask</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">output_dtype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">output_dtype</span> <span class="o">==</span> <span class="s1">&#39;uint8&#39;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;uint8&#39;</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">img_as_ubyte</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;uint8&#39;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The output dtype </span><span class="si">{</span><span class="n">output_dtype</span><span class="si">}</span><span class="s2"> is not supported yet.&quot;</span><span class="p">)</span>
 
         <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
                 <span class="n">output_folder</span> <span class="o">/</span> <span class="n">tile_name</span><span class="p">,</span>
@@ -620,7 +581,8 @@
                 <span class="c1"># predictor=2,  # For integer data; use predictor=3 for floating point if needed</span>
                 <span class="c1"># tiled=True  # Enables tiling, which can improve compression efficiency</span>
         <span class="p">)</span> <span class="k">as</span> <span class="n">tile_raster</span><span class="p">:</span>
-            <span class="n">tile_raster</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_pixel_data</span><span class="p">(</span><span class="n">apply_mask</span><span class="o">=</span><span class="n">apply_mask</span><span class="p">))</span>
+
+            <span class="n">tile_raster</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
 
             <span class="c1"># Make sure to also copy the colorinterp from the parent raster</span>
             <span class="n">parent_ci</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">associated_raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">colorinterp</span>
@@ -709,7 +671,8 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">save_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                   <span class="n">tile</span><span class="p">:</span> <span class="n">RasterTileMetadata</span><span class="p">,</span>
                   <span class="n">output_folder</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
-                  <span class="n">apply_mask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+                  <span class="n">apply_mask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                  <span class="n">output_dtype</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Save a single tile.</span>
 
@@ -721,16 +684,20 @@
 <span class="sd">            The path to the folder where the tile should be saved.</span>
 <span class="sd">        apply_mask: bool</span>
 <span class="sd">            Whether to apply the mask to the tile data before saving it. Default is True.</span>
+<span class="sd">        output_dtype: str</span>
+<span class="sd">            The data type to use when saving the tile. If None, the original data type will</span>
+<span class="sd">            be used. Currently supported values are None and  &#39;uint8&#39; (0-255).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">tile</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">output_folder</span><span class="o">=</span><span class="n">output_folder</span><span class="p">,</span> <span class="n">apply_mask</span><span class="o">=</span><span class="n">apply_mask</span><span class="p">)</span>
+            <span class="n">tile</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">output_folder</span><span class="o">=</span><span class="n">output_folder</span><span class="p">,</span> <span class="n">apply_mask</span><span class="o">=</span><span class="n">apply_mask</span><span class="p">,</span> <span class="n">output_dtype</span><span class="o">=</span><span class="n">output_dtype</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error saving tile </span><span class="si">{</span><span class="n">tile</span><span class="o">.</span><span class="n">generate_name</span><span class="p">()</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">save_all_tiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                        <span class="n">tiles</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">RasterTileMetadata</span><span class="p">],</span>
                        <span class="n">output_folder</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
-                       <span class="n">apply_mask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+                       <span class="n">apply_mask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                       <span class="n">output_dtype</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Save all the tiles in parallel using ThreadPoolExecutor.</span>
 
@@ -742,11 +709,14 @@
 <span class="sd">            The path to the folder where the tiles should be saved.</span>
 <span class="sd">        apply_mask: bool</span>
 <span class="sd">            Whether to apply the mask to the tile data before saving it. Default is True.</span>
+<span class="sd">        output_dtype: str</span>
+<span class="sd">            The data type to use when saving the tile. If None, the original data type will</span>
+<span class="sd">            be used. Currently supported values are None and  &#39;uint8&#39; (0-255).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Use ThreadPoolExecutor to manage threads</span>
         <span class="k">with</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_workers</span><span class="p">)</span> <span class="k">as</span> <span class="n">executor</span><span class="p">:</span>
             <span class="c1"># Submit tasks to the executor</span>
-            <span class="n">futures</span> <span class="o">=</span> <span class="p">[</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save_tile</span><span class="p">,</span> <span class="n">tile</span><span class="p">,</span> <span class="n">output_folder</span><span class="p">,</span> <span class="n">apply_mask</span><span class="p">)</span> <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles</span><span class="p">]</span>
+            <span class="n">futures</span> <span class="o">=</span> <span class="p">[</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save_tile</span><span class="p">,</span> <span class="n">tile</span><span class="p">,</span> <span class="n">output_folder</span><span class="p">,</span> <span class="n">apply_mask</span><span class="p">,</span> <span class="n">output_dtype</span><span class="p">)</span> <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tiles</span><span class="p">]</span>
 
             <span class="k">for</span> <span class="n">future</span> <span class="ow">in</span> <span class="n">concurrent</span><span class="o">.</span><span class="n">futures</span><span class="o">.</span><span class="n">as_completed</span><span class="p">(</span><span class="n">futures</span><span class="p">):</span>
                 <span class="k">try</span><span class="p">:</span>

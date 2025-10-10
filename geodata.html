@@ -166,14 +166,13 @@ This should be called after calling the method adjust_geometries_to_raster_crs_i
 <dl class="py method">
 <dt class="sig sig-object py" id="geodataset.geodata.Raster.get_polygon_tile">
 <span class="sig-name descname"><span class="pre">get_polygon_tile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">polygon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygon_aoi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_variable_tile_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_tile_size_pixel_buffer</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/geodataset/geodata/raster.html#Raster.get_polygon_tile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#geodataset.geodata.Raster.get_polygon_tile" title="Link to this definition"></a></dt>
-<dd><p>Generates and returns a PolygonTile from a Polygon geometry, along with the possibly cropped original Polygon.
-The PolygonTile (object representing an image containing the pixels of the Raster where the Polygon is)
-will be centered on the Polygon’s centroid.
-The pixels of the generated PolygonTile that are outside the Polygon will be blacked-out (masked).</p>
+<dd><p>Generates and returns a RasterTileMetadata from a Polygon geometry, along with the possibly cropped original Polygon.
+The RasterTileMetadata (object representing an image containing the pixels extent and metadata of the Raster where the Polygon is)
+will be centered on the Polygon’s centroid.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>polygon</strong> (<em>Polygon</em>) – The Polygon geometry to generate the PolygonTile from.</p></li>
+<li><p><strong>polygon</strong> (<em>Polygon</em>) – The Polygon geometry to generate the RasterTileMetadata from.</p></li>
 <li><p><strong>polygon_id</strong> (<em>int</em>) – The id of the polygon. Used in the tile name, and should be unique across a dataset.</p></li>
 <li><p><strong>polygon_aoi</strong> (<em>str</em>) – The Area of Interest (AOI) the polygon belongs to. Used in the tile name.</p></li>
 <li><p><strong>tile_size</strong> (<em>int</em>) – The size of the tile in pixels. If the polygon extent is larger than this value,
@@ -181,11 +180,10 @@ then the returned Polygon will be cropped to the tile extent.
 If not, the returned Polygon will be identical to the source Polygon.</p></li>
 <li><p><strong>use_variable_tile_size</strong> (<em>bool</em>) – If True, the tile size will be automatically adjusted to the Polygon’s extent,
 up to the tile_size value, which in this case acts as a ‘maximum size’.
-This avoids having too many blacked-out pixels around the Polygon of interest.
 It should be combined with the variable_tile_size_pixel_buffer parameter to add a
 fixed pixel buffer around the Polygon.
 This parameter is recommended if saving disk space is a concern.</p></li>
-<li><p><strong>variable_tile_size_pixel_buffer</strong> (<em>int</em>) – The number of blacked-out pixels to add around the Polygon’s extent as a buffer.
+<li><p><strong>variable_tile_size_pixel_buffer</strong> (<em>int</em>) – The number of pixels to add around the Polygon’s extent as a buffer.
 Only used when use_variable_tile_size is set to ‘True’.</p></li>
 </ul>
 </dd>
