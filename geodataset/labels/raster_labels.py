@@ -122,8 +122,8 @@ class RasterPolygonLabels:
         # If not, something probably went wrong with the CRS, transform or scaling factor.
         raster_gdf = gpd.GeoDataFrame(data={'geometry': [box(0,
                                                              0,
-                                                             self.associated_raster.metadata['height'],
-                                                             self.associated_raster.metadata['width'])]})
+                                                             self.associated_raster.metadata['width'],
+                                                             self.associated_raster.metadata['height'])]})
 
         labels_in_raster_gdf = labels_gdf[labels_gdf.intersects(raster_gdf.unary_union)]
 
