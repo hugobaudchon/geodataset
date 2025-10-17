@@ -90,6 +90,16 @@ class RasterPolygonLabels:
             warnings.warn(f"Removed {n_poly_before - len(labels_gdf)} out of {n_poly_before} labels as they are MultiPolygons"
                           f" that can't be cast to Polygons.")
 
+        # Strip Z (3D) if present, to avoid downstream 2D-only affine ops
+        has_z = labels_gdf['geometry'].astype(object).apply(lambda g: getattr(g, "has_z", False))
+        if has_z.any():
+            n_z = int(has_z.sum())
+            warnings.warn(f"Detected {n_z} geometries with Z-coordinates; dropping the Z dimension.")
+            from shapely.ops import transform
+            labels_gdf.loc[has_z, 'geometry'] = labels_gdf.loc[has_z, 'geometry'].apply(
+                lambda geom: transform(lambda x, y, z=None: (x, y), geom)
+            )
+
         # Making sure the labels and associated raster CRS are matching.
         labels_gdf = self.associated_raster.adjust_geometries_to_raster_crs_if_necessary(gdf=labels_gdf)
 
