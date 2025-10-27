@@ -12,7 +12,7 @@ from geodataset.aoi.aoi_from_package import AOIFromPackageForPolygons
 from geodataset.geodata import Raster, RasterTileMetadata
 from geodataset.geodata.raster import RasterTileSaver
 from geodataset.labels import RasterPolygonLabels
-from geodataset.utils import CocoNameConvention, COCOGenerator
+from geodataset.utils import CocoNameConvention, COCOGenerator, assert_raster_exists
 from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
 
 
@@ -162,7 +162,7 @@ class RasterPolygonTilerizer:
                  temp_dir: str or Path = './tmp',
                  output_dtype: str = None):
 
-        self.raster_path = Path(raster_path)
+        self.raster_path = raster_path
         self.labels_path = Path(labels_path) if labels_path is not None else None
         self.tile_size = tile_size
         self.use_variable_tile_size = use_variable_tile_size
@@ -198,7 +198,7 @@ class RasterPolygonTilerizer:
         self.tiles_folder_path.mkdir(parents=True, exist_ok=True)
 
     def _check_parameters(self):
-        assert self.raster_path.exists(), \
+        assert assert_raster_exists(self.raster_path), \
             f"Raster file not found at {self.raster_path}."
         assert isinstance(self.tile_size, int) and self.tile_size > 0, \
             "The tile size must be and integer greater than 0."
@@ -210,11 +210,11 @@ class RasterPolygonTilerizer:
     def _check_aois_config(self):
         if self.aois_config is None:
             print("RasterPolygonTilerizer: No AOIs configuration provided."
-                  f"Defaulting to a single '{DEFAULT_AOI_NAME}' AOI for all polygons.")
+                  f" Defaulting to a single '{DEFAULT_AOI_NAME}' AOI for all polygons.")
             self.aois_config = AOIGeneratorConfig(aois={DEFAULT_AOI_NAME: {'percentage': 1.0, 'position': 1}}, aoi_type='band')
         elif isinstance(self.aois_config, AOIGeneratorConfig) and not self.aois_config.aois: # Empty AOIGeneratorConfig
             print("RasterPolygonTilerizer: Empty AOIGeneratorConfig.aois."
-                  f"Defaulting to a single '{DEFAULT_AOI_NAME}' AOI.")
+                  f" Defaulting to a single '{DEFAULT_AOI_NAME}' AOI.")
             self.aois_config = AOIGeneratorConfig(aois={DEFAULT_AOI_NAME: {'percentage': 1.0, 'position': 1}}, aoi_type='band')
         else:
             self.aois_config = self.aois_config
