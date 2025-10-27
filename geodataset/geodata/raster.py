@@ -50,10 +50,10 @@ class Raster:
                  ground_resolution: float = None,
                  scale_factor: float = None,
                  temp_dir: str or Path = './tmp'):
-        self.path = Path(path)
-        self.name = self.path.name
-        self.ext = self.path.suffix
-        self.product_name = validate_and_convert_product_name(strip_all_extensions_and_path(self.path))
+        self.path = path
+        self.name = Path(self.path).name
+        self.ext = Path(self.path).suffix
+        self.product_name = validate_and_convert_product_name(strip_all_extensions_and_path(Path(self.path)))
         self.output_name = self.product_name + (f"_{output_name_suffix}" if output_name_suffix else "")
         self.temp_dir = Path(temp_dir)
 

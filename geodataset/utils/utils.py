@@ -10,6 +10,9 @@ from datetime import date
 from pathlib import Path
 import random
 from typing import List, Union, Dict
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
+from urllib.request import urlopen, Request
 
 import cv2
 import numpy as np
@@ -540,13 +543,13 @@ def get_utm_crs(lon, lat):
         return CRS.from_epsg(code=32700 + zone)  # Southern Hemisphere
 
 
-def read_raster(path: Path, ground_resolution: float = None, scale_factor: float = None, temp_dir: Path = './tmp'):
+def read_raster(path: str, ground_resolution: float = None, scale_factor: float = None, temp_dir: Path = './tmp'):
     """
     Open a raster file and return a view (WarpedVRT) that applies the given scaling.
 
     Parameters
     ----------
-    path: Path
+    path: str
         The path to the raster file.
     ground_resolution: float, optional
         The desired ground resolution in meters.
@@ -571,7 +574,7 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
         "Both a ground_resolution and a scale_factor were provided. Please only specify one."
     )
 
-    ext = path.suffix.lower()
+    ext = Path(path).suffix.lower()
     if ext not in ['.tif', '.png', '.jpg']:
         raise Exception(f'Data format {ext} not supported yet.')
 
@@ -642,6 +645,13 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
     max_in_mem_gb = 10
     max_in_mem_bytes = max_in_mem_gb * 1024 ** 3  # 10GB
 
+    # If the file is remote and no resampling is needed, just return the original dataset, no need to load it in memory or duplicate it (keep it on the cloud)
+    if urlparse(path).scheme.lower() in ("http", "https") and x_scale_factor == 1 and y_scale_factor == 1:
+        dataset = src
+        temp_path = None
+        return dataset, profile, x_scale_factor, y_scale_factor, temp_path
+
+    # Else, for local files or when resampling is needed
     print(f"Expected raster size in memory: {expected_bytes / (1024 ** 3):.2f} GB.")
 
     # If the expected size is less than 10GB, load into memory using a MemoryFile;
@@ -722,6 +732,45 @@ def read_raster(path: Path, ground_resolution: float = None, scale_factor: float
             temp_path = None
 
     return dataset, profile, x_scale_factor, y_scale_factor, temp_path
+
+
+
+def assert_raster_exists(p):
+    p = str(p)
+    scheme = urlparse(p).scheme.lower()
+
+    if scheme in ("http", "https"):
+        # Try HEAD first
+        try:
+            req = Request(p, method="HEAD")
+            with urlopen(req, timeout=5) as r:
+                if 200 <= r.status < 300:
+                    return True
+        except HTTPError as e:
+            # If HEAD not allowed, or forbidden, try ranged GET
+            if e.code in (403, 404):
+                raise AssertionError(f"Remote raster not reachable at {p}")
+            # retry with a 1-byte GET
+        except URLError:
+            # maybe HEAD just failed weirdly; try GET
+            pass
+
+        # Fallback: GET first byte only
+        try:
+            req = Request(p, headers={"Range": "bytes=0-0"})
+            with urlopen(req, timeout=5) as r:
+                if r.status in (200, 206):
+                    return True
+        except Exception:
+            raise AssertionError(f"Remote raster not reachable at {p}")
+
+        return True
+
+    else:
+        # local path
+        if not Path(p).exists():
+            raise AssertionError(f"Raster file not found at {p}")
+        return True
 
 
 def display_image_with_polygons(image: np.ndarray, polygons: List[shapely.Polygon]):

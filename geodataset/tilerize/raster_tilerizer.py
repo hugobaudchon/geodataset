@@ -12,7 +12,7 @@ from geodataset.aoi import AOIGeneratorForTiles, AOIFromPackageForTiles
 from geodataset.aoi import AOIConfig, AOIGeneratorConfig, AOIFromPackageConfig
 from geodataset.aoi.aoi_base import DEFAULT_AOI_NAME
 from geodataset.geodata import Raster, RasterTileMetadata
-from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention
+from geodataset.utils import save_aois_tiles_picture, AoiTilesImageConvention, assert_raster_exists
 from geodataset.utils.file_name_conventions import AoiGeoPackageConvention
 
 
@@ -72,7 +72,7 @@ class BaseRasterTilerizer(ABC):
                  ignore_black_white_alpha_tiles_threshold: float = 0.8,
                  temp_dir: str or Path = './tmp'):
 
-        self.raster_path = Path(raster_path)
+        self.raster_path = raster_path
         self.tile_size = tile_size
         self.tile_overlap = tile_overlap
         self.tile_coordinate_step = int((1 - self.tile_overlap) * self.tile_size)
@@ -91,7 +91,7 @@ class BaseRasterTilerizer(ABC):
         self.raster = self._load_raster()
 
     def _check_parameters(self):
-        assert self.raster_path.exists(), \
+        assert assert_raster_exists(self.raster_path), \
             f"Raster file not found at {self.raster_path}."
         assert isinstance(self.tile_size, int) and self.tile_size > 0, \
             "The tile size must be and integer greater than 0."
