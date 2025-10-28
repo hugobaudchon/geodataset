@@ -1,3 +1,4 @@
+import base64
 import glob
 import json
 import os
@@ -11,7 +12,7 @@ from pathlib import Path
 import random
 from typing import List, Union, Dict
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 from urllib.request import urlopen, Request
 
 import cv2
@@ -732,40 +733,89 @@ def read_raster(path: str, ground_resolution: float = None, scale_factor: float 
     return dataset, profile, x_scale_factor, y_scale_factor, temp_path
 
 
+def _auth_cleanup(u: str):
+    """
+    Take a URL that may look like:
+        http://user:pass@host:port/path.tif
+    Return:
+        clean_url  -> http://host:port/path.tif        (no creds)
+        headers    -> {"Authorization": "Basic ..."}   (or {})
+    We do NOT modify the original string outside this helper.
+    """
+    parsed = urlparse(u)
+    netloc = parsed.netloc
+
+    if "@" not in netloc:
+        # no inline creds
+        return u, {}
+
+    # split "user:pass@host:port"
+    creds, hostpart = netloc.split("@", 1)
+
+    if ":" in creds:
+        user, pwd = creds.split(":", 1)
+    else:
+        user, pwd = creds, ""
+
+    # Basic auth header
+    token = f"{user}:{pwd}".encode("utf-8")
+    b64 = base64.b64encode(token).decode("ascii")
+    headers = {"Authorization": f"Basic {b64}"}
+
+    # rebuild URL without creds
+    cleaned = parsed._replace(netloc=hostpart)
+    clean_url = urlunparse(cleaned)
+
+    return clean_url, headers
+
 
 def assert_raster_exists(p):
+    """
+    Returns True or raises AssertionError.
+    This does NOT alter 'p' for the caller.
+    So you can still pass the original p (with creds) to rasterio afterwards.
+    """
     p = str(p)
-    scheme = urlparse(p).scheme.lower()
+    parsed = urlparse(p)
+    scheme = parsed.scheme.lower()
 
     if scheme in ("http", "https"):
-        # Try HEAD first
+        clean_url, auth_headers = _auth_cleanup(p)
+
+        # --- Try HEAD first ---
         try:
-            req = Request(p, method="HEAD")
+            req = Request(clean_url, method="HEAD", headers=auth_headers)
             with urlopen(req, timeout=5) as r:
                 if 200 <= r.status < 300:
                     return True
         except HTTPError as e:
-            # If HEAD not allowed, or forbidden, try ranged GET
+            # 403/404 -> it's really not reachable
             if e.code in (403, 404):
                 raise AssertionError(f"Remote raster not reachable at {p}")
-            # retry with a 1-byte GET
+            # else fall through to Range GET
         except URLError:
-            # maybe HEAD just failed weirdly; try GET
+            # maybe HEAD unsupported; fall through
+            pass
+        except Exception:
+            # weird HEAD error; fall through
             pass
 
-        # Fallback: GET first byte only
+        # --- Fallback: GET first byte only ---
         try:
-            req = Request(p, headers={"Range": "bytes=0-0"})
+            headers = dict(auth_headers)
+            headers["Range"] = "bytes=0-0"
+            req = Request(clean_url, headers=headers)  # default method=GET
             with urlopen(req, timeout=5) as r:
                 if r.status in (200, 206):
                     return True
         except Exception:
             raise AssertionError(f"Remote raster not reachable at {p}")
 
+        # If we got here without raising, consider it reachable
         return True
 
     else:
-        # local path
+        # Local path
         if not Path(p).exists():
             raise AssertionError(f"Raster file not found at {p}")
         return True
