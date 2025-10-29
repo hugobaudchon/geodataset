@@ -87,8 +87,11 @@ class RasterPolygonLabels:
             n_poly_before = len(labels_gdf)
 
             labels_gdf = labels_gdf.dropna(subset=['geometry'])
-            warnings.warn(f"Removed {n_poly_before - len(labels_gdf)} out of {n_poly_before} labels as they are MultiPolygons"
-                          f" that can't be cast to Polygons.")
+
+            n_poly_diff = n_poly_before - len(labels_gdf)
+            if n_poly_diff > 0:
+                warnings.warn(f"Removed {n_poly_diff} out of {n_poly_before} labels as they are MultiPolygons"
+                              f" that can't be cast to Polygons.")
 
         # Strip Z (3D) if present, to avoid downstream 2D-only affine ops
         has_z = labels_gdf['geometry'].astype(object).apply(lambda g: getattr(g, "has_z", False))
