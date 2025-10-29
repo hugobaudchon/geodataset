@@ -643,7 +643,11 @@ def read_raster(path: str, ground_resolution: float = None, scale_factor: float 
     itemsize = np.dtype(profile['dtype']).itemsize
     nbands = profile.get('count', 1)
     expected_bytes = new_width * new_height * nbands * itemsize
-    max_in_mem_gb = 10
+
+    if os.environ.get("GEODATASET_MAX_IN_MEM_GB"):
+        max_in_mem_gb = int(os.environ["GEODATASET_MAX_IN_MEM_GB"])
+    else:
+        max_in_mem_gb = 10
     max_in_mem_bytes = max_in_mem_gb * 1024 ** 3  # 10GB
 
     # If the file is remote and no resampling is needed, just return the original dataset, no need to load it in memory or duplicate it (keep it on the cloud)
