@@ -72,7 +72,7 @@ class BaseRasterTilerizer(ABC):
                  ignore_black_white_alpha_tiles_threshold: float = 0.8,
                  temp_dir: str or Path = './tmp'):
 
-        self.raster_path = raster_path
+        self.raster_path = str(raster_path)
         self.tile_size = tile_size
         self.tile_overlap = tile_overlap
         self.tile_coordinate_step = int((1 - self.tile_overlap) * self.tile_size)

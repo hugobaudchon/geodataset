@@ -343,6 +343,7 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
         # Saving the tiles
         if save_tiles_folder:
+            print(f'Saving the tiles for AOI {aoi}...')
             save_tiles_folder.mkdir(parents=True, exist_ok=True)
             for tile in tiles:
                 tile.save(output_folder=save_tiles_folder, output_dtype=self.output_dtype)
