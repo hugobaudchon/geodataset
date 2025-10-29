@@ -540,13 +540,12 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
         [print(f'No tiles found for AOI {aoi}.') for aoi in self.aois_config.actual_names
          if aoi not in self.aois_tiles or len(self.aois_tiles[aoi]) == 0]
 
-        print("Saving tiles...")
         for aoi in self.aois_tiles:
             # Save the tile images
             tiles_path_aoi = self.tiles_path / aoi
             tiles_path_aoi.mkdir(parents=True, exist_ok=True)
 
-            for tile in self.aois_tiles[aoi]:
+            for tile in tqdm(self.aois_tiles[aoi], desc=f"Saving tiles for AOI '{aoi}'"):
                 tile.save(output_folder=tiles_path_aoi, output_dtype=self.output_dtype)
 
         print(f"The tiles have been saved to {self.tiles_path}.")
