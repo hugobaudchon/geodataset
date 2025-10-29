@@ -76,6 +76,8 @@ class BaseRasterTilerizer(ABC):
         self.tile_size = tile_size
         self.tile_overlap = tile_overlap
         self.tile_coordinate_step = int((1 - self.tile_overlap) * self.tile_size)
+        self.buffer_overlap_rows = self.tile_size - self.tile_coordinate_step
+
         self.global_aoi = global_aoi
         self.aois_config = aois_config
         self.output_name_suffix = output_name_suffix
@@ -113,9 +115,39 @@ class BaseRasterTilerizer(ABC):
                         temp_dir=self.temp_dir)
         return raster
 
+    def _compute_skip_condition(self, data: np.array) -> np.array:
+        """
+        Runs the skip logic on an entire raster array and returns a 2D boolean mask.
+        True means the pixel *is* a skip pixel (black, white, or alpha).
+        """
+        # (Handling 1-band case where read() might return 2D)
+        if len(data.shape) == 2:
+            data = np.expand_dims(data, axis=0)
+
+        num_bands = data.shape[0]
+
+        if num_bands == 3:
+            black = np.all(data == 0, axis=0)
+            white = np.all(data == 255, axis=0)
+            return (black | white)
+        elif num_bands == 4:
+            black = np.all(data[:-1] == 0, axis=0)
+            white = np.all(data[:-1] == 255, axis=0)
+            alpha = data[-1] == 0
+            return (black | white | alpha)
+        else:
+            # Handle 1-band or other cases
+            black = (data[0] == 0)
+            white = (data[0] == 255)  # Assuming 255 is also "empty"
+            return (black | white)
+
     def _create_tiles(self) -> List[RasterTileMetadata]:
+        if not self.raster.data.name.startswith('/vsimem/'):
+            print("Warning: Rolling buffer optimization is fastest when raster is in-memory.")
+
         width = self.raster.metadata['width']
         height = self.raster.metadata['height']
+        num_bands = self.raster.data.count
 
         print('Raster size: ', (height, width))
         print('Desired tile size: ', self.tile_size)
@@ -123,14 +155,97 @@ class BaseRasterTilerizer(ABC):
 
         tile_id_counter = 0
         tiles = []
-        for row in tqdm(range(0, height, self.tile_coordinate_step), desc="Processing rows"):
-            for col in range(0, width, self.tile_coordinate_step):
-                window = Window(col, row, width=self.tile_size, height=self.tile_size)
-                tile = self.raster.create_tile_metadata(window=window, tile_id=tile_id_counter)
 
-                if self._check_skip_tile(tile=tile, tile_size=self.tile_size):
+        # 1. Check if we even need to run this logic
+        if self.ignore_black_white_alpha_tiles_threshold >= 1.0:
+            print("Skip threshold is >= 1.0, creating all tiles without checking.")
+            for row in tqdm(range(0, height, self.tile_coordinate_step), desc="Processing rows"):
+                for col in range(0, width, self.tile_coordinate_step):
+                    window = Window(col, row, width=self.tile_size, height=self.tile_size)
+                    tile = self.raster.create_tile_metadata(window=window, tile_id=tile_id_counter)
+                    tiles.append(tile)
+                    tile_id_counter += 1
+            return tiles
+
+        # 2. Initialize the rolling buffers
+        data_buffer = np.zeros((num_bands, self.tile_size, width), dtype=self.raster.metadata['dtype'])
+        mask_buffer = np.zeros((self.tile_size, width), dtype=bool)
+
+        # 3. Pre-fill the buffer with the first strip (0 to tile_size)
+        rows_to_read = min(self.tile_size, height)
+        new_data_window = Window(0, 0, width, rows_to_read)
+        new_data = self.raster.data.read(window=new_data_window)
+
+        # Place data in the buffer
+        data_buffer[:, 0:rows_to_read, :] = new_data
+
+        # Compute and place mask
+        new_mask = self._compute_skip_condition(new_data)
+        mask_buffer[0:rows_to_read, :] = new_mask
+
+        rows_read_so_far = rows_to_read
+
+        # 4. --- Process the first strip (row = 0) ---
+        for col in range(0, width, self.tile_coordinate_step):
+            col_end = col + self.tile_size
+            tile_mask_slice = mask_buffer[:, col:col_end]
+
+            tile_size_h, tile_size_w = tile_mask_slice.shape
+            if tile_size_h == 0 or tile_size_w == 0: continue
+
+            num_pixels = tile_size_h * tile_size_w
+            if (np.sum(tile_mask_slice) / num_pixels) >= self.ignore_black_white_alpha_tiles_threshold:
+                continue
+
+            window = Window(col, 0, width=self.tile_size, height=self.tile_size)
+            tile = self.raster.create_tile_metadata(window=window, tile_id=tile_id_counter)
+            tiles.append(tile)
+            tile_id_counter += 1
+
+        # 5. --- Main loop for all subsequent rows ---
+        for row in tqdm(range(self.tile_coordinate_step, height, self.tile_coordinate_step), desc="Processing rows"):
+
+            rows_to_read = min(self.tile_coordinate_step, height - rows_read_so_far)
+
+            if rows_to_read <= 0:
+                break  # We've read the whole raster
+
+            # Roll the buffers
+            if self.buffer_overlap_rows > 0:
+                # --- CORRECTED SLICE on axis 1 ---
+                data_buffer[:, 0:self.buffer_overlap_rows, :] = data_buffer[:, self.tile_coordinate_step:, :]
+                mask_buffer[0:self.buffer_overlap_rows, :] = mask_buffer[self.tile_coordinate_step:, :]
+
+            # Read new data
+            new_data_window = Window(0, rows_read_so_far, width, rows_to_read)
+            new_data = self.raster.data.read(window=new_data_window)
+
+            # Place new data in the end of the buffer
+            # --- CORRECTED SLICE on axis 1 ---
+            data_buffer[:, self.buffer_overlap_rows: self.buffer_overlap_rows + rows_to_read, :] = new_data
+
+            # Compute and place new mask
+            new_mask = self._compute_skip_condition(new_data)
+            mask_buffer[self.buffer_overlap_rows: self.buffer_overlap_rows + rows_to_read, :] = new_mask
+
+            rows_read_so_far += rows_to_read
+
+            # --- Column Loop (now uses the rolled buffer) ---
+            for col in range(0, width, self.tile_coordinate_step):
+
+                col_end = col + self.tile_size
+                tile_mask_slice = mask_buffer[:, col:col_end]
+
+                tile_size_h, tile_size_w = tile_mask_slice.shape
+                if tile_size_h == 0 or tile_size_w == 0:
                     continue
 
+                num_pixels = tile_size_h * tile_size_w
+                if (np.sum(tile_mask_slice) / num_pixels) >= self.ignore_black_white_alpha_tiles_threshold:
+                    continue
+
+                window = Window(col, row, width=self.tile_size, height=self.tile_size)
+                tile = self.raster.create_tile_metadata(window=window, tile_id=tile_id_counter)
                 tiles.append(tile)
                 tile_id_counter += 1
 
@@ -170,7 +285,7 @@ class BaseRasterTilerizer(ABC):
             final_aois_tiles = {aoi: [] for aoi in aois_tiles}
             for aoi in aois_tiles:
                 for tile in aois_tiles[aoi]:
-                    if tile.mask is not None and self._check_skip_tile(tile=tile, tile_size=self.tile_size):
+                    if tile.mask is not None and self._check_skip_tile(tile=tile):
                         continue
                     else:
                         final_aois_tiles[aoi].append(tile)
@@ -180,24 +295,51 @@ class BaseRasterTilerizer(ABC):
 
         return final_aois_tiles, aois_gdf
 
-    def _check_skip_tile(self, tile: RasterTileMetadata, tile_size):
+    def _check_skip_tile_data(self, tile_data: np.array) -> bool:
+        """
+        Checks a tile's NumPy array data to see if it should be skipped.
+        This is now only used by _get_tiles_per_aoi (which is fine).
+        """
         skip_ratio = self.ignore_black_white_alpha_tiles_threshold
 
-        # Checking if the tile has more than a certain ratio of white, black, or alpha pixels.
-        tile_data = tile.get_pixel_data()
-        if self.raster.data.count == 3:
+        # Get actual tile dimensions from the array
+        if len(tile_data.shape) == 2:  # Handle 1-band case
+            tile_data = np.expand_dims(tile_data, axis=0)
+
+        num_bands, tile_size_h, tile_size_w = tile_data.shape
+
+        # Skip if the tile is effectively empty (e.g., a sliver at the edge)
+        if tile_size_h == 0 or tile_size_w == 0:
+            return True
+
+        num_pixels = tile_size_h * tile_size_w
+
+        if num_bands == 3:
             black = np.all(tile_data == 0, axis=0)
             white = np.all(tile_data == 255, axis=0)
-            if np.sum(black | white) / (tile_size * tile_size) >= skip_ratio:
+            if np.sum(black | white) / num_pixels >= skip_ratio:
                 return True
-        elif self.raster.data.count == 4:
+        elif num_bands == 4:
             black = np.all(tile_data[:-1] == 0, axis=0)
             white = np.all(tile_data[:-1] == 255, axis=0)
             alpha = tile_data[-1] == 0
-            if np.sum(black | white | alpha) / (tile_size * tile_size) >= skip_ratio:
+            if np.sum(black | white | alpha) / num_pixels >= skip_ratio:
+                return True
+
+        # Handle 1-band or other cases
+        elif num_bands == 1:
+            black = (tile_data[0] == 0)
+            white = (tile_data[0] == 255)  # Assuming 255 is also "empty"
+            if np.sum(black | white) / num_pixels >= skip_ratio:
                 return True
 
         return False
+
+    def _check_skip_tile(self, tile: RasterTileMetadata):
+        # This function now performs the I/O...
+        tile_data = tile.get_pixel_data()
+
+        return self._check_skip_tile_data(tile_data)
 
 
 class BaseDiskRasterTilerizer(BaseRasterTilerizer, ABC):
