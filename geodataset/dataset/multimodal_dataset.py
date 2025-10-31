@@ -38,8 +38,10 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
         tasks: List[str] = ["classification"],
         voxel_size: Optional[float] = None,
         num_points_file: Optional[int] = None,
+        downsample_method_file: Optional[str] = None,
         augment: Optional = None,
         num_points: Optional[int] = None,
+        few_shot_path: Optional[str] = None,
     ):
         if len(tasks) != 1 or tasks[0] != "classification":
             raise ValueError(
@@ -53,6 +55,7 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             transform=None,
             other_attributes_names_to_pass=other_attributes_names_to_pass,
             keep_unlabeled=False,
+            few_shot_path=few_shot_path,
         )
         self.dataset_name = dataset_name
         self.modalities = modalities
@@ -65,12 +68,12 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             labels[0]["category_id"]
             if "point_cloud" in self.modalities:
                 tile["point_cloud_path"] = self._derive_point_cloud_path(
-                    tile["path"], voxel_size, num_points_file
+                    tile["path"], voxel_size, num_points_file, downsample_method_file
                 )
             if "dsm" in self.modalities:
                 tile["dsm_path"] = self._derive_dsm_path(tile["path"])
 
-    def derive_dsm_path(self, raster_path: Union[str, Path]) -> Path:
+    def _derive_dsm_path(self, raster_path: Union[str, Path]) -> Path:
         if self.dataset_name == "quebec_plantations":
             dsm_path = Path(str(raster_path).replace("_rgb", "_dsm"))
             return dsm_path
@@ -89,11 +92,14 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             old_prefix = f"{m[1]}_{m[2]}_{m[3]}_{m[4]}_{m[5]}_rgb"
             dsm_path = Path(str(raster_path).replace(old_prefix, new_prefix))
             return dsm_path
+        elif self.dataset_name == "bci":
+            dsm_path = Path(str(raster_path).replace("_orthomosaic", "_dsm"))
+            return dsm_path
         else:
             raise ValueError(f"Unknown dataset {self.dataset_name}")
 
     def _derive_point_cloud_path(
-        self, raster_path: Union[str, Path], voxel_size: float, num_points_file: int
+        self, raster_path: Union[str, Path], voxel_size: float, num_points_file: int, downsample_method_file: str
     ) -> Path:
         """
         Convert:
@@ -126,6 +132,8 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             scene_pcd_dir_name = Path(
                 str(scene_rgb_name).replace(old_prefix, new_prefix)
             )
+        elif self.dataset_name == "bci":
+            scene_pcd_dir_name = scene_rgb_name.replace("_orthomosaic", "_pcd")
         else:
             raise ValueError(f"Unknown dataset {self.dataset_name}")
         # Format voxel size for dir and filename parts
@@ -144,6 +152,8 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
         elif voxel_size is None and num_points_file is not None:
             voxel_dir = f"_{num_points_file}"
             voxel_token = voxel_dir.replace("_", "np")  # e.g. "np2048"
+            if downsample_method_file == "random":
+                voxel_dir += "_r"  # add _r in directory name
         elif voxel_size is None and num_points_file is None:
             voxel_dir = ""
             voxel_token = ""
@@ -157,6 +167,8 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             new_stem = stem.replace("_rgb_tile_", "_pg_pc_tile_", 1)
         elif self.dataset_name == "quebec_trees":
             new_stem = stem.replace("_rgb_tile_", "_pc_tile_", 1)
+        elif self.dataset_name == "bci":
+            new_stem = stem.replace("_orthomosaic_tile_", "_cloud_pc_tile_", 1)
         if len(voxel_token) > 0:
             # Insert voxel-size tag after the sf… chunk (e.g., _sf1p0_)
             new_stem = re.sub(r"(_sf[^_]+_)", rf"\1{voxel_token}_", new_stem, count=1)
@@ -220,6 +232,7 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             raise ValueError(
                 f"Unexpected image dtype {img.dtype} in {tile_info['path']}"
             )
+        img_size = img.shape[1]
 
         if "point_cloud" in self.modalities:
             inv_transform = ~transform  # Inverse transform: world → pixel
@@ -241,15 +254,19 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             point_cloud_path = tile_info["point_cloud_path"]
             with laspy.open(point_cloud_path) as point_cloud_file:
                 las = point_cloud_file.read()
-            x, y, z = las.x, las.y, las.z
+            x, y, z = las.x, las.y, np.asarray(las.z, dtype=np.float32)
             cols, rows = inv_transform * (x, y)
+            cols_scaled = (cols - img_size / 2) / (img_size / 2)
+            rows_scaled = (rows - img_size / 2) / (img_size / 2)
+            z_scaled = (z - z.mean()) / xy_scale / (img_size / 2)
             # Offset z so minimum is 0, then scale into pixel units
-            z_offset = z.min()
-            z_zero = z - z_offset
-            z_scaled = z_zero / xy_scale
             r, g, b = las.red, las.green, las.blue
             r, g, b = r / 65535.0, g / 65535.0, b / 65535.0  # Normalize RGB values
-            points = np.vstack((rows, cols, z_scaled, r, g, b), dtype=np.float32).T
+            points = np.vstack((rows_scaled, cols_scaled, z_scaled, r, g, b), dtype=np.float32).T
+            
+            x_min, y_min, z_min = points[:, 0].min(), points[:, 1].min(), points[:, 2].min()
+            x_max, y_max, z_max = points[:, 0].max(), points[:, 1].max(), points[:, 2].max()
+
             H, W = img.shape[1:]  # tile is (C, H, W)
             valid_mask = (
                 #    (rows >= -0.5) & (rows < H - 0.5) &
@@ -299,7 +316,6 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
         }
         meta = {"filename": Path(tile_info["path"]).stem}
         if "point_cloud" in self.modalities:
-            meta["z_offset"] = float(z_offset)
             meta["xy_scale"] = float(xy_scale)
         if "dsm" in self.modalities:
             meta["dsm_offset"] = float(dsm_offset)

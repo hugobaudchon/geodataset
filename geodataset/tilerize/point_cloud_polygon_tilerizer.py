@@ -142,7 +142,7 @@ class PointCloudPolygonTilerizer:
                 )
             elif self.downsample_method == "random":
                 self.pc_tiles_folder_path = (
-                    self.output_path / f"pc_tiles_{self.downsample_num_points}_random"
+                    self.output_path / f"pc_tiles_{self.downsample_num_points}_r"
                 )
             else:
                 raise ValueError(
@@ -157,7 +157,9 @@ class PointCloudPolygonTilerizer:
         """Generate individual point cloud tiles from the full point cloud, apply voxel downsampling, and write them to
         disk in LAS format."""
         valid_tiles: List[PointCloudTileMetadata] = []
-        with CopcReader.open(self.point_cloud_path) as reader:
+        is_copc = "copc" in str(self.point_cloud_path).lower()
+        reader_context = CopcReader.open if is_copc else laspy.open
+        with reader_context(self.point_cloud_path) as reader:
             parsed_crs = reader.header.parse_crs()
             self.epsg_code = self._extract_epsg(parsed_crs)
             if self.epsg_code is None:
@@ -168,9 +170,14 @@ class PointCloudPolygonTilerizer:
                     f"Point cloud CRS EPSG code {self.epsg_code} does not match raster CRS EPSG code "
                     f"{raster_epsg}. Ensure both datasets are in the same CRS."
                 )
+            las_all = None if is_copc else reader.read()
             for tile_md in tqdm(self.tiles_metadata, desc="Processing tiles"):
                 # Query points in the tile bounds
-                las = self._query_tile(tile_md, reader)
+                las = (
+                    self._query_tile(tile_md, reader)
+                    if is_copc
+                    else self._filter_points_in_tile(las_all, tile_md)
+                )
                 if len(las.x) == 0:
                     raise ValueError(
                         f"[{tile_md.tile_name}] No points found in tile. "
@@ -518,6 +525,21 @@ class PointCloudPolygonTilerizer:
             maxs=np.array([tile_md.max_x, tile_md.max_y]),
         )
         return reader.query(bounds)
+
+    def _filter_points_in_tile(
+        self, las_all: laspy.LasData, tile_md: PointCloudTileMetadata
+    ) -> laspy.LasData:
+        """Filter LAS points within tile bounds for non-COPC files."""
+        mask = (
+            (las_all.x >= tile_md.min_x)
+            & (las_all.x <= tile_md.max_x)
+            & (las_all.y >= tile_md.min_y)
+            & (las_all.y <= tile_md.max_y)
+        )
+        header = las_all.header.copy()
+        sub_las = laspy.LasData(header)
+        sub_las.points = las_all.points[mask]
+        return sub_las
 
     def _voxel_downsample_centroid(
         self, las: laspy.LasData, voxel_size: float, header: laspy.LasHeader
