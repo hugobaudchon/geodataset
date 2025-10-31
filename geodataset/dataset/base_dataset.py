@@ -57,7 +57,9 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
                  fold: str,
                  root_path: str or List[str] or Path or List[Path],
                  transform: albumentations.core.composition.Compose = None,
-                 other_attributes_names_to_pass: List[str] = None):
+                 other_attributes_names_to_pass: List[str] = None,
+                 keep_unlabeled: bool = True,
+                 few_shot_path: str = None,):
         self.fold = fold
         self.root_path = root_path
         self.transform = transform
@@ -76,6 +78,10 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         self._find_tiles_paths(directories=self.root_path)
         self._remove_tiles_not_found()
         self._filter_tiles_without_box()
+        if not keep_unlabeled:
+            self._filter_unlabeled_tiles()
+        if few_shot_path is not None:
+            self._filter_tiles_few_shot(few_shot_path)
 
         if len(self.cocos_detected) == 0:
             raise Exception(f"No COCO datasets for fold '{self.fold}' were found in the specified root folder.")
@@ -92,7 +98,7 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         """
         for directory in directories:
             for path in directory.iterdir():
-                if path.is_file() and path.name.endswith(f".json"):
+                if path.is_file() and path.name.endswith(f".json") and ("rgb" in path.name or "orthomosaic" in path.name):
                     try:
                         product_name, scale_factor, ground_resolution, fold = CocoNameConvention.parse_name(path.name)
                         if fold == self.fold:
@@ -109,7 +115,6 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         Parameters:
         - json_path: pathlib.Path, the path to the COCO JSON file.
         """
-
         with open(json_path) as f:
             coco_data = json.load(f)
         self._reindex_coco_data(coco_data=coco_data)
@@ -211,6 +216,86 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
             warn(f"Had to remove {original_tiles_number - new_tiles_number} tiles out of {original_tiles_number}"
                  f" as they do not contain annotation in the training set.")
             # Need to reindex the tile ids for __getitem__
+            self._reindex_tiles()
+
+    def _filter_unlabeled_tiles(self):
+        # Remove tiles without annotation for training
+        original_tiles_number = len(self.tiles)
+
+        tile_ids_unlabeled = []
+        for tile_id, tile in self.tiles.items():
+            labels = tile['labels']
+            category_id = labels[0]['category_id']
+            if category_id == -1:
+                tile_ids_unlabeled.append(tile_id)
+
+        for tile_id in tile_ids_unlabeled:
+            del self.tiles_path_to_id_mapping[self.tiles[tile_id]['name']]
+            del self.tiles[tile_id]
+
+        new_tiles_number = len(self.tiles)
+
+        if original_tiles_number != new_tiles_number:
+            print(f"Had to remove {original_tiles_number - new_tiles_number} tiles out of {original_tiles_number}"
+                 f" as they are unlabeled.")
+            # Need to reindex the tile ids for __getitem__
+            self._reindex_tiles()
+
+    def _filter_tiles_few_shot(self, few_shot_path: str):
+        # Remove tiles without annotation for training
+        original_tiles_number = len(self.tiles)
+
+        with open(few_shot_path, "r") as f:
+            data = json.load(f)
+        fewshot_filenames = {int(k): v for k, v in data["fewshot_filenames"].items()}
+        all_fewshot_filenames = {fname for files in fewshot_filenames.values() for fname in files}
+        skipped_classes = data["skipped_classes"]
+
+        tile_ids_to_remove = []
+        for tile_id, tile in self.tiles.items():
+            if self.fold == 'train':
+                tile_name = tile['name']
+                if not any(fewshot_fname in tile_name for fewshot_fname in all_fewshot_filenames):
+                    tile_ids_to_remove.append(tile_id)
+            else:
+                labels = tile['labels']
+                category_id = labels[0]['category_id']
+                if category_id in skipped_classes:
+                    tile_ids_to_remove.append(tile_id)
+                    continue
+
+        for tile_id in tile_ids_to_remove:
+            del self.tiles_path_to_id_mapping[self.tiles[tile_id]['name']]
+            del self.tiles[tile_id]
+
+        if skipped_classes:
+            all_class_ids = sorted({label['category_id']
+                                    for tile in self.tiles.values()
+                                    for label in tile['labels']})
+            new_id = 1
+            remap = {}
+            for old_id in sorted(all_class_ids + skipped_classes):
+                if old_id in skipped_classes:
+                    remap[old_id] = None
+                else:
+                    remap[old_id] = new_id
+                    new_id += 1
+            for tile in self.tiles.values():
+                for label in tile['labels']:
+                    old_id = label['category_id']
+                    if remap[old_id] is not None:
+                        label['category_id'] = remap[old_id]
+                    else:
+                        raise ValueError(f"Tile contains skipped class {old_id} after filtering.")
+
+        new_tiles_number = len(self.tiles)
+        if original_tiles_number != new_tiles_number:
+            if self.fold == 'train':
+                print(f"Had to remove {original_tiles_number - new_tiles_number} tiles out of {original_tiles_number}"
+                     f" as they are not part of the few-shot training set.")
+            else:
+                print(f"Had to remove {original_tiles_number - new_tiles_number} tiles out of {original_tiles_number}"
+                     f" as they belong to skipped classes in the few-shot training set.")
             self._reindex_tiles()
 
     def _reindex_tiles(self):
