@@ -8,6 +8,7 @@ import rasterio
 from laspy import CopcReader, ExtraBytesParams, PointFormat
 from pyproj import CRS
 from rasterio.windows import Window
+from scipy.spatial import cKDTree
 from shapely import box
 from tqdm import tqdm
 
@@ -80,13 +81,17 @@ class PointCloudPolygonTilerizer:
         downsample_voxel_size: Optional[float] = None,
         downsample_num_points: Optional[int] = None,
         downsample_method: Optional[str] = None,
+        outlier_z_thresh: Optional[float] = 0,
+        outlier_k_neighbors: Optional[int] = 32,
         output_name_suffix: Optional[str] = None,
         geopackage_layer_name: Optional[str] = None,
         main_label_category_column_name: Optional[str] = None,
         other_labels_attributes_column_names: Optional[List[str]] = None,
         temp_dir: Union[str, Path] = "./tmp",
+        seed: int = 0,
     ):
         self.unique_polygon_id_column_name = "polygon_id_geodataset"
+        self.seed = seed
         # File paths
         self.point_cloud_path = Path(point_cloud_path)
         self.reference_raster_path = Path(reference_raster_path)
@@ -102,6 +107,8 @@ class PointCloudPolygonTilerizer:
         self.downsample_voxel_size = downsample_voxel_size
         self.downsample_num_points = downsample_num_points
         self.downsample_method = downsample_method
+        self.outlier_z_thresh = outlier_z_thresh
+        self.outlier_k_neighbors = outlier_k_neighbors
         self.output_name_suffix = output_name_suffix
         # Product name from filename
         self.product_name = validate_and_convert_product_name(
@@ -150,6 +157,15 @@ class PointCloudPolygonTilerizer:
                 )
         else:
             self.pc_tiles_folder_path = self.output_path / "pc_tiles"
+        if self.outlier_z_thresh > 0:
+            self.pc_tiles_folder_path = (
+                self.pc_tiles_folder_path.parent
+                / f"{self.pc_tiles_folder_path.name}_or_z{self.outlier_z_thresh}_k{self.outlier_k_neighbors}"
+            )
+        self.pc_tiles_folder_path = (
+            self.pc_tiles_folder_path.parent
+            / f"{self.pc_tiles_folder_path.name}_s{self.seed}"
+        )
         # Generate tiles metadata
         self.tiles_metadata = self._generate_tiles_metadata()
 
@@ -182,6 +198,11 @@ class PointCloudPolygonTilerizer:
                     raise ValueError(
                         f"[{tile_md.tile_name}] No points found in tile. "
                         "Check AOI filtering or point cloud coverage."
+                    )
+                # Apply outlier removal
+                if self.outlier_z_thresh > 0:
+                    las = self.remove_outliers_sor(
+                        las, k=self.outlier_k_neighbors, z_thresh=self.outlier_z_thresh
                     )
                 # Apply voxel downsampling
                 if (
@@ -398,6 +419,8 @@ class PointCloudPolygonTilerizer:
             col=start_col,
             voxel_size=self.downsample_voxel_size,
             num_points=self.downsample_num_points,
+            outlier_z_thresh=self.outlier_z_thresh,
+            outlier_k_neighbors=self.outlier_k_neighbors,
             ground_resolution=self.ground_resolution,
             scale_factor=self.scale_factor,
             aoi=aoi,
@@ -467,22 +490,6 @@ class PointCloudPolygonTilerizer:
         Return EPSG code from a laspy parsed CRS (checks source_crs, sub_crs_list, then fallback).
 
         None if unresolved.
-        """
-        """
-        source_crs = getattr(parsed_crs, "source_crs", None)
-        if source_crs is not None:
-            epsg = source_crs.to_epsg()
-            if epsg is not None:
-                return epsg
-        for crs in getattr(parsed_crs, "sub_crs_list", []):
-            base_crs = getattr(crs, "source_crs", crs)
-            epsg = base_crs.to_epsg()
-            if epsg is not None:
-                return epsg
-        try:
-            return parsed_crs.to_epsg()
-        except Exception:
-            return None
         """
         try:
             epsg = parsed_crs.to_epsg()
@@ -759,13 +766,16 @@ class PointCloudPolygonTilerizer:
             # Shuffle so duplicates are not clustered
             sampled_idx = np.array(sampled_idx)
             np.random.shuffle(sampled_idx)
+        elif num_samples == N:
+            sampled_idx = np.arange(N)
         else:
             # Initialize FPS
             sampled_idx = np.zeros(num_samples, dtype=np.int64)
             distances = np.full(N, np.inf)
 
             # Pick first point randomly
-            sampled_idx[0] = np.random.randint(0, N)
+            rng = np.random.default_rng(self.seed)
+            sampled_idx[0] = rng.integers(0, N)
 
             for i in range(1, num_samples):
                 # Compute distance from last added point to all points
@@ -814,3 +824,44 @@ class PointCloudPolygonTilerizer:
             new_las[field] = las[field][sampled_idx]
 
         return new_las
+
+    def remove_outliers_sor(
+        self,
+        las: laspy.LasData,
+        k: int,
+        z_thresh: float,
+    ) -> laspy.LasData:
+        """
+        Apply Statistical Outlier Removal (SOR) to a point cloud.
+
+        Parameters
+        ----------
+        las : laspy.LasData
+            Input point cloud.
+        k : int
+            Number of neighbors to use for SOR.
+        z_thresh : float
+            Z-score threshold for outlier filtering.
+
+        Returns
+        -------
+        laspy.LasData
+            A new LasData containing only inlier points.
+        """
+        # Extract XYZ coordinates
+        coords = np.vstack((las.x, las.y, las.z)).T
+
+        # Build KD-tree
+        tree = cKDTree(coords)
+
+        # Query k+1 neighbors (first one is the point itself)
+        dists, _ = tree.query(coords, k=k + 1)
+        mean_dists = np.mean(dists[:, 1:], axis=1)
+
+        # Compute z-scores and create mask
+        z_scores = (mean_dists - np.mean(mean_dists)) / np.std(mean_dists)
+        mask = np.abs(z_scores) < z_thresh
+
+        filtered = las[mask]
+
+        return filtered

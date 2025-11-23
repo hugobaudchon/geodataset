@@ -1,3 +1,4 @@
+import random
 import re
 import warnings
 from pathlib import Path
@@ -42,6 +43,9 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
         augment: Optional = None,
         num_points: Optional[int] = None,
         few_shot_path: Optional[str] = None,
+        num_downsample_seeds: Optional[int] = 1,
+        exclude_classes: Optional[List[int]] = None,
+        outlier_removal: Optional[str] = None,
     ):
         if len(tasks) != 1 or tasks[0] != "classification":
             raise ValueError(
@@ -56,11 +60,14 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             other_attributes_names_to_pass=other_attributes_names_to_pass,
             keep_unlabeled=False,
             few_shot_path=few_shot_path,
+            exclude_classes=exclude_classes,
         )
         self.dataset_name = dataset_name
         self.modalities = modalities
         self.augment = augment
         self.num_points = num_points
+        self.num_downsample_seeds = num_downsample_seeds
+        self.outlier_removal = outlier_removal
 
         # Add point cloud tile paths to tiles
         for tile in self.tiles.values():
@@ -68,7 +75,11 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             labels[0]["category_id"]
             if "point_cloud" in self.modalities:
                 tile["point_cloud_path"] = self._derive_point_cloud_path(
-                    tile["path"], voxel_size, num_points_file, downsample_method_file
+                    tile["path"],
+                    voxel_size,
+                    num_points_file,
+                    downsample_method_file,
+                    outlier_removal,
                 )
             if "dsm" in self.modalities:
                 tile["dsm_path"] = self._derive_dsm_path(tile["path"])
@@ -99,7 +110,12 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             raise ValueError(f"Unknown dataset {self.dataset_name}")
 
     def _derive_point_cloud_path(
-        self, raster_path: Union[str, Path], voxel_size: float, num_points_file: int, downsample_method_file: str
+        self,
+        raster_path: Union[str, Path],
+        voxel_size: float,
+        num_points_file: int,
+        downsample_method_file: str,
+        outlier_removal: Optional[str] = None,
     ) -> Path:
         """
         Convert:
@@ -161,6 +177,16 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             raise ValueError(
                 "Only one of voxel_size or num_points_file should be provided"
             )
+        if outlier_removal is not None:
+            voxel_dir += f"_or_{outlier_removal}"
+            parts = outlier_removal.split("_")
+            processed_parts = []
+            for part in parts:
+                if "k" in part or "z" in part:
+                    processed_parts.append("o" + part)
+                else:
+                    processed_parts.append(part)
+            voxel_token += "_" + "_".join(processed_parts)
         pcd_base = scene_root / scene_pcd_dir_name / f"pc_tiles{voxel_dir}" / fold_dir
         stem = p.stem  # original filename without .tif
         if self.dataset_name == "quebec_plantations":
@@ -251,7 +277,18 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
                     f"Affine has rotation/shear (b={transform.b}, d={transform.d}) for {tile_info['path']}"
                 )
             # Open the point cloud file
-            point_cloud_path = tile_info["point_cloud_path"]
+            if self.num_downsample_seeds > 1 or self.outlier_removal is not None:
+                original_path = Path(tile_info["point_cloud_path"])
+                path_parts = list(original_path.parts)
+                path_target = path_parts[9]
+                if self.num_downsample_seeds <= 1:
+                    seed_idx = "s0"
+                else:
+                    seed_idx = random.randrange(self.num_downsample_seeds)
+                path_parts[9] = f"{path_target}_s{seed_idx}"
+                point_cloud_path = Path(*path_parts)
+            else:
+                point_cloud_path = tile_info["point_cloud_path"]
             with laspy.open(point_cloud_path) as point_cloud_file:
                 las = point_cloud_file.read()
             x, y, z = las.x, las.y, np.asarray(las.z, dtype=np.float32)
@@ -262,10 +299,9 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             # Offset z so minimum is 0, then scale into pixel units
             r, g, b = las.red, las.green, las.blue
             r, g, b = r / 65535.0, g / 65535.0, b / 65535.0  # Normalize RGB values
-            points = np.vstack((rows_scaled, cols_scaled, z_scaled, r, g, b), dtype=np.float32).T
-            
-            x_min, y_min, z_min = points[:, 0].min(), points[:, 1].min(), points[:, 2].min()
-            x_max, y_max, z_max = points[:, 0].max(), points[:, 1].max(), points[:, 2].max()
+            points = np.vstack(
+                (rows_scaled, cols_scaled, z_scaled, r, g, b), dtype=np.float32
+            ).T
 
             H, W = img.shape[1:]  # tile is (C, H, W)
             valid_mask = (
