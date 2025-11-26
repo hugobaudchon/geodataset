@@ -644,6 +644,10 @@ def read_raster(path: str, ground_resolution: float = None, scale_factor: float 
     nbands = profile.get('count', 1)
     expected_bytes = new_width * new_height * nbands * itemsize
 
+    if expected_bytes > 4 * 1024 ** 3:
+        print("Large target raster detected (>4GB), enabling BIGTIFF support.")
+        profile["BIGTIFF"] = "YES"
+
     if os.environ.get("GEODATASET_MAX_IN_MEM_GB"):
         max_in_mem_gb = int(os.environ["GEODATASET_MAX_IN_MEM_GB"])
     else:
