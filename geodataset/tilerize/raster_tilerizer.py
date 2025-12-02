@@ -203,16 +203,19 @@ class BaseRasterTilerizer(ABC):
             tile_id_counter += 1
 
         # 5. --- Main loop for all subsequent rows ---
-        for row in tqdm(range(self.tile_coordinate_step, height, self.tile_coordinate_step), desc="Processing rows"):
+        row_iter = range(self.tile_coordinate_step, height, self.tile_coordinate_step)
+        pbar = tqdm(row_iter, desc="Processing rows")
+        for row in row_iter:
 
             rows_to_read = min(self.tile_coordinate_step, height - rows_read_so_far)
 
             if rows_to_read <= 0:
+                pbar.n = pbar.total
+                pbar.refresh()
                 break  # We've read the whole raster
 
             # Roll the buffers
             if self.buffer_overlap_rows > 0:
-                # --- CORRECTED SLICE on axis 1 ---
                 data_buffer[:, 0:self.buffer_overlap_rows, :] = data_buffer[:, self.tile_coordinate_step:, :]
                 mask_buffer[0:self.buffer_overlap_rows, :] = mask_buffer[self.tile_coordinate_step:, :]
 
@@ -221,7 +224,6 @@ class BaseRasterTilerizer(ABC):
             new_data = self.raster.data.read(window=new_data_window)
 
             # Place new data in the end of the buffer
-            # --- CORRECTED SLICE on axis 1 ---
             data_buffer[:, self.buffer_overlap_rows: self.buffer_overlap_rows + rows_to_read, :] = new_data
 
             # Compute and place new mask
@@ -248,6 +250,8 @@ class BaseRasterTilerizer(ABC):
                 tile = self.raster.create_tile_metadata(window=window, tile_id=tile_id_counter)
                 tiles.append(tile)
                 tile_id_counter += 1
+
+            pbar.update(1)
 
         return tiles
 
