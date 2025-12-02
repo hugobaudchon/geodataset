@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 from shapely import box, Polygon
 from shapely.affinity import translate
+from tqdm import tqdm
 
 from geodataset.aoi import AOIConfig
 from geodataset.geodata import RasterTileMetadata
@@ -344,7 +345,8 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
         # Saving the tiles
         if save_tiles_folder:
             save_tiles_folder.mkdir(parents=True, exist_ok=True)
-            for tile in tiles:
+            # for tile in tiles:
+            for tile in tqdm(tiles, desc=f"Saving tiles for AOI '{aoi}'"):
                 tile.save(output_folder=save_tiles_folder, output_dtype=self.output_dtype)
 
         coco_output_file_path = self.output_path / CocoNameConvention.create_name(

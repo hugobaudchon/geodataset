@@ -8,7 +8,7 @@ def validate_and_convert_product_name(product_name_stem: str):
     standardized = re.sub(r"_+", "_", standardized)
     standardized = standardized.strip("_")
 
-    pattern = r"^([a-z0-9]+_)+[a-z0-9]+$"
+    pattern = r"^[a-z0-9]+(?:_[a-z0-9]+)*$"
     if not re.match(pattern, standardized):
         raise ValueError(f"The product name stem (without extension) {product_name_stem},"
                          f" which has been standardized to {standardized}"

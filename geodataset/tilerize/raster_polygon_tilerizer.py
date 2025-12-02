@@ -162,7 +162,7 @@ class RasterPolygonTilerizer:
                  temp_dir: str or Path = './tmp',
                  output_dtype: str = None):
 
-        self.raster_path = raster_path
+        self.raster_path = str(raster_path)
         self.labels_path = Path(labels_path) if labels_path is not None else None
         self.tile_size = tile_size
         self.use_variable_tile_size = use_variable_tile_size
