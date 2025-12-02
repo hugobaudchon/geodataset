@@ -146,10 +146,12 @@
                  <span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
                  <span class="n">temp_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="ow">or</span> <span class="n">Path</span> <span class="o">=</span> <span class="s1">&#39;./tmp&#39;</span><span class="p">):</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">raster_path</span> <span class="o">=</span> <span class="n">raster_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">raster_path</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">raster_path</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span> <span class="o">=</span> <span class="n">tile_size</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tile_overlap</span> <span class="o">=</span> <span class="n">tile_overlap</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_overlap</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">buffer_overlap_rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">global_aoi</span> <span class="o">=</span> <span class="n">global_aoi</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span> <span class="o">=</span> <span class="n">aois_config</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">output_name_suffix</span> <span class="o">=</span> <span class="n">output_name_suffix</span>
@@ -187,9 +189,39 @@
                         <span class="n">temp_dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">temp_dir</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">raster</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compute_skip_condition</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Runs the skip logic on an entire raster array and returns a 2D boolean mask.</span>
+<span class="sd">        True means the pixel *is* a skip pixel (black, white, or alpha).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># (Handling 1-band case where read() might return 2D)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">num_bands</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">num_bands</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">black</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">data</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">white</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">data</span> <span class="o">==</span> <span class="mi">255</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">black</span> <span class="o">|</span> <span class="n">white</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">num_bands</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="n">black</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">data</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">white</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">data</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">255</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">alpha</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">black</span> <span class="o">|</span> <span class="n">white</span> <span class="o">|</span> <span class="n">alpha</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Handle 1-band or other cases</span>
+            <span class="n">black</span> <span class="o">=</span> <span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">white</span> <span class="o">=</span> <span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">255</span><span class="p">)</span>  <span class="c1"># Assuming 255 is also &quot;empty&quot;</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">black</span> <span class="o">|</span> <span class="n">white</span><span class="p">)</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_create_tiles</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">RasterTileMetadata</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;/vsimem/&#39;</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Warning: Rolling buffer optimization is fastest when raster is in-memory.&quot;</span><span class="p">)</span>
+
         <span class="n">width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">]</span>
         <span class="n">height</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">]</span>
+        <span class="n">num_bands</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">count</span>
 
         <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Raster size: &#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">))</span>
         <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Desired tile size: &#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">)</span>
@@ -197,14 +229,97 @@
 
         <span class="n">tile_id_counter</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="n">tiles</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Processing rows&quot;</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">):</span>
-                <span class="n">window</span> <span class="o">=</span> <span class="n">Window</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">)</span>
-                <span class="n">tile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">create_tile_metadata</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span> <span class="n">tile_id</span><span class="o">=</span><span class="n">tile_id_counter</span><span class="p">)</span>
 
-                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_skip_tile</span><span class="p">(</span><span class="n">tile</span><span class="o">=</span><span class="n">tile</span><span class="p">,</span> <span class="n">tile_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">):</span>
+        <span class="c1"># 1. Check if we even need to run this logic</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ignore_black_white_alpha_tiles_threshold</span> <span class="o">&gt;=</span> <span class="mf">1.0</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Skip threshold is &gt;= 1.0, creating all tiles without checking.&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Processing rows&quot;</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">):</span>
+                    <span class="n">window</span> <span class="o">=</span> <span class="n">Window</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">)</span>
+                    <span class="n">tile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">create_tile_metadata</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span> <span class="n">tile_id</span><span class="o">=</span><span class="n">tile_id_counter</span><span class="p">)</span>
+                    <span class="n">tiles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile</span><span class="p">)</span>
+                    <span class="n">tile_id_counter</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">return</span> <span class="n">tiles</span>
+
+        <span class="c1"># 2. Initialize the rolling buffers</span>
+        <span class="n">data_buffer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_bands</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">,</span> <span class="n">width</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">])</span>
+        <span class="n">mask_buffer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">,</span> <span class="n">width</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+
+        <span class="c1"># 3. Pre-fill the buffer with the first strip (0 to tile_size)</span>
+        <span class="n">rows_to_read</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">,</span> <span class="n">height</span><span class="p">)</span>
+        <span class="n">new_data_window</span> <span class="o">=</span> <span class="n">Window</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">rows_to_read</span><span class="p">)</span>
+        <span class="n">new_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="n">new_data_window</span><span class="p">)</span>
+
+        <span class="c1"># Place data in the buffer</span>
+        <span class="n">data_buffer</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="n">rows_to_read</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">new_data</span>
+
+        <span class="c1"># Compute and place mask</span>
+        <span class="n">new_mask</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_skip_condition</span><span class="p">(</span><span class="n">new_data</span><span class="p">)</span>
+        <span class="n">mask_buffer</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">rows_to_read</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">new_mask</span>
+
+        <span class="n">rows_read_so_far</span> <span class="o">=</span> <span class="n">rows_to_read</span>
+
+        <span class="c1"># 4. --- Process the first strip (row = 0) ---</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">):</span>
+            <span class="n">col_end</span> <span class="o">=</span> <span class="n">col</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span>
+            <span class="n">tile_mask_slice</span> <span class="o">=</span> <span class="n">mask_buffer</span><span class="p">[:,</span> <span class="n">col</span><span class="p">:</span><span class="n">col_end</span><span class="p">]</span>
+
+            <span class="n">tile_size_h</span><span class="p">,</span> <span class="n">tile_size_w</span> <span class="o">=</span> <span class="n">tile_mask_slice</span><span class="o">.</span><span class="n">shape</span>
+            <span class="k">if</span> <span class="n">tile_size_h</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">tile_size_w</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="k">continue</span>
+
+            <span class="n">num_pixels</span> <span class="o">=</span> <span class="n">tile_size_h</span> <span class="o">*</span> <span class="n">tile_size_w</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">tile_mask_slice</span><span class="p">)</span> <span class="o">/</span> <span class="n">num_pixels</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="n">window</span> <span class="o">=</span> <span class="n">Window</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">)</span>
+            <span class="n">tile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">create_tile_metadata</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span> <span class="n">tile_id</span><span class="o">=</span><span class="n">tile_id_counter</span><span class="p">)</span>
+            <span class="n">tiles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile</span><span class="p">)</span>
+            <span class="n">tile_id_counter</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c1"># 5. --- Main loop for all subsequent rows ---</span>
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Processing rows&quot;</span><span class="p">):</span>
+
+            <span class="n">rows_to_read</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">,</span> <span class="n">height</span> <span class="o">-</span> <span class="n">rows_read_so_far</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">rows_to_read</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">break</span>  <span class="c1"># We&#39;ve read the whole raster</span>
+
+            <span class="c1"># Roll the buffers</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">buffer_overlap_rows</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># --- CORRECTED SLICE on axis 1 ---</span>
+                <span class="n">data_buffer</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">buffer_overlap_rows</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">data_buffer</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">:,</span> <span class="p">:]</span>
+                <span class="n">mask_buffer</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">buffer_overlap_rows</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">mask_buffer</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">:,</span> <span class="p">:]</span>
+
+            <span class="c1"># Read new data</span>
+            <span class="n">new_data_window</span> <span class="o">=</span> <span class="n">Window</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">rows_read_so_far</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">rows_to_read</span><span class="p">)</span>
+            <span class="n">new_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="n">new_data_window</span><span class="p">)</span>
+
+            <span class="c1"># Place new data in the end of the buffer</span>
+            <span class="c1"># --- CORRECTED SLICE on axis 1 ---</span>
+            <span class="n">data_buffer</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">buffer_overlap_rows</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">buffer_overlap_rows</span> <span class="o">+</span> <span class="n">rows_to_read</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">new_data</span>
+
+            <span class="c1"># Compute and place new mask</span>
+            <span class="n">new_mask</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_skip_condition</span><span class="p">(</span><span class="n">new_data</span><span class="p">)</span>
+            <span class="n">mask_buffer</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">buffer_overlap_rows</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">buffer_overlap_rows</span> <span class="o">+</span> <span class="n">rows_to_read</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">new_mask</span>
+
+            <span class="n">rows_read_so_far</span> <span class="o">+=</span> <span class="n">rows_to_read</span>
+
+            <span class="c1"># --- Column Loop (now uses the rolled buffer) ---</span>
+            <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">):</span>
+
+                <span class="n">col_end</span> <span class="o">=</span> <span class="n">col</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span>
+                <span class="n">tile_mask_slice</span> <span class="o">=</span> <span class="n">mask_buffer</span><span class="p">[:,</span> <span class="n">col</span><span class="p">:</span><span class="n">col_end</span><span class="p">]</span>
+
+                <span class="n">tile_size_h</span><span class="p">,</span> <span class="n">tile_size_w</span> <span class="o">=</span> <span class="n">tile_mask_slice</span><span class="o">.</span><span class="n">shape</span>
+                <span class="k">if</span> <span class="n">tile_size_h</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">tile_size_w</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
                     <span class="k">continue</span>
 
+                <span class="n">num_pixels</span> <span class="o">=</span> <span class="n">tile_size_h</span> <span class="o">*</span> <span class="n">tile_size_w</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">tile_mask_slice</span><span class="p">)</span> <span class="o">/</span> <span class="n">num_pixels</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ignore_black_white_alpha_tiles_threshold</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+                <span class="n">window</span> <span class="o">=</span> <span class="n">Window</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">)</span>
+                <span class="n">tile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">create_tile_metadata</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span> <span class="n">tile_id</span><span class="o">=</span><span class="n">tile_id_counter</span><span class="p">)</span>
                 <span class="n">tiles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile</span><span class="p">)</span>
                 <span class="n">tile_id_counter</span> <span class="o">+=</span> <span class="mi">1</span>
 
@@ -244,7 +359,7 @@
             <span class="n">final_aois_tiles</span> <span class="o">=</span> <span class="p">{</span><span class="n">aoi</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="n">aois_tiles</span><span class="p">}</span>
             <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="n">aois_tiles</span><span class="p">:</span>
                 <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">]:</span>
-                    <span class="k">if</span> <span class="n">tile</span><span class="o">.</span><span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_skip_tile</span><span class="p">(</span><span class="n">tile</span><span class="o">=</span><span class="n">tile</span><span class="p">,</span> <span class="n">tile_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_size</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">tile</span><span class="o">.</span><span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_skip_tile</span><span class="p">(</span><span class="n">tile</span><span class="o">=</span><span class="n">tile</span><span class="p">):</span>
                         <span class="k">continue</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">final_aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile</span><span class="p">)</span>
@@ -254,24 +369,51 @@
 
         <span class="k">return</span> <span class="n">final_aois_tiles</span><span class="p">,</span> <span class="n">aois_gdf</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_check_skip_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tile</span><span class="p">:</span> <span class="n">RasterTileMetadata</span><span class="p">,</span> <span class="n">tile_size</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_skip_tile_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tile_data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Checks a tile&#39;s NumPy array data to see if it should be skipped.</span>
+<span class="sd">        This is now only used by _get_tiles_per_aoi (which is fine).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">skip_ratio</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ignore_black_white_alpha_tiles_threshold</span>
 
-        <span class="c1"># Checking if the tile has more than a certain ratio of white, black, or alpha pixels.</span>
-        <span class="n">tile_data</span> <span class="o">=</span> <span class="n">tile</span><span class="o">.</span><span class="n">get_pixel_data</span><span class="p">()</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">count</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="c1"># Get actual tile dimensions from the array</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tile_data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>  <span class="c1"># Handle 1-band case</span>
+            <span class="n">tile_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">tile_data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">num_bands</span><span class="p">,</span> <span class="n">tile_size_h</span><span class="p">,</span> <span class="n">tile_size_w</span> <span class="o">=</span> <span class="n">tile_data</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="c1"># Skip if the tile is effectively empty (e.g., a sliver at the edge)</span>
+        <span class="k">if</span> <span class="n">tile_size_h</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">tile_size_w</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+        <span class="n">num_pixels</span> <span class="o">=</span> <span class="n">tile_size_h</span> <span class="o">*</span> <span class="n">tile_size_w</span>
+
+        <span class="k">if</span> <span class="n">num_bands</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
             <span class="n">black</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">tile_data</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
             <span class="n">white</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">tile_data</span> <span class="o">==</span> <span class="mi">255</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">black</span> <span class="o">|</span> <span class="n">white</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">tile_size</span> <span class="o">*</span> <span class="n">tile_size</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">skip_ratio</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">black</span> <span class="o">|</span> <span class="n">white</span><span class="p">)</span> <span class="o">/</span> <span class="n">num_pixels</span> <span class="o">&gt;=</span> <span class="n">skip_ratio</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">True</span>
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">count</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="n">num_bands</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
             <span class="n">black</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">tile_data</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
             <span class="n">white</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">tile_data</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">255</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
             <span class="n">alpha</span> <span class="o">=</span> <span class="n">tile_data</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>
-            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">black</span> <span class="o">|</span> <span class="n">white</span> <span class="o">|</span> <span class="n">alpha</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">tile_size</span> <span class="o">*</span> <span class="n">tile_size</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">skip_ratio</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">black</span> <span class="o">|</span> <span class="n">white</span> <span class="o">|</span> <span class="n">alpha</span><span class="p">)</span> <span class="o">/</span> <span class="n">num_pixels</span> <span class="o">&gt;=</span> <span class="n">skip_ratio</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+
+        <span class="c1"># Handle 1-band or other cases</span>
+        <span class="k">elif</span> <span class="n">num_bands</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">black</span> <span class="o">=</span> <span class="p">(</span><span class="n">tile_data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">white</span> <span class="o">=</span> <span class="p">(</span><span class="n">tile_data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">255</span><span class="p">)</span>  <span class="c1"># Assuming 255 is also &quot;empty&quot;</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">black</span> <span class="o">|</span> <span class="n">white</span><span class="p">)</span> <span class="o">/</span> <span class="n">num_pixels</span> <span class="o">&gt;=</span> <span class="n">skip_ratio</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">True</span>
 
         <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_skip_tile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tile</span><span class="p">:</span> <span class="n">RasterTileMetadata</span><span class="p">):</span>
+        <span class="c1"># This function now performs the I/O...</span>
+        <span class="n">tile_data</span> <span class="o">=</span> <span class="n">tile</span><span class="o">.</span><span class="n">get_pixel_data</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_skip_tile_data</span><span class="p">(</span><span class="n">tile_data</span><span class="p">)</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">BaseDiskRasterTilerizer</span><span class="p">(</span><span class="n">BaseRasterTilerizer</span><span class="p">,</span> <span class="n">ABC</span><span class="p">):</span>
@@ -476,13 +618,12 @@
         <span class="p">[</span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No tiles found for AOI </span><span class="si">{</span><span class="n">aoi</span><span class="si">}</span><span class="s1">.&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_config</span><span class="o">.</span><span class="n">actual_names</span>
          <span class="k">if</span> <span class="n">aoi</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span>
 
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Saving tiles...&quot;</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">aoi</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="p">:</span>
             <span class="c1"># Save the tile images</span>
             <span class="n">tiles_path_aoi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tiles_path</span> <span class="o">/</span> <span class="n">aoi</span>
             <span class="n">tiles_path_aoi</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
-            <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">]:</span>
+            <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aois_tiles</span><span class="p">[</span><span class="n">aoi</span><span class="p">],</span> <span class="n">desc</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Saving tiles for AOI &#39;</span><span class="si">{</span><span class="n">aoi</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">):</span>
                 <span class="n">tile</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">output_folder</span><span class="o">=</span><span class="n">tiles_path_aoi</span><span class="p">,</span> <span class="n">output_dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dtype</span><span class="p">)</span>
 
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The tiles have been saved to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">tiles_path</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span></div>

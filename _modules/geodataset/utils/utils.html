@@ -747,6 +747,10 @@
     <span class="n">nbands</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;count&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
     <span class="n">expected_bytes</span> <span class="o">=</span> <span class="n">new_width</span> <span class="o">*</span> <span class="n">new_height</span> <span class="o">*</span> <span class="n">nbands</span> <span class="o">*</span> <span class="n">itemsize</span>
 
+    <span class="k">if</span> <span class="n">expected_bytes</span> <span class="o">&gt;</span> <span class="mi">4</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">**</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Large target raster detected (&gt;4GB), enabling BIGTIFF support.&quot;</span><span class="p">)</span>
+        <span class="n">profile</span><span class="p">[</span><span class="s2">&quot;BIGTIFF&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;YES&quot;</span>
+
     <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;GEODATASET_MAX_IN_MEM_GB&quot;</span><span class="p">):</span>
         <span class="n">max_in_mem_gb</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;GEODATASET_MAX_IN_MEM_GB&quot;</span><span class="p">])</span>
     <span class="k">else</span><span class="p">:</span>
