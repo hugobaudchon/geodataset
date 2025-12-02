@@ -277,16 +277,19 @@
             <span class="n">tile_id_counter</span> <span class="o">+=</span> <span class="mi">1</span>
 
         <span class="c1"># 5. --- Main loop for all subsequent rows ---</span>
-        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Processing rows&quot;</span><span class="p">):</span>
+        <span class="n">row_iter</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">)</span>
+        <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">row_iter</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Processing rows&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">row_iter</span><span class="p">:</span>
 
             <span class="n">rows_to_read</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">,</span> <span class="n">height</span> <span class="o">-</span> <span class="n">rows_read_so_far</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">rows_to_read</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">pbar</span><span class="o">.</span><span class="n">n</span> <span class="o">=</span> <span class="n">pbar</span><span class="o">.</span><span class="n">total</span>
+                <span class="n">pbar</span><span class="o">.</span><span class="n">refresh</span><span class="p">()</span>
                 <span class="k">break</span>  <span class="c1"># We&#39;ve read the whole raster</span>
 
             <span class="c1"># Roll the buffers</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">buffer_overlap_rows</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="c1"># --- CORRECTED SLICE on axis 1 ---</span>
                 <span class="n">data_buffer</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">buffer_overlap_rows</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">data_buffer</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">:,</span> <span class="p">:]</span>
                 <span class="n">mask_buffer</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">buffer_overlap_rows</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">mask_buffer</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">tile_coordinate_step</span><span class="p">:,</span> <span class="p">:]</span>
 
@@ -295,7 +298,6 @@
             <span class="n">new_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="n">new_data_window</span><span class="p">)</span>
 
             <span class="c1"># Place new data in the end of the buffer</span>
-            <span class="c1"># --- CORRECTED SLICE on axis 1 ---</span>
             <span class="n">data_buffer</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">buffer_overlap_rows</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">buffer_overlap_rows</span> <span class="o">+</span> <span class="n">rows_to_read</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">new_data</span>
 
             <span class="c1"># Compute and place new mask</span>
@@ -322,6 +324,8 @@
                 <span class="n">tile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raster</span><span class="o">.</span><span class="n">create_tile_metadata</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span> <span class="n">tile_id</span><span class="o">=</span><span class="n">tile_id_counter</span><span class="p">)</span>
                 <span class="n">tiles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tile</span><span class="p">)</span>
                 <span class="n">tile_id_counter</span> <span class="o">+=</span> <span class="mi">1</span>
+
+            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">tiles</span>
 
