@@ -9,9 +9,10 @@ import numpy as np
 import rasterio
 
 from geodataset.dataset.base_dataset import BaseLabeledRasterCocoDataset
+from geodataset.utils import decode_coco_segmentation
 
 
-class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoDataset):
+class LabeledMultiModalCocoDataset(BaseLabeledRasterCocoDataset):
     """
     A dataset class for classification tasks using polygon-based tiles from raster and point cloud data. Loads COCO
     datasets and their associated tiles.
@@ -46,11 +47,16 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
         num_downsample_seeds: Optional[int] = 1,
         exclude_classes: Optional[List[int]] = None,
         outlier_removal: Optional[str] = None,
+        height_attr: Optional[str] = None,
     ):
-        if len(tasks) != 1 or tasks[0] != "classification":
+        available_tasks = {"classification", "height", "segmentation"}
+        if not all(t in available_tasks for t in tasks):
             raise ValueError(
-                "This dataset only supports a single task: 'classification'"
+                f"Unsupported task in {tasks}. Allowed tasks are: {available_tasks}"
             )
+        if "height" in tasks:
+            self.height_attr = height_attr
+            other_attributes_names_to_pass = [height_attr]
         else:
             other_attributes_names_to_pass = None
         super().__init__(
@@ -64,6 +70,7 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
         )
         self.dataset_name = dataset_name
         self.modalities = modalities
+        self.tasks = tasks
         self.augment = augment
         self.num_points = num_points
         self.num_downsample_seeds = num_downsample_seeds
@@ -202,55 +209,20 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
         pcd_path = pcd_base / new_name
         return pcd_path
 
-    def __getitem__(self, idx: int) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
-        """
-        Retrieves a tile and its class label by index, applying transforms if specified.
-
-        Parameters
-        ----------
-        idx: int
-            The index of the tile to retrieve.
-
-        Returns
-        -------
-        Tuple[Dict[str, Any], np.ndarray, np.ndarray, Dict[str, Any]]
-            meta: dict
-                Contains metadata about the tile, such as filename, z_offset, and xy_scale.
-            image: np.ndarray
-                Float array (C, H, W), RGB channels, values in [0, 1] after 255 scaling.
-            point_cloud: np.ndarray
-                Array of shape (N, 6) with columns:
-                  0: row (image y index) – increases downward in the array. For a north-up geotransform this is geographic south (because transform.e < 0).
-                  1: col (image x index) – increases to the right. For a north-up geotransform this is geographic east.
-                  2: z_scaled – (original_z - per_tile_min_z) / xy_scale so minimum z becomes 0 and vertical units are expressed in “pixel-size” units (using the average of pixel_size_x and pixel_size_y when they are close; otherwise an error is raised).
-                  3: r
-                  4: g
-                  5: b
-                r,g,b are normalized to [0,1] from 16‑bit (divided by 65535).
-                Note: If the affine has rotation/shear (b or d != 0) the (row, col) → world direction mapping is rotated accordingly, but (row, col) still index image space.
-            targets: dict
-                Contains 'labels' (int). Additional attributes may be included if requested.
-
-        Coordinate / scaling notes
-        --------------------------
-        - Affine forward: x_world = a * col + c ; y_world = e * row + f (typically a > 0, e < 0 for north-up).
-        - We invert the transform to map (x_world, y_world) → (col, row) for the LiDAR points, then reorder to (row, col) to match image indexing tile[:, row, col].
-        - xy_scale = 0.5 * (|a| + |e|) when |a| and |e| are within 5% relative tolerance; else a ValueError is raised.
-        - z is offset by its per-tile minimum so the lowest elevation in the tile becomes 0, then divided by xy_scale to express vertical distances in approximate pixel units.
-        """
-        tile_info = self.tiles[idx]
-
+    def _get_image_data(
+        self, tile_info: Dict[str, Any]
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Reads and normalizes the RGB image tile."""
         with rasterio.open(tile_info["path"]) as tile_file:
-            # Check if we have at least 3 bands (RGB)
+            # Read first 3 bands (RGB) or handle grayscale
             if tile_file.count >= 3:
-                # Reading the first three bands
                 img = tile_file.read([1, 2, 3])
             else:
-                # Handle grayscale images or other band configurations
                 img = tile_file.read()
                 if img.shape[0] == 1:  # If single band, replicate to 3 channels
                     img = np.repeat(img, 3, axis=0)
             transform = tile_file.transform
+
         # Normalize the image data (handle 8-bit vs 16-bit)
         if img.dtype == np.uint8:
             img = img.astype(np.float32) / 255.0
@@ -258,98 +230,154 @@ class ClassificationLabeledRasterPointCloudCocoDataset(BaseLabeledRasterCocoData
             raise ValueError(
                 f"Unexpected image dtype {img.dtype} in {tile_info['path']}"
             )
+        return img, transform
+
+    def _get_point_cloud_path(self, tile_info: Dict[str, Any]) -> Path:
+        """Determines the correct point cloud path, applying downsampling/seeding logic."""
+        if self.num_downsample_seeds > 1 or self.outlier_removal is not None:
+            original_path = Path(tile_info["point_cloud_path"])
+            path_parts = list(original_path.parts)
+            path_target = path_parts[9]
+
+            seed_idx = 0
+            if self.num_downsample_seeds > 1:
+                seed_idx = random.randrange(self.num_downsample_seeds)
+
+            path_parts[9] = f"{path_target}_s{seed_idx}"
+            return Path(*path_parts)
+        return Path(tile_info["point_cloud_path"])
+
+    def _process_point_cloud(
+        self, tile_info: Dict[str, Any], img_size: int, transform: np.ndarray
+    ) -> Tuple[np.ndarray, float]:
+        """Loads, geo-references, scales, and samples the point cloud."""
+        inv_transform = ~transform  # Inverse transform: world → pixel
+
+        # Calculate xy_scale
+        pixel_size_x = abs(transform.a)
+        pixel_size_y = abs(transform.e)
+        rtol = 0.05
+        if np.isclose(pixel_size_x, pixel_size_y, rtol=rtol):
+            xy_scale = 0.5 * (pixel_size_x + pixel_size_y)
+        else:
+            raise ValueError(
+                f"Pixel sizes are not close enough: {pixel_size_x} vs {pixel_size_y}"
+            )
+
+        if transform.b != 0 or transform.d != 0:
+            warnings.warn(
+                f"Affine has rotation/shear (b={transform.b}, d={transform.d}) for {tile_info['path']}"
+            )
+
+        point_cloud_path = self._get_point_cloud_path(tile_info)
+
+        with laspy.open(point_cloud_path) as point_cloud_file:
+            las = point_cloud_file.read()
+
+        x, y, z = las.x, las.y, np.asarray(las.z, dtype=np.float32)
+        cols, rows = inv_transform * (x, y)
+
+        # Scale coordinates (normalized to [-1, 1] for x/y and z)
+        # Note: z is offset by its mean before scaling.
+        half_img_size = img_size / 2
+        rows_scaled = (rows - half_img_size) / half_img_size
+        cols_scaled = (cols - half_img_size) / half_img_size
+        z_scaled = (z - z.mean()) / xy_scale / half_img_size
+
+        # Normalize RGB colors
+        r, g, b = las.red / 65535.0, las.green / 65535.0, las.blue / 65535.0
+
+        points = np.vstack(
+            (rows_scaled, cols_scaled, z_scaled, r, g, b), dtype=np.float32
+        ).T
+
+        # Filter points outside the tile boundary (with 2-pixel tolerance)
+        H, W = img_size, img_size
+        valid_mask = (
+            (rows >= -2.5) & (rows < H + 1.5) & (cols >= -2.5) & (cols < W + 1.5)
+        )
+        points = points[valid_mask]
+
+        # Apply final point cloud sampling if required
+        if self.num_points is not None:
+            N = points.shape[0]
+            if self.num_points < N:
+                indices = np.random.choice(
+                    N, self.num_points, replace=(N >= self.num_points)
+                )
+                points = points[indices]
+            elif self.num_points > N:
+                raise ValueError(
+                    f"Tile {tile_info['path']} has only {N} points, fewer than requested {self.num_points}"
+                )
+
+        return points, xy_scale
+
+    def _get_dsm_data(
+        self, tile_info: Dict[str, Any]
+    ) -> Tuple[np.ndarray, float, float]:
+        """Reads, normalizes, and scales the Digital Surface Model (DSM)."""
+        dsm_path = tile_info["dsm_path"]
+        with rasterio.open(dsm_path) as dsm_file:
+            dsm = dsm_file.read().astype(np.float32)
+
+        # Normalize the DSM [0, 1]
+        dsm_offset = np.nanmin(dsm)
+        dsm_scale = np.nanmax(dsm) - dsm_offset
+        dsm = (dsm - dsm_offset) / dsm_scale
+
+        return dsm, dsm_offset, dsm_scale
+
+    def __getitem__(self, idx: int) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
+        """Retrieves a tile and its associated data (Image, Point Cloud, DSM) and targets by index, applying transforms
+        if specified."""
+        tile_info = self.tiles[idx]
+        xy_scale = None
+        dsm_offset = None
+        dsm_scale = None
+
+        # Load Image Data
+        img, transform = self._get_image_data(tile_info)
         img_size = img.shape[1]
 
+        # Prepare Mask Data (if segmentation task is active)
+        mask = None
+        if "segmentation" in self.tasks:
+            # Assuming decode_coco_segmentation is available
+            mask = decode_coco_segmentation(tile_info["labels"][0], "mask")
+            mask = mask[np.newaxis, :, :]  # [1, H, W]
+
+        # Load/Process Point Cloud Data (if modality is active)
+        points = None
         if "point_cloud" in self.modalities:
-            inv_transform = ~transform  # Inverse transform: world → pixel
-            # Pixel sizes (world units per pixel)
-            pixel_size_x = abs(transform.a)
-            pixel_size_y = abs(transform.e)
-            rtol = 0.05
-            if np.isclose(pixel_size_x, pixel_size_y, rtol=rtol):
-                xy_scale = 0.5 * (pixel_size_x + pixel_size_y)
-            else:
-                raise ValueError(
-                    f"Pixel sizes are not close enough: {pixel_size_x} vs {pixel_size_y}"
-                )
-            if transform.b != 0 or transform.d != 0:
-                warnings.warn(
-                    f"Affine has rotation/shear (b={transform.b}, d={transform.d}) for {tile_info['path']}"
-                )
-            # Open the point cloud file
-            if self.num_downsample_seeds > 1 or self.outlier_removal is not None:
-                original_path = Path(tile_info["point_cloud_path"])
-                path_parts = list(original_path.parts)
-                path_target = path_parts[9]
-                if self.num_downsample_seeds <= 1:
-                    seed_idx = "s0"
-                else:
-                    seed_idx = random.randrange(self.num_downsample_seeds)
-                path_parts[9] = f"{path_target}_s{seed_idx}"
-                point_cloud_path = Path(*path_parts)
-            else:
-                point_cloud_path = tile_info["point_cloud_path"]
-            with laspy.open(point_cloud_path) as point_cloud_file:
-                las = point_cloud_file.read()
-            x, y, z = las.x, las.y, np.asarray(las.z, dtype=np.float32)
-            cols, rows = inv_transform * (x, y)
-            cols_scaled = (cols - img_size / 2) / (img_size / 2)
-            rows_scaled = (rows - img_size / 2) / (img_size / 2)
-            z_scaled = (z - z.mean()) / xy_scale / (img_size / 2)
-            # Offset z so minimum is 0, then scale into pixel units
-            r, g, b = las.red, las.green, las.blue
-            r, g, b = r / 65535.0, g / 65535.0, b / 65535.0  # Normalize RGB values
-            points = np.vstack(
-                (rows_scaled, cols_scaled, z_scaled, r, g, b), dtype=np.float32
-            ).T
+            points, xy_scale = self._process_point_cloud(tile_info, img_size, transform)
 
-            H, W = img.shape[1:]  # tile is (C, H, W)
-            valid_mask = (
-                #    (rows >= -0.5) & (rows < H - 0.5) &
-                #    (cols >= -0.5) & (cols < W - 0.5)
-                # 2 pixels tolerance
-                (rows >= -2.5)
-                & (rows < H + 1.5)
-                & (cols >= -2.5)
-                & (cols < W + 1.5)
-            )
-            points = points[valid_mask]
-            if self.num_points is not None:
-                N = points.shape[0]
-                if self.num_points < N:
-                    indices = np.random.choice(
-                        points.shape[0], self.num_points, replace=(N >= self.num_points)
-                    )
-                    points = points[indices]
-                elif self.num_points > N:
-                    raise ValueError(
-                        f"Tile {tile_info['path']} has only {N} points, fewer than requested {self.num_points}"
-                    )
-        else:
-            points = None
-
+        # Load/Process DSM Data (if modality is active)
+        dsm = None
         if "dsm" in self.modalities:
-            dsm_path = tile_info["dsm_path"]
-            dsm = None
-            with rasterio.open(dsm_path) as dsm_file:
-                dsm = dsm_file.read()
-            dsm = dsm.astype(np.float32)
-            dsm_offset = np.nanmin(dsm)
-            dsm_scale = np.nanmax(dsm) - dsm_offset
-            dsm = (dsm - dsm_offset) / dsm_scale
-        else:
-            dsm = None
+            dsm, dsm_offset, dsm_scale = self._get_dsm_data(tile_info)
 
-        # Apply transformations if specified
+        # Apply Augmentations
         if self.augment:
-            img, points, dsm = self.augment(img, points, dsm)
+            img, points, dsm, mask = self.augment(img, points, dsm, mask)
 
+        # Prepare Targets
         labels = tile_info["labels"]
-        category_id = labels[0]["category_id"]
+        if len(labels) > 1:
+            raise NotImplementedError(
+                "Multi-label tasks are not implemented in this dataset."
+            )
+        label = labels[0]
+        targets = {}
+        if "classification" in self.tasks:
+            targets["class"] = label["category_id"]
+        if "height" in self.tasks:
+            other_attributes = self._get_other_attributes_to_pass(idx)
+            targets["height"] = other_attributes[self.height_attr][0]
+        if "segmentation" in self.tasks:
+            targets["segmentation"] = mask
 
-        targets = {
-            "labels": category_id,
-        }
+        # Prepare Metadata
         meta = {"filename": Path(tile_info["path"]).stem}
         if "point_cloud" in self.modalities:
             meta["xy_scale"] = float(xy_scale)
