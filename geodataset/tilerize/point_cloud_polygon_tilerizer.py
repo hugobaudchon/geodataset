@@ -860,7 +860,7 @@ class PointCloudPolygonTilerizer:
 
         # Compute z-scores and create mask
         z_scores = (mean_dists - np.mean(mean_dists)) / np.std(mean_dists)
-        mask = np.abs(z_scores) < z_thresh
+        mask = z_scores < z_thresh
 
         filtered = las[mask]
 
