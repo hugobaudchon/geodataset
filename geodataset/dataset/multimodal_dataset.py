@@ -222,6 +222,7 @@ class LabeledMultiModalCocoDataset(BaseLabeledRasterCocoDataset):
                 if img.shape[0] == 1:  # If single band, replicate to 3 channels
                     img = np.repeat(img, 3, axis=0)
             transform = tile_file.transform
+            resolution = tile_file.res
 
         # Normalize the image data (handle 8-bit vs 16-bit)
         if img.dtype == np.uint8:
@@ -230,22 +231,20 @@ class LabeledMultiModalCocoDataset(BaseLabeledRasterCocoDataset):
             raise ValueError(
                 f"Unexpected image dtype {img.dtype} in {tile_info['path']}"
             )
-        return img, transform
+        return img, transform, resolution
 
     def _get_point_cloud_path(self, tile_info: Dict[str, Any]) -> Path:
         """Determines the correct point cloud path, applying downsampling/seeding logic."""
-        if self.num_downsample_seeds > 1 or self.outlier_removal is not None:
-            original_path = Path(tile_info["point_cloud_path"])
-            path_parts = list(original_path.parts)
-            path_target = path_parts[9]
+        original_path = Path(tile_info["point_cloud_path"])
+        path_parts = list(original_path.parts)
+        path_target = path_parts[9]
 
-            seed_idx = 0
-            if self.num_downsample_seeds > 1:
-                seed_idx = random.randrange(self.num_downsample_seeds)
+        seed_idx = 0
+        if self.num_downsample_seeds > 1:
+            seed_idx = random.randrange(self.num_downsample_seeds)
 
-            path_parts[9] = f"{path_target}_s{seed_idx}"
-            return Path(*path_parts)
-        return Path(tile_info["point_cloud_path"])
+        path_parts[9] = f"{path_target}_s{seed_idx}"
+        return Path(*path_parts)
 
     def _process_point_cloud(
         self, tile_info: Dict[str, Any], img_size: int, transform: np.ndarray
@@ -337,7 +336,7 @@ class LabeledMultiModalCocoDataset(BaseLabeledRasterCocoDataset):
         dsm_scale = None
 
         # Load Image Data
-        img, transform = self._get_image_data(tile_info)
+        img, transform, resolution = self._get_image_data(tile_info)
         img_size = img.shape[1]
 
         # Prepare Mask Data (if segmentation task is active)
@@ -379,6 +378,7 @@ class LabeledMultiModalCocoDataset(BaseLabeledRasterCocoDataset):
 
         # Prepare Metadata
         meta = {"filename": Path(tile_info["path"]).stem}
+        meta["resolution"] = resolution
         if "point_cloud" in self.modalities:
             meta["xy_scale"] = float(xy_scale)
         if "dsm" in self.modalities:
