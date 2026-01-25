@@ -404,11 +404,7 @@ class RasterTileMetadata:
         """
         window = Window(self.col, self.row, self.metadata['width'], self.metadata['height'])
 
-        # Using a thread-local storage to avoid opening the raster file multiple times in parallel threads
-        if not hasattr(_thread_ds, "ds"):
-            ds_name = self.associated_raster.data.name
-            _thread_ds.ds = rasterio.open(ds_name)
-        ds = _thread_ds.ds
+        ds = self._get_threaded_ds()
 
         tile_data = ds.read(window=window, boundless=True, masked=False, fill_value=0)
         # tile_data = self.associated_raster.data.read(window=window)
@@ -417,6 +413,24 @@ class RasterTileMetadata:
             tile_data = tile_data * self.mask
 
         return tile_data
+    
+    def _get_threaded_ds(self):
+        ds_name = self.associated_raster.data.name
+
+        # Check if we need to open a new dataset (either no cache, or cache is for a different raster)
+        if not hasattr(_thread_ds, "ds") or not hasattr(_thread_ds, "ds_name") or _thread_ds.ds_name != ds_name:
+            # Close the old dataset if it exists, as it is for a different raster that was processed in a previous geodataset tilerizer call
+            if hasattr(_thread_ds, "ds"):
+                try:
+                    _thread_ds.ds.close()
+                except:
+                    pass
+
+            # Open the new dataset and cache both the dataset and its name
+            _thread_ds.ds = rasterio.open(ds_name)
+            _thread_ds.ds_name = ds_name
+
+        return _thread_ds.ds
 
     def update_mask(self, additional_mask: np.ndarray):
         """
