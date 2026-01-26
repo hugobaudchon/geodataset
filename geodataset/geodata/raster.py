@@ -489,9 +489,12 @@ class RasterTileMetadata:
 
         data = self.get_pixel_data(apply_mask=apply_mask)
         if output_dtype is not None:
-            if output_dtype == 'uint8' and self.metadata['dtype'] != 'uint8':
-                data = img_as_ubyte(data)
-                self.metadata['dtype'] = 'uint8'
+            if output_dtype == 'uint8':
+                if self.metadata['dtype'] != 'uint8':
+                    # Convert to uint8
+                    data = img_as_ubyte(data)
+                    self.metadata['dtype'] = 'uint8'
+                # else: already uint8, no conversion needed
             else:
                 raise NotImplementedError(f"The output dtype {output_dtype} is not supported yet.")
 
