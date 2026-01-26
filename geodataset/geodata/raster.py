@@ -492,7 +492,23 @@ class RasterTileMetadata:
             if output_dtype == 'uint8':
                 if self.metadata['dtype'] != 'uint8':
                     # Convert to uint8
-                    data = img_as_ubyte(data)
+                    # Handle different source dtypes appropriately
+                    if data.dtype in [np.float32, np.float64]:
+                        # Replace NaN values with 255 (for alpha channel, this means fully opaque)
+                        data = np.nan_to_num(data, nan=255.0)
+
+                        # Check if float data is in 0-255 range (incorrectly stored) or 0.0-1.0 range (correct)
+                        # Use nanmax to ignore any remaining NaN
+                        max_val = np.nanmax(data) if np.isfinite(data).any() else 0.0
+                        if max_val > 1.0:
+                            # Float data in 0-255 range - clip and convert directly
+                            data = np.clip(data, 0, 255).astype(np.uint8)
+                        else:
+                            # Float data in 0.0-1.0 range - use standard conversion
+                            data = img_as_ubyte(data)
+                    else:
+                        # For integer types (uint16, etc.), use standard conversion
+                        data = img_as_ubyte(data)
                     self.metadata['dtype'] = 'uint8'
                 # else: already uint8, no conversion needed
             else:
