@@ -581,9 +581,12 @@
 
         <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_pixel_data</span><span class="p">(</span><span class="n">apply_mask</span><span class="o">=</span><span class="n">apply_mask</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">output_dtype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">output_dtype</span> <span class="o">==</span> <span class="s1">&#39;uint8&#39;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;uint8&#39;</span><span class="p">:</span>
-                <span class="n">data</span> <span class="o">=</span> <span class="n">img_as_ubyte</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;uint8&#39;</span>
+            <span class="k">if</span> <span class="n">output_dtype</span> <span class="o">==</span> <span class="s1">&#39;uint8&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;uint8&#39;</span><span class="p">:</span>
+                    <span class="c1"># Convert to uint8</span>
+                    <span class="n">data</span> <span class="o">=</span> <span class="n">img_as_ubyte</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;uint8&#39;</span>
+                <span class="c1"># else: already uint8, no conversion needed</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The output dtype </span><span class="si">{</span><span class="n">output_dtype</span><span class="si">}</span><span class="s2"> is not supported yet.&quot;</span><span class="p">)</span>
 
