@@ -576,7 +576,7 @@ def read_raster(path: str, ground_resolution: float = None, scale_factor: float 
     )
 
     ext = Path(path).suffix.lower()
-    if ext not in ['.tif', '.png', '.jpg']:
+    if ext not in ['.tif', '.png', '.jpg', '.vrt']:
         raise Exception(f'Data format {ext} not supported yet.')
 
     src = rasterio.open(path)
