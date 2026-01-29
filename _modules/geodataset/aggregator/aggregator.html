@@ -86,7 +86,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.validation</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_valid</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">tqdm</span><span class="w"> </span><span class="kn">import</span> <span class="n">tqdm</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">TileNameConvention</span><span class="p">,</span> <span class="n">apply_affine_transform</span><span class="p">,</span> <span class="n">COCOGenerator</span><span class="p">,</span> <span class="n">apply_inverse_transform</span><span class="p">,</span> \
+<span class="kn">from</span><span class="w"> </span><span class="nn">geodataset.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_affine_transform</span><span class="p">,</span> <span class="n">COCOGenerator</span><span class="p">,</span> <span class="n">apply_inverse_transform</span><span class="p">,</span> \
     <span class="n">decode_coco_segmentation</span><span class="p">,</span> <span class="n">fix_geometry_collection</span>
 
 
@@ -716,9 +716,6 @@
             <span class="k">if</span> <span class="ow">not</span> <span class="n">src</span><span class="o">.</span><span class="n">crs</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">src</span><span class="o">.</span><span class="n">transform</span><span class="p">:</span>
                 <span class="n">images_without_crs</span> <span class="o">+=</span> <span class="mi">1</span>
                 <span class="k">continue</span>
-
-            <span class="c1"># Making sure the Tile respects the convention</span>
-            <span class="n">TileNameConvention</span><span class="o">.</span><span class="n">parse_name</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">image_path</span><span class="p">)</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 
             <span class="n">tile_gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">geometry</span><span class="o">=</span><span class="n">tile_ids_to_polygons</span><span class="p">[</span><span class="n">tile_id</span><span class="p">])</span>
             <span class="n">tile_gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tile_gdf</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>

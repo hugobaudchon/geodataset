@@ -584,7 +584,23 @@
             <span class="k">if</span> <span class="n">output_dtype</span> <span class="o">==</span> <span class="s1">&#39;uint8&#39;</span><span class="p">:</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;uint8&#39;</span><span class="p">:</span>
                     <span class="c1"># Convert to uint8</span>
-                    <span class="n">data</span> <span class="o">=</span> <span class="n">img_as_ubyte</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                    <span class="c1"># Handle different source dtypes appropriately</span>
+                    <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">in</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
+                        <span class="c1"># Replace NaN values with 255 (for alpha channel, this means fully opaque)</span>
+                        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">nan</span><span class="o">=</span><span class="mf">255.0</span><span class="p">)</span>
+
+                        <span class="c1"># Check if float data is in 0-255 range (incorrectly stored) or 0.0-1.0 range (correct)</span>
+                        <span class="c1"># Use nanmax to ignore any remaining NaN</span>
+                        <span class="n">max_val</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmax</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="k">else</span> <span class="mf">0.0</span>
+                        <span class="k">if</span> <span class="n">max_val</span> <span class="o">&gt;</span> <span class="mf">1.0</span><span class="p">:</span>
+                            <span class="c1"># Float data in 0-255 range - clip and convert directly</span>
+                            <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">255</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="c1"># Float data in 0.0-1.0 range - use standard conversion</span>
+                            <span class="n">data</span> <span class="o">=</span> <span class="n">img_as_ubyte</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># For integer types (uint16, etc.), use standard conversion</span>
+                        <span class="n">data</span> <span class="o">=</span> <span class="n">img_as_ubyte</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;uint8&#39;</span>
                 <span class="c1"># else: already uint8, no conversion needed</span>
             <span class="k">else</span><span class="p">:</span>
