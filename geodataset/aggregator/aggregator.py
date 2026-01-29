@@ -12,7 +12,7 @@ import geopandas as gpd
 from shapely.validation import make_valid
 from tqdm import tqdm
 
-from geodataset.utils import TileNameConvention, apply_affine_transform, COCOGenerator, apply_inverse_transform, \
+from geodataset.utils import apply_affine_transform, COCOGenerator, apply_inverse_transform, \
     decode_coco_segmentation, fix_geometry_collection
 
 
@@ -631,9 +631,6 @@ class Aggregator:
             if not src.crs or not src.transform:
                 images_without_crs += 1
                 continue
-
-            # Making sure the Tile respects the convention
-            TileNameConvention.parse_name(Path(image_path).name)
 
             tile_gdf = gpd.GeoDataFrame(geometry=tile_ids_to_polygons[tile_id])
             tile_gdf['geometry'] = tile_gdf['geometry'].astype(object).apply(
