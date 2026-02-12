@@ -1,123 +1,260 @@
-{
-    "categories": [
+{"categories": [
         {
-      	    "id": 1,
-      	    "name": "Dead",
-            "global_id": -1,
-      	    "other_names": ["Mort"],
-      	    "supercategory": null
-    	},
+            "id": 1,
+            "name": "dead",
+            "global_id": 1.0,
+            "is_taxon": false,
+            "rank": null,
+            "other_names": ["Mort"],
+            "supercategory": null
+        },
         {
             "id": 2,
-            "name": "Acer",
-            "global_id": 3189834,
-            "rank": "GENUS",
-            "other_names": [],
-            "supercategory": null
+            "name": "Pinopsida",
+            "global_id": 194,
+            "is_taxon": true,
+            "rank": "class",
+            "other_names": [
+                 "Conifere"
+            ],
+            "supercategory": 7707728
         },
         {
             "id": 3,
-            "name": "Picea",
-            "global_id": 5284711,
-            "rank": "GENUS",
-            "other_names": ["PIGL", "PIMA", "PIRU"],
-            "supercategory": null
+            "name": "Magnoliopsida",
+            "global_id": 220,
+            "is_taxon": true,
+            "rank": "class",
+            "other_names": [
+                "Feuillus",
+                "QURU", 
+                "OSVI", 
+                "PRPE",
+                "FRNI"
+            ],
+            "including_names": [
+                "Quercus rubra L.",
+                "Ostrya virginiana (Mill.) K.Koch",
+                "Prunus pensylvanica L.fil.", 
+                "Fraxinus nigra Marshall",
+                
+            ],
+            "including_global_ids": [
+                2880539,
+                5332289,
+                8202030,
+                3172369
+            ],
+            "supercategory": 7707728
         },
+
         {
             "id": 4,
-            "name": "Populus",
-            "global_id": 3040183,
-            "rank": "GENUS",
-            "other_names": ["POGR", "POTR"],
-            "supercategory": null
+            "name": "Thuja occidentalis L.",
+            "global_id": 2684178,
+            "is_taxon": true,
+            "rank": "species",
+            "other_names": [
+                "Thuja occidentalis",
+                "THOC"
+            ],
+            "supercategory": 2684168
         },
         {
             "id": 5,
-            "name": "Betula papyrifera",
-            "global_id": 5332120,
-            "rank": "SPECIES",
-            "other_names": ["BEPA"],
-            "supercategory": null
+            "name": "Abies balsamea (L.) Mill.",
+            "global_id": 2685383,
+            "is_taxon": true,
+            "rank": "species",
+            "other_names": [
+                "Abies balsamea", 
+                "ABBA"
+            ],
+            "supercategory": 2684876
         },
         {
             "id": 6,
-            "name": "Betula alleghaniensis",
-            "global_id": 5331779,
-            "rank": "SPECIES",
-            "other_names": ["BEAL"],
-            "supercategory": null
+            "name": "Larix laricina (Du Roi) K.Koch",
+            "global_id": 2686231,
+            "is_taxon": true,
+            "rank": "species",
+            "other_names": [
+                "Larix laricina",
+                "LALA"
+            ],
+            "supercategory": 2686156
         },
         {
             "id": 7,
-            "name": "Acer saccharum",
-            "global_id": 3189859,
-            "rank": "SPECIES",
-            "other_names": ["ACSA"],
-            "supercategory": 2
+            "name": "Tsuga canadensis (L.)",
+            "global_id": 2687182,
+            "is_taxon": true,
+            "rank": "species",
+            "other_names": [
+                "Tsuga canadensis",
+                "TSCA"
+            ],
+            "supercategory": 8527396
         },
         {
             "id": 8,
-            "name": "Acer rubrum",
-            "global_id": 3189883,
-            "rank": "SPECIES",
-            "other_names": ["ACRU"],
-            "supercategory": 2
+            "name": "Betula L.",
+            "global_id": 2875008,
+            "is_taxon": true,
+            "rank": "genus",
+            "other_names": [
+                "Betula", "BEPO"
+            ],
+            "including_names":  ["Betula populifolia Marshall"],
+            "including_global_ids": [8184083],
+            "supercategory": 4688
         },
         {
             "id": 9,
-            "name": "Acer pensylvanicum",
-            "global_id": 179008759,
-            "rank": "SPECIES",
-            "other_names": ["ACPE"],
-            "supercategory": 2
+            "name": "Fagus grandifolia Ehrh.",
+            "global_id": 2882274,
+            "is_taxon": true,
+            "rank": "species",
+            "other_names": [
+                "Fagus grandifolia",
+                "FAGR"
+            ],
+            "supercategory": 2874875
         },
         {
             "id": 10,
-            "name": "Abies balsamea",
-            "global_id": 10479128,
-            "rank": "SPECIES",
-            "other_names": ["ABBA"],
-            "supercategory": null
+            "name": "Populus L.",
+            "global_id": 3040183,
+            "is_taxon": true,
+            "rank": "genus",
+            "other_names": [
+                "Populus",
+                "POBA",
+                "POGR", 
+                "POTR"
+            ],
+            "supercategory": 6664,
+            "including_names": [
+                "Populus balsamifera L.",
+                "Populus grandidentata Michx.",
+                "Populus tremuloides Michx.",
+                
+            ],
+            "including_global_ids": [
+                3040184,
+                3040210,
+                3040215
+            ]
         },
+      
         {
             "id": 11,
-            "name": "Tsuga canadensis",
-            "global_id": 2687182,
-            "rank": "SPECIES",
-            "other_names": ["TSCA"],
-            "supercategory": null
+            "name": "Acer L.",
+            "global_id": 3189834,
+            "is_taxon": true,
+            "rank": "genus",
+            "other_names": [
+                "Acer"
+            ],
+            "supercategory": 6657
         },
         {
             "id": 12,
-            "name": "Pinus strobus",
-            "global_id": 5284982,
-            "rank": "SPECIES",
-            "other_names": ["PIST"],
-            "supercategory": null
+            "name": "Acer pensylvanicum L.",
+            "global_id": 3189836,
+            "is_taxon": true,
+            "rank": "species",
+            "other_names": [
+                "Acer pensylvanicum",
+                "ACPE"
+            ],
+            "supercategory": 3189834
         },
         {
             "id": 13,
-            "name": "Larix laricina",
-            "global_id": 2686231,
-            "rank": "SPECIES",
-            "other_names": ["LALA"],
-            "supercategory": null
+            "name": "Acer saccharum Marshall",
+            "global_id": 3189859,
+            "is_taxon": true,
+            "rank": "species",
+            "other_names": [
+                "Acer saccharum",
+                "ACSA"
+            ],
+            "supercategory": 3189834
         },
         {
             "id": 14,
-            "name": "Thuja occidentalis",
-            "global_id": 2684178,
-            "rank": "SPECIES",
-            "other_names": ["THOC"],
-            "supercategory": null
+            "name": "Acer rubrum L.",
+            "global_id": 3189883,
+            "is_taxon": true,
+            "rank": "species",
+            "other_names": [
+                "Acer rubrum",
+                "ACRU"
+            ],
+            "supercategory": 3189834
         },
         {
             "id": 15,
-            "name": "Fagus grandifolia",
-            "global_id": 2684178,
-            "rank": "SPECIES",
-            "other_names": ["FAGR"],
-            "supercategory": null
+            "name": "Pinus strobus L.",
+            "global_id": 5284982,
+            "is_taxon": true,
+            "rank": "species",
+            "other_names": [
+                "Pinus strobus",
+                "PIST"
+            ],
+            "supercategory": 2684241
+        },
+        {
+            "id": 16,
+            "name": "Betula alleghaniensis Britton",
+            "global_id": 5331779,
+            "is_taxon": true,
+            "rank": "species",
+            "other_names": [
+                "Betula alleghaniensis",
+                "BEAL"
+            ],
+            "supercategory": 2875008
+        },
+        {
+            "id": 17,
+            "name": "Betula papyrifera Marshall",
+            "global_id": 5332120,
+            "is_taxon": true,
+            "rank": "species",
+            "other_names": [
+                "Betula papyrifera",
+                "BEPA"
+            ],
+            "supercategory": 2875008
+        },
+        {
+            "id": 18,
+            "name": "Picea A.Dietr.",
+            "global_id": 7606064,
+            "is_taxon": true,
+            "rank": "genus",
+            "other_names": [
+                "Picea",
+                "PIGL", 
+                "PIMA", 
+                "PIRU"
+            ],
+            "supercategory": 3925,
+            "including_names": [
+                "Picea rubens Sarg.",
+                "Picea glauca (Moench) Voss",
+                "Picea mariana (Mill.) Britton et al.",
+                
+            ],
+            "including_global_ids": [
+                5284717,
+                5284745,
+                5284802
+            ]
         }
+
     ]
 }
