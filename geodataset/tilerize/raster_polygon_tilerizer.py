@@ -28,9 +28,10 @@ class RasterPolygonTilerizer:
         Path to the labels. Supported formats are: .gpkg, .geojson, .shp, .xml, .csv.
     output_path : str or pathlib.Path
         Path to parent folder where to save the image tiles and associated labels.
-    tile_size : int
+    tile_size : int or None
         If use_variable_tile_size is set to True, then this parameter defines the maximum size of the tiles in pixels (tile_size, tile_size).
-        If use_variable_tile_size is set to False, all polygon tiles will have the same size (tile_size, tile_size).
+        Set to None to allow unlimited tile size (tile will be sized to fit the polygon + buffer with no cap).
+        If use_variable_tile_size is set to False, all polygon tiles will have the same size (tile_size, tile_size) and this must be an int.
     use_variable_tile_size: bool
         Whether to use variable tile size. If True, the tile size will match the size of the polygon,
          with a buffer defined by variable_tile_size_pixel_buffer.
@@ -142,7 +143,7 @@ class RasterPolygonTilerizer:
                  raster_path: str or Path,
                  labels_path: str or Path or None,
                  output_path: str or Path,
-                 tile_size: int,
+                 tile_size: Optional[int],
                  use_variable_tile_size: bool,
                  variable_tile_size_pixel_buffer: int or None,
                  labels_gdf: gpd.GeoDataFrame = None,
@@ -200,8 +201,12 @@ class RasterPolygonTilerizer:
     def _check_parameters(self):
         assert assert_raster_exists(self.raster_path), \
             f"Raster file not found at {self.raster_path}."
-        assert isinstance(self.tile_size, int) and self.tile_size > 0, \
-            "The tile size must be and integer greater than 0."
+        if self.use_variable_tile_size:
+            assert self.tile_size is None or (isinstance(self.tile_size, int) and self.tile_size > 0), \
+                "tile_size must be a positive integer or None when use_variable_tile_size is True."
+        else:
+            assert isinstance(self.tile_size, int) and self.tile_size > 0, \
+                "tile_size must be a positive integer when use_variable_tile_size is False."
         assert not (self.ground_resolution and self.scale_factor), \
             "Both a ground_resolution and a scale_factor were provided. Please only specify one."
         if self.use_variable_tile_size:

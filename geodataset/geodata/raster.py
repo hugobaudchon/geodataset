@@ -176,7 +176,8 @@ class Raster:
             # Variable tile size centered on the polygon centroid, with a minimum size of tile_size and that doesn't go outside the raster bounds
             max_dist_to_polygon_border = max(
                 [x - polygon.bounds[0], polygon.bounds[2] - cx, cy - polygon.bounds[1], polygon.bounds[3] - cy])
-            final_tile_size = int(min(tile_size, max_dist_to_polygon_border * 2 + variable_tile_size_pixel_buffer * 2))
+            uncapped_size = max_dist_to_polygon_border * 2 + variable_tile_size_pixel_buffer * 2
+            final_tile_size = int(uncapped_size if tile_size is None else min(tile_size, uncapped_size))
         else:
             # Fixed tile size centered on the polygon centroid
             final_tile_size = tile_size
@@ -506,10 +507,33 @@ class RasterTileMetadata:
                         else:
                             # Float data in 0.0-1.0 range - use standard conversion
                             data = img_as_ubyte(data)
+                    elif data.dtype == np.uint16:
+                        # For uint16, use standard conversion (scikit-image handles it correctly)
+                        data = img_as_ubyte(data)
+                    elif data.dtype in [np.int32, np.int64, np.uint32]:
+                        # For int32/int64/uint32, img_as_ubyte normalizes based on dtype range
+                        # which is incorrect if actual values are in a smaller range (e.g., 0-65535)
+                        # Treat as uint16 data (0-65535) and scale to 0-255 for consistency across tiles
+                        nodata_val = self.metadata.get('nodata', None)
+                        if nodata_val is not None:
+                            valid_mask = data != nodata_val
+                        else:
+                            valid_mask = np.ones(data.shape, dtype=bool)
+
+                        # Normalize from 0-65535 to 0-255 (treating as uint16 data)
+                        data = np.clip(data, 0, 65535)
+                        data = (data.astype(np.float64) / 65535 * 255).astype(np.uint8)
+
+                        # Set nodata pixels to 0
+                        if nodata_val is not None:
+                            data[~valid_mask] = 0
                     else:
-                        # For integer types (uint16, etc.), use standard conversion
+                        # For other integer types (uint8, int8, int16, etc.), use standard conversion
                         data = img_as_ubyte(data)
                     self.metadata['dtype'] = 'uint8'
+                    # Update nodata to be compatible with uint8 (or remove it)
+                    if self.metadata.get('nodata') is not None:
+                        self.metadata['nodata'] = 0
                 # else: already uint8, no conversion needed
             else:
                 raise NotImplementedError(f"The output dtype {output_dtype} is not supported yet.")
