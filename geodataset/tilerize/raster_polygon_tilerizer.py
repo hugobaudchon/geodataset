@@ -351,14 +351,15 @@ class RasterPolygonTilerizer:
                     if polygon.area == 0:
                         return 1.0
                     try:
-                        return polygon.intersection(aoi_geom).area / polygon.area
+                        ratio = polygon.intersection(aoi_geom).area / polygon.area
                     except Exception:
                         p = polygon.buffer(0) if not polygon.is_valid else polygon
                         a = aoi_geom.buffer(0) if not aoi_geom.is_valid else aoi_geom
-                        return p.intersection(a).area / p.area
+                        ratio = p.intersection(a).area / p.area
+                    return ratio
 
                 ratios = polygons['geometry'].apply(_intersection_ratio)
-                mask = ratios >= self.min_intersection_ratio
+                mask = ratios >= self.min_intersection_ratio - 1e-9
                 skipped_count = (~mask).sum()
                 if skipped_count > 0:
                     print(f"AOI '{aoi}': skipping {skipped_count}/{len(polygons)} polygons due to insufficient AOI intersection (min_intersection_ratio={self.min_intersection_ratio}).")
