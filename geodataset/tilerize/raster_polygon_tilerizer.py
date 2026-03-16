@@ -37,6 +37,9 @@ class RasterPolygonTilerizer:
          with a buffer defined by variable_tile_size_pixel_buffer.
     variable_tile_size_pixel_buffer: int or None
         If use_variable_tile_size is True, this parameter defines the pixel buffer to add around the polygon when creating the tile.
+    min_tile_size : int or None, optional
+        Only used when use_variable_tile_size is True. Defines the minimum tile size in pixels.
+        If None, no minimum is enforced. Defaults to None.
     labels_gdf: geopandas.GeoDataFrame, optional
         A GeoDataFrame containing the labels. If provided, labels_path must be None.
     global_aoi : str or pathlib.Path or geopandas.GeoDataFrame, optional
@@ -146,6 +149,7 @@ class RasterPolygonTilerizer:
                  tile_size: Optional[int],
                  use_variable_tile_size: bool,
                  variable_tile_size_pixel_buffer: int or None,
+                 min_tile_size: Optional[int] = None,
                  labels_gdf: gpd.GeoDataFrame = None,
                  global_aoi: str or Path or gpd.GeoDataFrame = None,
                  aois_config: Optional[AOIConfig] = None,
@@ -168,6 +172,7 @@ class RasterPolygonTilerizer:
         self.tile_size = tile_size
         self.use_variable_tile_size = use_variable_tile_size
         self.variable_tile_size_pixel_buffer = variable_tile_size_pixel_buffer
+        self.min_tile_size = min_tile_size
         self.global_aoi = global_aoi
         self.aois_config = aois_config
         self.scale_factor = scale_factor
@@ -204,6 +209,8 @@ class RasterPolygonTilerizer:
         if self.use_variable_tile_size:
             assert self.tile_size is None or (isinstance(self.tile_size, int) and self.tile_size > 0), \
                 "tile_size must be a positive integer or None when use_variable_tile_size is True."
+            assert self.min_tile_size is None or (isinstance(self.min_tile_size, int) and self.min_tile_size > 0), \
+                "min_tile_size must be a positive integer or None."
         else:
             assert isinstance(self.tile_size, int) and self.tile_size > 0, \
                 "tile_size must be a positive integer when use_variable_tile_size is False."
@@ -338,7 +345,8 @@ class RasterPolygonTilerizer:
                     polygon_aoi=aoi,
                     tile_size=self.tile_size,
                     use_variable_tile_size=self.use_variable_tile_size,
-                    variable_tile_size_pixel_buffer=self.variable_tile_size_pixel_buffer
+                    variable_tile_size_pixel_buffer=self.variable_tile_size_pixel_buffer,
+                    min_tile_size=self.min_tile_size
                 )
 
                 tiles_batch.append(polygon_tile)

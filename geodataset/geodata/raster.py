@@ -132,7 +132,8 @@ class Raster:
                          polygon_aoi: str,
                          tile_size: int,
                          use_variable_tile_size: bool,
-                         variable_tile_size_pixel_buffer: int) -> Tuple["RasterPolygonTileMetadata", Polygon]:
+                         variable_tile_size_pixel_buffer: int,
+                         min_tile_size: int = None) -> Tuple["RasterPolygonTileMetadata", Polygon]:
 
         """
         Generates and returns a RasterTileMetadata from a Polygon geometry, along with the possibly cropped original Polygon.
@@ -169,15 +170,15 @@ class Raster:
         # find largest polygon and center tile around it
         polygon = fix_geometry_collection(polygon)
         polygon = try_cast_multipolygon_to_polygon(polygon, strategy='largest_part')
-        x, y = polygon.centroid.coords[0]
         cx, cy = polygon.centroid.coords[0]
 
         if use_variable_tile_size:
             # Variable tile size centered on the polygon centroid, with a minimum size of tile_size and that doesn't go outside the raster bounds
             max_dist_to_polygon_border = max(
-                [x - polygon.bounds[0], polygon.bounds[2] - cx, cy - polygon.bounds[1], polygon.bounds[3] - cy])
+                [cx - polygon.bounds[0], polygon.bounds[2] - cx, cy - polygon.bounds[1], polygon.bounds[3] - cy])
             uncapped_size = max_dist_to_polygon_border * 2 + variable_tile_size_pixel_buffer * 2
-            final_tile_size = int(uncapped_size if tile_size is None else min(tile_size, uncapped_size))
+            capped_size = uncapped_size if tile_size is None else min(tile_size, uncapped_size)
+            final_tile_size = int(max(min_tile_size, capped_size) if min_tile_size is not None else capped_size)
         else:
             # Fixed tile size centered on the polygon centroid
             final_tile_size = tile_size
