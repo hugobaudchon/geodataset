@@ -347,7 +347,12 @@ class RasterPolygonTilerizer:
                 polygon_id = polygon_row[self.unique_polygon_id_column_name]
 
                 if aoi_geom is not None and polygon.area > 0:
-                    intersection_ratio = polygon.intersection(aoi_geom).area / polygon.area
+                    try:
+                        intersection_ratio = polygon.intersection(aoi_geom).area / polygon.area
+                    except Exception:
+                        p = polygon.buffer(0) if not polygon.is_valid else polygon
+                        a = aoi_geom.buffer(0) if not aoi_geom.is_valid else aoi_geom
+                        intersection_ratio = p.intersection(a).area / p.area
                     if intersection_ratio < self.min_intersection_ratio:
                         continue
 
