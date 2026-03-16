@@ -325,19 +325,31 @@ class RasterPolygonTilerizer:
         return aois_polygons, aois_gdf
 
     def _generate_aois_tiles_and_polygons(self):
-        aois_polygons, _ = self._generate_aois_polygons()
+        aois_polygons, aois_gdf = self._generate_aois_polygons()
+
+        # Precompute unioned AOI geometry per AOI name (in pixel coordinates)
+        aoi_geometries = {
+            aoi_name: aois_gdf[aois_gdf['aoi'] == aoi_name]['geometry'].unary_union
+            for aoi_name in aois_gdf['aoi'].unique()
+        }
 
         final_aois_tiles_paths = {aoi: [] for aoi in aois_polygons.keys()}
         final_aois_polygons = {aoi: [] for aoi in aois_polygons.keys()}
         tiles_batch = []
 
         for aoi, polygons in aois_polygons.items():
+            aoi_geom = aoi_geometries.get(aoi)
             for _, polygon_row in tqdm(polygons.iterrows(),
                                        f"Generating polygon tiles for AOI {aoi}...",
                                        total=len(polygons)):
 
                 polygon = polygon_row['geometry']
                 polygon_id = polygon_row[self.unique_polygon_id_column_name]
+
+                if aoi_geom is not None and polygon.area > 0:
+                    intersection_ratio = polygon.intersection(aoi_geom).area / polygon.area
+                    if intersection_ratio < self.min_intersection_ratio:
+                        continue
 
                 polygon_tile, translated_polygon = self.raster.get_polygon_tile(
                     polygon=polygon,
