@@ -344,22 +344,32 @@ class RasterPolygonTilerizer:
 
         for aoi, polygons in aois_polygons.items():
             aoi_geom = aoi_geometries.get(aoi)
+
+            # Filtering polygons based on their intersection ratio with the AOI geometry, if AOI geometry is available
+            if aoi_geom is not None:
+                def _intersection_ratio(polygon):
+                    if polygon.area == 0:
+                        return 1.0
+                    try:
+                        return polygon.intersection(aoi_geom).area / polygon.area
+                    except Exception:
+                        p = polygon.buffer(0) if not polygon.is_valid else polygon
+                        a = aoi_geom.buffer(0) if not aoi_geom.is_valid else aoi_geom
+                        return p.intersection(a).area / p.area
+
+                ratios = polygons['geometry'].apply(_intersection_ratio)
+                mask = ratios >= self.min_intersection_ratio
+                skipped_count = (~mask).sum()
+                if skipped_count > 0:
+                    print(f"AOI '{aoi}': skipping {skipped_count}/{len(polygons)} polygons due to insufficient AOI intersection (min_intersection_ratio={self.min_intersection_ratio}).")
+                polygons = polygons[mask]
+
             for _, polygon_row in tqdm(polygons.iterrows(),
                                        f"Generating polygon tiles for AOI {aoi}...",
                                        total=len(polygons)):
 
                 polygon = polygon_row['geometry']
                 polygon_id = polygon_row[self.unique_polygon_id_column_name]
-
-                if aoi_geom is not None and polygon.area > 0:
-                    try:
-                        intersection_ratio = polygon.intersection(aoi_geom).area / polygon.area
-                    except Exception:
-                        p = polygon.buffer(0) if not polygon.is_valid else polygon
-                        a = aoi_geom.buffer(0) if not aoi_geom.is_valid else aoi_geom
-                        intersection_ratio = p.intersection(a).area / p.area
-                    if intersection_ratio < self.min_intersection_ratio:
-                        continue
 
                 polygon_tile, translated_polygon = self.raster.get_polygon_tile(
                     polygon=polygon,
