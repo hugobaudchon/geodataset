@@ -469,7 +469,8 @@ class RasterTileMetadata:
     def save(self,
              output_folder: str or Path,
              apply_mask: bool = True,
-             output_dtype: str = None):
+             output_dtype: str = None,
+             compress: str = None):
         """
         Save the tile as a .tif file in the output_folder.
 
@@ -539,13 +540,19 @@ class RasterTileMetadata:
             else:
                 raise NotImplementedError(f"The output dtype {output_dtype} is not supported yet.")
 
+        if compress == 'zstd':
+            try:
+                is_float = np.issubdtype(np.dtype(self.metadata['dtype']), np.floating)
+            except (TypeError, AttributeError):
+                is_float = False
+            compress_kwargs = {'compress': 'zstd', 'predictor': 3 if is_float else 2}
+        else:
+            compress_kwargs = {}
         with rasterio.open(
                 output_folder / tile_name,
                 'w',
                 **self.metadata,
-                # compress='zstd',  # Lossless compression
-                # predictor=2,  # For integer data; use predictor=3 for floating point if needed
-                # tiled=True  # Enables tiling, which can improve compression efficiency
+                **compress_kwargs,
         ) as tile_raster:
 
             tile_raster.write(data)
@@ -638,7 +645,8 @@ class RasterTileSaver:
                   tile: RasterTileMetadata,
                   output_folder: Path,
                   apply_mask: bool = True,
-                  output_dtype: str = None):
+                  output_dtype: str = None,
+                  compress: str = None):
         """
         Save a single tile.
 
@@ -653,9 +661,11 @@ class RasterTileSaver:
         output_dtype: str
             The data type to use when saving the tile. If None, the original data type will
             be used. Currently supported values are None and  'uint8' (0-255).
+        compress: str
+            Compression to apply when saving the tile. Supported values are None and 'zstd'.
         """
         try:
-            tile.save(output_folder=output_folder, apply_mask=apply_mask, output_dtype=output_dtype)
+            tile.save(output_folder=output_folder, apply_mask=apply_mask, output_dtype=output_dtype, compress=compress)
         except Exception as e:
             print(f"Error saving tile {tile.generate_name()}: {str(e)}")
 
@@ -663,7 +673,8 @@ class RasterTileSaver:
                        tiles: List[RasterTileMetadata],
                        output_folder: Path,
                        apply_mask: bool = True,
-                       output_dtype: str = None):
+                       output_dtype: str = None,
+                       compress: str = None):
         """
         Save all the tiles in parallel using ThreadPoolExecutor.
 
@@ -678,11 +689,13 @@ class RasterTileSaver:
         output_dtype: str
             The data type to use when saving the tile. If None, the original data type will
             be used. Currently supported values are None and  'uint8' (0-255).
+        compress: str
+            Compression to apply when saving the tile. Supported values are None and 'zstd'.
         """
         # Use ThreadPoolExecutor to manage threads
         with ThreadPoolExecutor(max_workers=self.n_workers) as executor:
             # Submit tasks to the executor
-            futures = [executor.submit(self.save_tile, tile, output_folder, apply_mask, output_dtype) for tile in tiles]
+            futures = [executor.submit(self.save_tile, tile, output_folder, apply_mask, output_dtype, compress) for tile in tiles]
 
             for future in concurrent.futures.as_completed(futures):
                 try:

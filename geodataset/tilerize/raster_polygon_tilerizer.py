@@ -138,6 +138,9 @@ class RasterPolygonTilerizer:
     output_dtype : str
         The data type to use when saving the tile. If None, the original data type will
         be used. Currently supported values are None and 'uint8' (0-255).
+    compress : str, optional
+        Compression to apply when saving tiles. Supported values are None (no compression)
+        and 'zstd' (lossless). Defaults to None.
     """
 
     unique_polygon_id_column_name = 'polygon_id_geodataset'
@@ -165,7 +168,8 @@ class RasterPolygonTilerizer:
                  coco_categories_list: list[dict] = None,
                  tile_batch_size: int = 1000,
                  temp_dir: str or Path = './tmp',
-                 output_dtype: str = None):
+                 output_dtype: str = None,
+                 compress: str = None):
 
         self.raster_path = str(raster_path)
         self.labels_path = Path(labels_path) if labels_path is not None else None
@@ -185,6 +189,7 @@ class RasterPolygonTilerizer:
         self.tile_batch_size = tile_batch_size
         self.temp_dir = Path(temp_dir)
         self.output_dtype = output_dtype
+        self.compress = compress
 
         self._check_parameters()
         self._check_aois_config()
@@ -394,7 +399,8 @@ class RasterPolygonTilerizer:
             tiles,
             output_folder=self.tiles_folder_path / aoi,
             apply_mask=False,  # We don't apply mask for polygon tiles and let user handle it if needed when loading it for training/inference
-            output_dtype=self.output_dtype
+            output_dtype=self.output_dtype,
+            compress=self.compress
         )
         return tiles_paths
 
