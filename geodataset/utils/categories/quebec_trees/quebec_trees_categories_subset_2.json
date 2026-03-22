@@ -10,46 +10,6 @@
         },
         {
             "id": 2,
-            "name": "Pinopsida",
-            "global_id": 194,
-            "is_taxon": true,
-            "rank": "class",
-            "other_names": [
-                 "Conifere"
-            ],
-            "supercategory": 7707728
-        },
-        {
-            "id": 3,
-            "name": "Magnoliopsida",
-            "global_id": 220,
-            "is_taxon": true,
-            "rank": "class",
-            "other_names": [
-                "Feuillus",
-                "QURU", 
-                "OSVI", 
-                "PRPE",
-                "FRNI"
-            ],
-            "including_names": [
-                "Quercus rubra L.",
-                "Ostrya virginiana (Mill.) K.Koch",
-                "Prunus pensylvanica L.fil.", 
-                "Fraxinus nigra Marshall"
-                
-            ],
-            "including_global_ids": [
-                2880539,
-                5332289,
-                8202030,
-                3172369
-            ],
-            "supercategory": 7707728
-        },
-
-        {
-            "id": 4,
             "name": "Thuja occidentalis L.",
             "global_id": 2684178,
             "is_taxon": true,
@@ -61,7 +21,7 @@
             "supercategory": 2684168
         },
         {
-            "id": 5,
+            "id": 3,
             "name": "Abies balsamea (L.) Mill.",
             "global_id": 2685383,
             "is_taxon": true,
@@ -73,7 +33,7 @@
             "supercategory": 2684876
         },
         {
-            "id": 6,
+            "id": 4,
             "name": "Larix laricina (Du Roi) K.Koch",
             "global_id": 2686231,
             "is_taxon": true,
@@ -85,7 +45,7 @@
             "supercategory": 2686156
         },
         {
-            "id": 7,
+            "id": 5,
             "name": "Tsuga canadensis (L.)",
             "global_id": 2687182,
             "is_taxon": true,
@@ -97,20 +57,7 @@
             "supercategory": 8527396
         },
         {
-            "id": 8,
-            "name": "Betula L.",
-            "global_id": 2875008,
-            "is_taxon": true,
-            "rank": "genus",
-            "other_names": [
-                "Betula", "BEPO"
-            ],
-            "including_names":  ["Betula populifolia Marshall"],
-            "including_global_ids": [8184083],
-            "supercategory": 4688
-        },
-        {
-            "id": 9,
+            "id": 6,
             "name": "Fagus grandifolia Ehrh.",
             "global_id": 2882274,
             "is_taxon": true,
@@ -122,7 +69,7 @@
             "supercategory": 2874875
         },
         {
-            "id": 10,
+            "id": 7,
             "name": "Populus L.",
             "global_id": 3040183,
             "is_taxon": true,
@@ -146,20 +93,8 @@
                 3040215
             ]
         },
-      
         {
-            "id": 11,
-            "name": "Acer L.",
-            "global_id": 3189834,
-            "is_taxon": true,
-            "rank": "genus",
-            "other_names": [
-                "Acer"
-            ],
-            "supercategory": 6657
-        },
-        {
-            "id": 12,
+            "id": 8,
             "name": "Acer pensylvanicum L.",
             "global_id": 3189836,
             "is_taxon": true,
@@ -171,7 +106,7 @@
             "supercategory": 3189834
         },
         {
-            "id": 13,
+            "id": 9,
             "name": "Acer saccharum Marshall",
             "global_id": 3189859,
             "is_taxon": true,
@@ -183,7 +118,7 @@
             "supercategory": 3189834
         },
         {
-            "id": 14,
+            "id": 10,
             "name": "Acer rubrum L.",
             "global_id": 3189883,
             "is_taxon": true,
@@ -195,7 +130,7 @@
             "supercategory": 3189834
         },
         {
-            "id": 15,
+            "id": 11,
             "name": "Pinus strobus L.",
             "global_id": 5284982,
             "is_taxon": true,
@@ -207,7 +142,7 @@
             "supercategory": 2684241
         },
         {
-            "id": 16,
+            "id": 12,
             "name": "Betula alleghaniensis Britton",
             "global_id": 5331779,
             "is_taxon": true,
@@ -219,7 +154,7 @@
             "supercategory": 2875008
         },
         {
-            "id": 17,
+            "id": 13,
             "name": "Betula papyrifera Marshall",
             "global_id": 5332120,
             "is_taxon": true,
@@ -231,7 +166,7 @@
             "supercategory": 2875008
         },
         {
-            "id": 18,
+            "id": 14,
             "name": "Picea A.Dietr.",
             "global_id": 7606064,
             "is_taxon": true,
