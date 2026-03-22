@@ -6,7 +6,6 @@ from math import floor
 from pathlib import Path
 from typing import Tuple, List
 
-import cv2
 import numpy as np
 import rasterio
 from rasterio.windows import Window
@@ -186,7 +185,6 @@ class Raster:
         col_off = int(floor(cx - final_tile_size / 2))
         row_off = int(floor(cy - final_tile_size / 2))
         window = Window(col_off=col_off, row_off=row_off, width=final_tile_size, height=final_tile_size)
-        binary_mask = np.zeros((final_tile_size, final_tile_size), dtype=np.uint8)
 
         window_transform = rasterio.windows.transform(window, self.metadata['transform'])
         tile_metadata = {
@@ -211,24 +209,10 @@ class Raster:
         # Translate the polygon into the tile frame of reference
         translated_inter = translate(inter, xoff=-col_off, yoff=-row_off)
 
-        # Ensure the result has an exterior before accessing its coordinates
-        if not translated_inter.is_empty:
-            contours = np.array(translated_inter.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
-        else:
-            # Handle the case when the intersection is empty (e.g., set contours to an empty array)
-            contours = np.array([])
-
-        # Check if contours is not empty before calling cv2.fillPoly
-        if contours.size > 0:
-            cv2.fillPoly(binary_mask, [contours], 1)
-        else:
-            # Handle the case where there are no contours (e.g., skip filling the polygon)
-            pass
-
         # Creating the RasterTileMetadata, with the appropriate metadata
         polygon_tile = RasterTileMetadata(
             associated_raster=self,
-            mask=binary_mask,
+            mask=None,
             metadata=tile_metadata,
             ground_resolution=self.ground_resolution,
             scale_factor=self.scale_factor,

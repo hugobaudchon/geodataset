@@ -1,3 +1,4 @@
+import warnings
 from pathlib import Path
 from typing import List, cast, Optional
 
@@ -8,6 +9,7 @@ from tqdm import tqdm
 
 from geodataset.aoi import AOIFromPackageConfig, AOIGeneratorConfig, AOIConfig
 from geodataset.aoi.aoi_base import DEFAULT_AOI_NAME
+from geodataset.aoi.aoi_disambiguator import AOIDisambiguator
 from geodataset.aoi.aoi_from_package import AOIFromPackageForPolygons
 from geodataset.geodata import Raster, RasterTileMetadata
 from geodataset.geodata.raster import RasterTileSaver
@@ -141,6 +143,11 @@ class RasterPolygonTilerizer:
     compress : str, optional
         Compression to apply when saving tiles. Supported values are None (no compression)
         and 'zstd' (lossless). Defaults to None.
+    apply_aoi_mask : bool, optional
+        Whether to zero out pixels outside the AOI boundary when saving tiles. Only has an
+        effect when aois_config is an AOIFromPackageConfig. It is strongly recommended to
+        enable this to avoid spatial autocorrelation between tiles from different AOIs
+        (e.g. train/valid leakage). Defaults to False.
     """
 
     unique_polygon_id_column_name = 'polygon_id_geodataset'
@@ -169,7 +176,8 @@ class RasterPolygonTilerizer:
                  tile_batch_size: int = 1000,
                  temp_dir: str or Path = './tmp',
                  output_dtype: str = None,
-                 compress: str = None):
+                 compress: str = None,
+                 apply_aoi_mask: bool = False):
 
         self.raster_path = str(raster_path)
         self.labels_path = Path(labels_path) if labels_path is not None else None
@@ -190,6 +198,7 @@ class RasterPolygonTilerizer:
         self.temp_dir = Path(temp_dir)
         self.output_dtype = output_dtype
         self.compress = compress
+        self.apply_aoi_mask = apply_aoi_mask
 
         self._check_parameters()
         self._check_aois_config()
@@ -235,6 +244,12 @@ class RasterPolygonTilerizer:
             self.aois_config = AOIGeneratorConfig(aois={DEFAULT_AOI_NAME: {'percentage': 1.0, 'position': 1}}, aoi_type='band')
         else:
             self.aois_config = self.aois_config
+
+        if isinstance(self.aois_config, AOIFromPackageConfig) and not self.apply_aoi_mask:
+            warnings.warn("RasterPolygonTilerizer: apply_aoi_mask is False. Pixels outside the AOI boundary will not be "
+                          "zeroed out when saving tiles. It is strongly recommended to enable this to avoid spatial "
+                          "autocorrelation between tiles from different AOIs (e.g. train/valid leakage).",
+                          UserWarning, stacklevel=2)
 
     def _load_raster(self):
         raster = Raster(path=self.raster_path,
@@ -391,16 +406,35 @@ class RasterPolygonTilerizer:
                 final_aois_polygons[aoi].append(gdf)
 
                 if len(tiles_batch) == self.tile_batch_size:
+                    self._apply_aoi_masks_to_batch(tiles_batch, aoi, aois_gdf)
                     tiles_paths = self._save_tiles_batch(tiles_batch, aoi=aoi)
                     tiles_batch = []
                     final_aois_tiles_paths[aoi].extend(tiles_paths)
 
             if len(tiles_batch) > 0:
+                self._apply_aoi_masks_to_batch(tiles_batch, aoi, aois_gdf)
                 tiles_paths = self._save_tiles_batch(tiles_batch, aoi=aoi)
                 tiles_batch = []
                 final_aois_tiles_paths[aoi].extend(tiles_paths)
 
         return final_aois_tiles_paths, final_aois_polygons
+
+    def _apply_aoi_masks_to_batch(self, tiles: List[RasterTileMetadata], aoi: str, aois_gdf: gpd.GeoDataFrame):
+        if not isinstance(self.aois_config, AOIFromPackageConfig):
+            return
+        tiles_gdf = gpd.GeoDataFrame(
+            [{
+                'geometry': t.get_bbox(),
+                'tile_id': t.tile_id,
+                'aoi': t.aoi
+            } for t in tiles],
+            crs=None
+        )
+        AOIDisambiguator(
+            tiles_gdf=tiles_gdf,
+            aois_tiles={aoi: tiles},
+            aois_gdf=aois_gdf
+        ).disambiguate_tiles()
 
     def _save_tiles_batch(self, tiles: List[RasterTileMetadata], aoi: str):
         (self.tiles_folder_path / aoi).mkdir(parents=True, exist_ok=True)
@@ -409,7 +443,7 @@ class RasterPolygonTilerizer:
         tile_saver.save_all_tiles(
             tiles,
             output_folder=self.tiles_folder_path / aoi,
-            apply_mask=False,  # We don't apply mask for polygon tiles and let user handle it if needed when loading it for training/inference
+            apply_mask=self.apply_aoi_mask,
             output_dtype=self.output_dtype,
             compress=self.compress
         )
