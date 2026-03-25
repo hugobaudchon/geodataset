@@ -52,6 +52,11 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
     other_attributes_names_to_pass: List[str]
         A list of the names of some other COCO annotations attributes to return when iterating over the dataset
          (like a global_id, confidence_score...).
+    keep_unlabeled: bool
+        Whether to keep images without annotation for classification (only for single-annotation tile datasets)
+    few_shot_path: str or Path
+        Path to json file containing a list of filenames (without suffix) for each catgory and
+        a list "skipped_classes" for classes which should be removed (only for single-annotation tile datasets)
     """
     def __init__(self,
                  fold: str,
@@ -59,7 +64,7 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
                  transform: albumentations.core.composition.Compose = None,
                  other_attributes_names_to_pass: List[str] = None,
                  keep_unlabeled: bool = True,
-                 few_shot_path: str = None,):
+                 few_shot_path: str or Path = None,):
         self.fold = fold
         self.root_path = root_path
         self.transform = transform
@@ -219,7 +224,9 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
             self._reindex_tiles()
 
     def _filter_unlabeled_tiles(self):
-        # Remove tiles without annotation for training
+        """
+        Removes tiles without classification annotation
+        """
         original_tiles_number = len(self.tiles)
 
         tile_ids_unlabeled = []
@@ -238,11 +245,18 @@ class BaseLabeledRasterCocoDataset(BaseDataset, ABC):
         if original_tiles_number != new_tiles_number:
             print(f"Had to remove {original_tiles_number - new_tiles_number} tiles out of {original_tiles_number}"
                  f" as they are unlabeled.")
-            # Need to reindex the tile ids for __getitem__
             self._reindex_tiles()
 
-    def _filter_tiles_few_shot(self, few_shot_path: str):
-        # Remove tiles without annotation for training
+    def _filter_tiles_few_shot(self, few_shot_path: str ot Path):
+        """
+        Removes tiles which are not specified in few_shot_path during training.
+        For other folds classes within the skipped classes list are removed.
+
+        Parameters:
+        few_shot_path: str or Path
+            Path to json file containing a list of filenames (without suffix) for each catgory and
+            a list "skipped_classes" for classes which should be removed.
+        """
         original_tiles_number = len(self.tiles)
 
         with open(few_shot_path, "r") as f:
