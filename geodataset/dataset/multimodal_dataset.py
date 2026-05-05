@@ -72,6 +72,7 @@ class LabeledMultiModalCocoDataset(BaseLabeledRasterCocoDataset):
         exclude_classes: Optional[List[int]] = None,
         outlier_removal: Optional[str] = None,
         height_attr: Optional[str] = None,
+        mask_background: bool = False,
     ) -> None:
         """
         Initializes the multimodal dataset and validates task compatibility.
@@ -114,7 +115,7 @@ class LabeledMultiModalCocoDataset(BaseLabeledRasterCocoDataset):
         self.num_points = num_points
         self.num_downsample_seeds = num_downsample_seeds
         self.outlier_removal = outlier_removal
-
+        self.mask_background = mask_background
         # Pre-process tile paths for selected modalities
         self._initialize_modality_paths(
             voxel_size, num_points_file, downsample_method_file
@@ -583,10 +584,13 @@ class LabeledMultiModalCocoDataset(BaseLabeledRasterCocoDataset):
 
         # 4. Handle Segmentation Mask
         mask = None
-        if "segmentation" in self.tasks:
+        if "segmentation" in self.tasks or self.mask_background:
             # decode_coco_segmentation expected to return (H, W)
             mask_raw = decode_coco_segmentation(label, "mask")
             mask = mask_raw[np.newaxis, :, :]  # Expand to (1, H, W)
+
+            if self.mask_background:
+                img = np.where(mask > 0, img, 0)  # Zero out background pixels in the image
 
         # 5. Apply Multimodal Augmentations
         if self.augment:
