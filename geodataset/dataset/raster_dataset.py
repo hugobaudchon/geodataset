@@ -77,7 +77,7 @@ class DetectionLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
         bboxes = []
 
         for label in labels:
-            bbox = decode_coco_segmentation(label, 'bbox')
+            bbox = decode_coco_segmentation(label, 'bbox', tile_info['height'], tile_info['width'])
 
             if self.box_padding_percentage:
                 minx, miny, maxx, maxy = bbox.bounds
@@ -195,7 +195,7 @@ class SegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset):
 
         for label in labels:
             if 'segmentation' in label:
-                mask = decode_coco_segmentation(label, 'mask')
+                mask = decode_coco_segmentation(label, 'mask', tile_info['height'], tile_info['width'])
                 masks.append(mask)
 
         if self.force_binary_class:
@@ -302,8 +302,8 @@ class InstanceSegmentationLabeledRasterCocoDataset(BaseLabeledRasterCocoDataset)
         bboxes = []
 
         for label in labels:
-            bbox = decode_coco_segmentation(label, 'bbox')
-            mask = decode_coco_segmentation(label, 'mask')
+            bbox = decode_coco_segmentation(label, 'bbox', tile_info['height'], tile_info['width'])
+            mask = decode_coco_segmentation(label, 'mask', tile_info['height'], tile_info['width'])
 
             if self.box_padding_percentage:
                 minx, miny, maxx, maxy = bbox.bounds

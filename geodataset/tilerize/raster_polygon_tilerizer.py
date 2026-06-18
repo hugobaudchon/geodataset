@@ -1,3 +1,4 @@
+import warnings
 from pathlib import Path
 from typing import List, cast, Optional
 
@@ -8,6 +9,7 @@ from tqdm import tqdm
 
 from geodataset.aoi import AOIFromPackageConfig, AOIGeneratorConfig, AOIConfig
 from geodataset.aoi.aoi_base import DEFAULT_AOI_NAME
+from geodataset.aoi.aoi_disambiguator import AOIDisambiguator
 from geodataset.aoi.aoi_from_package import AOIFromPackageForPolygons
 from geodataset.geodata import Raster, RasterTileMetadata
 from geodataset.geodata.raster import RasterTileSaver
@@ -28,14 +30,18 @@ class RasterPolygonTilerizer:
         Path to the labels. Supported formats are: .gpkg, .geojson, .shp, .xml, .csv.
     output_path : str or pathlib.Path
         Path to parent folder where to save the image tiles and associated labels.
-    tile_size : int
+    tile_size : int or None
         If use_variable_tile_size is set to True, then this parameter defines the maximum size of the tiles in pixels (tile_size, tile_size).
-        If use_variable_tile_size is set to False, all polygon tiles will have the same size (tile_size, tile_size).
+        Set to None to allow unlimited tile size (tile will be sized to fit the polygon + buffer with no cap).
+        If use_variable_tile_size is set to False, all polygon tiles will have the same size (tile_size, tile_size) and this must be an int.
     use_variable_tile_size: bool
         Whether to use variable tile size. If True, the tile size will match the size of the polygon,
          with a buffer defined by variable_tile_size_pixel_buffer.
     variable_tile_size_pixel_buffer: int or None
         If use_variable_tile_size is True, this parameter defines the pixel buffer to add around the polygon when creating the tile.
+    min_tile_size : int or None, optional
+        Only used when use_variable_tile_size is True. Defines the minimum tile size in pixels.
+        If None, no minimum is enforced. Defaults to None.
     labels_gdf: geopandas.GeoDataFrame, optional
         A GeoDataFrame containing the labels. If provided, labels_path must be None.
     global_aoi : str or pathlib.Path or geopandas.GeoDataFrame, optional
@@ -134,6 +140,14 @@ class RasterPolygonTilerizer:
     output_dtype : str
         The data type to use when saving the tile. If None, the original data type will
         be used. Currently supported values are None and 'uint8' (0-255).
+    compress : str, optional
+        Compression to apply when saving tiles. Supported values are None (no compression)
+        and 'zstd' (lossless). Defaults to None.
+    apply_aoi_mask : bool, optional
+        Whether to zero out pixels outside the AOI boundary when saving tiles. Only has an
+        effect when aois_config is an AOIFromPackageConfig. It is strongly recommended to
+        enable this to avoid spatial autocorrelation between tiles from different AOIs
+        (e.g. train/valid leakage). Defaults to False.
     """
 
     unique_polygon_id_column_name = 'polygon_id_geodataset'
@@ -142,9 +156,10 @@ class RasterPolygonTilerizer:
                  raster_path: str or Path,
                  labels_path: str or Path or None,
                  output_path: str or Path,
-                 tile_size: int,
+                 tile_size: Optional[int],
                  use_variable_tile_size: bool,
                  variable_tile_size_pixel_buffer: int or None,
+                 min_tile_size: Optional[int] = None,
                  labels_gdf: gpd.GeoDataFrame = None,
                  global_aoi: str or Path or gpd.GeoDataFrame = None,
                  aois_config: Optional[AOIConfig] = None,
@@ -160,13 +175,16 @@ class RasterPolygonTilerizer:
                  coco_categories_list: list[dict] = None,
                  tile_batch_size: int = 1000,
                  temp_dir: str or Path = './tmp',
-                 output_dtype: str = None):
+                 output_dtype: str = None,
+                 compress: str = None,
+                 apply_aoi_mask: bool = False):
 
         self.raster_path = str(raster_path)
         self.labels_path = Path(labels_path) if labels_path is not None else None
         self.tile_size = tile_size
         self.use_variable_tile_size = use_variable_tile_size
         self.variable_tile_size_pixel_buffer = variable_tile_size_pixel_buffer
+        self.min_tile_size = min_tile_size
         self.global_aoi = global_aoi
         self.aois_config = aois_config
         self.scale_factor = scale_factor
@@ -179,6 +197,8 @@ class RasterPolygonTilerizer:
         self.tile_batch_size = tile_batch_size
         self.temp_dir = Path(temp_dir)
         self.output_dtype = output_dtype
+        self.compress = compress
+        self.apply_aoi_mask = apply_aoi_mask
 
         self._check_parameters()
         self._check_aois_config()
@@ -200,8 +220,14 @@ class RasterPolygonTilerizer:
     def _check_parameters(self):
         assert assert_raster_exists(self.raster_path), \
             f"Raster file not found at {self.raster_path}."
-        assert isinstance(self.tile_size, int) and self.tile_size > 0, \
-            "The tile size must be and integer greater than 0."
+        if self.use_variable_tile_size:
+            assert self.tile_size is None or (isinstance(self.tile_size, int) and self.tile_size > 0), \
+                "tile_size must be a positive integer or None when use_variable_tile_size is True."
+            assert self.min_tile_size is None or (isinstance(self.min_tile_size, int) and self.min_tile_size > 0), \
+                "min_tile_size must be a positive integer or None."
+        else:
+            assert isinstance(self.tile_size, int) and self.tile_size > 0, \
+                "tile_size must be a positive integer when use_variable_tile_size is False."
         assert not (self.ground_resolution and self.scale_factor), \
             "Both a ground_resolution and a scale_factor were provided. Please only specify one."
         if self.use_variable_tile_size:
@@ -218,6 +244,12 @@ class RasterPolygonTilerizer:
             self.aois_config = AOIGeneratorConfig(aois={DEFAULT_AOI_NAME: {'percentage': 1.0, 'position': 1}}, aoi_type='band')
         else:
             self.aois_config = self.aois_config
+
+        if isinstance(self.aois_config, AOIFromPackageConfig) and not self.apply_aoi_mask:
+            warnings.warn("RasterPolygonTilerizer: apply_aoi_mask is False. Pixels outside the AOI boundary will not be "
+                          "zeroed out when saving tiles. It is strongly recommended to enable this to avoid spatial "
+                          "autocorrelation between tiles from different AOIs (e.g. train/valid leakage).",
+                          UserWarning, stacklevel=2)
 
     def _load_raster(self):
         raster = Raster(path=self.raster_path,
@@ -313,13 +345,41 @@ class RasterPolygonTilerizer:
         return aois_polygons, aois_gdf
 
     def _generate_aois_tiles_and_polygons(self):
-        aois_polygons, _ = self._generate_aois_polygons()
+        aois_polygons, aois_gdf = self._generate_aois_polygons()
+
+        # Precompute unioned AOI geometry per AOI name (in pixel coordinates)
+        aoi_geometries = {
+            aoi_name: aois_gdf[aois_gdf['aoi'] == aoi_name]['geometry'].unary_union
+            for aoi_name in aois_gdf['aoi'].unique()
+        }
 
         final_aois_tiles_paths = {aoi: [] for aoi in aois_polygons.keys()}
         final_aois_polygons = {aoi: [] for aoi in aois_polygons.keys()}
         tiles_batch = []
 
         for aoi, polygons in aois_polygons.items():
+            aoi_geom = aoi_geometries.get(aoi)
+
+            # Filtering polygons based on their intersection ratio with the AOI geometry, if AOI geometry is available
+            if aoi_geom is not None:
+                def _intersection_ratio(polygon):
+                    if polygon.area == 0:
+                        return 1.0
+                    try:
+                        ratio = polygon.intersection(aoi_geom).area / polygon.area
+                    except Exception:
+                        p = polygon.buffer(0) if not polygon.is_valid else polygon
+                        a = aoi_geom.buffer(0) if not aoi_geom.is_valid else aoi_geom
+                        ratio = p.intersection(a).area / p.area
+                    return ratio
+
+                ratios = polygons['geometry'].apply(_intersection_ratio)
+                mask = ratios >= self.min_intersection_ratio - 1e-9
+                skipped_count = (~mask).sum()
+                if skipped_count > 0:
+                    print(f"AOI '{aoi}': skipping {skipped_count}/{len(polygons)} polygons due to insufficient AOI intersection (min_intersection_ratio={self.min_intersection_ratio}).")
+                polygons = polygons[mask]
+
             for _, polygon_row in tqdm(polygons.iterrows(),
                                        f"Generating polygon tiles for AOI {aoi}...",
                                        total=len(polygons)):
@@ -333,7 +393,8 @@ class RasterPolygonTilerizer:
                     polygon_aoi=aoi,
                     tile_size=self.tile_size,
                     use_variable_tile_size=self.use_variable_tile_size,
-                    variable_tile_size_pixel_buffer=self.variable_tile_size_pixel_buffer
+                    variable_tile_size_pixel_buffer=self.variable_tile_size_pixel_buffer,
+                    min_tile_size=self.min_tile_size
                 )
 
                 tiles_batch.append(polygon_tile)
@@ -345,16 +406,35 @@ class RasterPolygonTilerizer:
                 final_aois_polygons[aoi].append(gdf)
 
                 if len(tiles_batch) == self.tile_batch_size:
+                    self._apply_aoi_masks_to_batch(tiles_batch, aoi, aois_gdf)
                     tiles_paths = self._save_tiles_batch(tiles_batch, aoi=aoi)
                     tiles_batch = []
                     final_aois_tiles_paths[aoi].extend(tiles_paths)
 
             if len(tiles_batch) > 0:
+                self._apply_aoi_masks_to_batch(tiles_batch, aoi, aois_gdf)
                 tiles_paths = self._save_tiles_batch(tiles_batch, aoi=aoi)
                 tiles_batch = []
                 final_aois_tiles_paths[aoi].extend(tiles_paths)
 
         return final_aois_tiles_paths, final_aois_polygons
+
+    def _apply_aoi_masks_to_batch(self, tiles: List[RasterTileMetadata], aoi: str, aois_gdf: gpd.GeoDataFrame):
+        if not isinstance(self.aois_config, AOIFromPackageConfig):
+            return
+        tiles_gdf = gpd.GeoDataFrame(
+            [{
+                'geometry': t.get_bbox(),
+                'tile_id': t.tile_id,
+                'aoi': t.aoi
+            } for t in tiles],
+            crs=None
+        )
+        AOIDisambiguator(
+            tiles_gdf=tiles_gdf,
+            aois_tiles={aoi: tiles},
+            aois_gdf=aois_gdf
+        ).disambiguate_tiles()
 
     def _save_tiles_batch(self, tiles: List[RasterTileMetadata], aoi: str):
         (self.tiles_folder_path / aoi).mkdir(parents=True, exist_ok=True)
@@ -363,8 +443,9 @@ class RasterPolygonTilerizer:
         tile_saver.save_all_tiles(
             tiles,
             output_folder=self.tiles_folder_path / aoi,
-            apply_mask=False,  # We don't apply mask for polygon tiles and let user handle it if needed when loading it for training/inference
-            output_dtype=self.output_dtype
+            apply_mask=self.apply_aoi_mask,
+            output_dtype=self.output_dtype,
+            compress=self.compress
         )
         return tiles_paths
 

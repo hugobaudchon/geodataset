@@ -564,15 +564,20 @@ class Aggregator:
         with open(coco_json_path, 'r') as f:
             coco_data = json.load(f)
 
+        # Image (tile) sizes, keyed by image id (COCO stores size on the image, not the annotation)
+        image_id_to_size = {img['id']: (img['height'], img['width']) for img in coco_data['images']}
+
         # Reading the polygons
         tile_ids_to_polygons = {}
         tile_ids_to_attributes = {}
         for annotation in coco_data['annotations']:
             image_id = annotation['image_id']
+            image_height, image_width = image_id_to_size[image_id]
 
             annotation_polygon = decode_coco_segmentation(
                 annotation,
-                polygon_type if polygon_type == 'bbox' else 'polygon'   # 'polygon' for segmentation
+                polygon_type if polygon_type == 'bbox' else 'polygon',   # 'polygon' for segmentation
+                image_height, image_width
             )
 
             attributes = {}

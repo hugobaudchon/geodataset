@@ -6,7 +6,6 @@ from math import floor
 from pathlib import Path
 from typing import Tuple, List
 
-import cv2
 import numpy as np
 import rasterio
 from rasterio.windows import Window
@@ -132,7 +131,8 @@ class Raster:
                          polygon_aoi: str,
                          tile_size: int,
                          use_variable_tile_size: bool,
-                         variable_tile_size_pixel_buffer: int) -> Tuple["RasterPolygonTileMetadata", Polygon]:
+                         variable_tile_size_pixel_buffer: int,
+                         min_tile_size: int = None) -> Tuple["RasterPolygonTileMetadata", Polygon]:
 
         """
         Generates and returns a RasterTileMetadata from a Polygon geometry, along with the possibly cropped original Polygon.
@@ -169,14 +169,15 @@ class Raster:
         # find largest polygon and center tile around it
         polygon = fix_geometry_collection(polygon)
         polygon = try_cast_multipolygon_to_polygon(polygon, strategy='largest_part')
-        x, y = polygon.centroid.coords[0]
         cx, cy = polygon.centroid.coords[0]
 
         if use_variable_tile_size:
             # Variable tile size centered on the polygon centroid, with a minimum size of tile_size and that doesn't go outside the raster bounds
             max_dist_to_polygon_border = max(
-                [x - polygon.bounds[0], polygon.bounds[2] - cx, cy - polygon.bounds[1], polygon.bounds[3] - cy])
-            final_tile_size = int(min(tile_size, max_dist_to_polygon_border * 2 + variable_tile_size_pixel_buffer * 2))
+                [cx - polygon.bounds[0], polygon.bounds[2] - cx, cy - polygon.bounds[1], polygon.bounds[3] - cy])
+            uncapped_size = max_dist_to_polygon_border * 2 + variable_tile_size_pixel_buffer * 2
+            capped_size = uncapped_size if tile_size is None else min(tile_size, uncapped_size)
+            final_tile_size = int(max(min_tile_size, capped_size) if min_tile_size is not None else capped_size)
         else:
             # Fixed tile size centered on the polygon centroid
             final_tile_size = tile_size
@@ -184,7 +185,6 @@ class Raster:
         col_off = int(floor(cx - final_tile_size / 2))
         row_off = int(floor(cy - final_tile_size / 2))
         window = Window(col_off=col_off, row_off=row_off, width=final_tile_size, height=final_tile_size)
-        binary_mask = np.zeros((final_tile_size, final_tile_size), dtype=np.uint8)
 
         window_transform = rasterio.windows.transform(window, self.metadata['transform'])
         tile_metadata = {
@@ -209,24 +209,10 @@ class Raster:
         # Translate the polygon into the tile frame of reference
         translated_inter = translate(inter, xoff=-col_off, yoff=-row_off)
 
-        # Ensure the result has an exterior before accessing its coordinates
-        if not translated_inter.is_empty:
-            contours = np.array(translated_inter.exterior.coords).reshape((-1, 1, 2)).astype(np.int32)
-        else:
-            # Handle the case when the intersection is empty (e.g., set contours to an empty array)
-            contours = np.array([])
-
-        # Check if contours is not empty before calling cv2.fillPoly
-        if contours.size > 0:
-            cv2.fillPoly(binary_mask, [contours], 1)
-        else:
-            # Handle the case where there are no contours (e.g., skip filling the polygon)
-            pass
-
         # Creating the RasterTileMetadata, with the appropriate metadata
         polygon_tile = RasterTileMetadata(
             associated_raster=self,
-            mask=binary_mask,
+            mask=None,
             metadata=tile_metadata,
             ground_resolution=self.ground_resolution,
             scale_factor=self.scale_factor,
@@ -467,7 +453,8 @@ class RasterTileMetadata:
     def save(self,
              output_folder: str or Path,
              apply_mask: bool = True,
-             output_dtype: str = None):
+             output_dtype: str = None,
+             compress: str = None):
         """
         Save the tile as a .tif file in the output_folder.
 
@@ -506,21 +493,50 @@ class RasterTileMetadata:
                         else:
                             # Float data in 0.0-1.0 range - use standard conversion
                             data = img_as_ubyte(data)
+                    elif data.dtype == np.uint16:
+                        # For uint16, use standard conversion (scikit-image handles it correctly)
+                        data = img_as_ubyte(data)
+                    elif data.dtype in [np.int32, np.int64, np.uint32]:
+                        # For int32/int64/uint32, img_as_ubyte normalizes based on dtype range
+                        # which is incorrect if actual values are in a smaller range (e.g., 0-65535)
+                        # Treat as uint16 data (0-65535) and scale to 0-255 for consistency across tiles
+                        nodata_val = self.metadata.get('nodata', None)
+                        if nodata_val is not None:
+                            valid_mask = data != nodata_val
+                        else:
+                            valid_mask = np.ones(data.shape, dtype=bool)
+
+                        # Normalize from 0-65535 to 0-255 (treating as uint16 data)
+                        data = np.clip(data, 0, 65535)
+                        data = (data.astype(np.float64) / 65535 * 255).astype(np.uint8)
+
+                        # Set nodata pixels to 0
+                        if nodata_val is not None:
+                            data[~valid_mask] = 0
                     else:
-                        # For integer types (uint16, etc.), use standard conversion
+                        # For other integer types (uint8, int8, int16, etc.), use standard conversion
                         data = img_as_ubyte(data)
                     self.metadata['dtype'] = 'uint8'
+                    # Update nodata to be compatible with uint8 (or remove it)
+                    if self.metadata.get('nodata') is not None:
+                        self.metadata['nodata'] = 0
                 # else: already uint8, no conversion needed
             else:
                 raise NotImplementedError(f"The output dtype {output_dtype} is not supported yet.")
 
+        if compress == 'zstd':
+            try:
+                is_float = np.issubdtype(np.dtype(self.metadata['dtype']), np.floating)
+            except (TypeError, AttributeError):
+                is_float = False
+            compress_kwargs = {'compress': 'zstd', 'predictor': 3 if is_float else 2}
+        else:
+            compress_kwargs = {}
         with rasterio.open(
                 output_folder / tile_name,
                 'w',
                 **self.metadata,
-                # compress='zstd',  # Lossless compression
-                # predictor=2,  # For integer data; use predictor=3 for floating point if needed
-                # tiled=True  # Enables tiling, which can improve compression efficiency
+                **compress_kwargs,
         ) as tile_raster:
 
             tile_raster.write(data)
@@ -613,7 +629,8 @@ class RasterTileSaver:
                   tile: RasterTileMetadata,
                   output_folder: Path,
                   apply_mask: bool = True,
-                  output_dtype: str = None):
+                  output_dtype: str = None,
+                  compress: str = None):
         """
         Save a single tile.
 
@@ -628,9 +645,11 @@ class RasterTileSaver:
         output_dtype: str
             The data type to use when saving the tile. If None, the original data type will
             be used. Currently supported values are None and  'uint8' (0-255).
+        compress: str
+            Compression to apply when saving the tile. Supported values are None and 'zstd'.
         """
         try:
-            tile.save(output_folder=output_folder, apply_mask=apply_mask, output_dtype=output_dtype)
+            tile.save(output_folder=output_folder, apply_mask=apply_mask, output_dtype=output_dtype, compress=compress)
         except Exception as e:
             print(f"Error saving tile {tile.generate_name()}: {str(e)}")
 
@@ -638,7 +657,8 @@ class RasterTileSaver:
                        tiles: List[RasterTileMetadata],
                        output_folder: Path,
                        apply_mask: bool = True,
-                       output_dtype: str = None):
+                       output_dtype: str = None,
+                       compress: str = None):
         """
         Save all the tiles in parallel using ThreadPoolExecutor.
 
@@ -653,11 +673,13 @@ class RasterTileSaver:
         output_dtype: str
             The data type to use when saving the tile. If None, the original data type will
             be used. Currently supported values are None and  'uint8' (0-255).
+        compress: str
+            Compression to apply when saving the tile. Supported values are None and 'zstd'.
         """
         # Use ThreadPoolExecutor to manage threads
         with ThreadPoolExecutor(max_workers=self.n_workers) as executor:
             # Submit tasks to the executor
-            futures = [executor.submit(self.save_tile, tile, output_folder, apply_mask, output_dtype) for tile in tiles]
+            futures = [executor.submit(self.save_tile, tile, output_folder, apply_mask, output_dtype, compress) for tile in tiles]
 
             for future in concurrent.futures.as_completed(futures):
                 try:

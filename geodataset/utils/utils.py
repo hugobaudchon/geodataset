@@ -420,57 +420,96 @@ def coco_rle_segmentation_to_polygon(
     return mask_to_polygon(mask, simplify_tolerance, min_contour_points)
 
 
-def decode_coco_segmentation(coco_annotation: dict, output_type: str):
+def _coco_bbox(coco_annotation: dict, segmentation, coords_to_bbox):
+    """Bbox from the annotation's explicit 'bbox' field if present, else derived from segmentation."""
+    if 'bbox' in coco_annotation:
+        bbox_coco = coco_annotation['bbox']
+        return box(*[bbox_coco[0], bbox_coco[1], bbox_coco[0] + bbox_coco[2], bbox_coco[1] + bbox_coco[3]])
+    return coords_to_bbox(segmentation)
+
+
+def decode_coco_rle_segmentation(coco_annotation: dict, output_type: str):
     """
-    Decodes a COCO annotation segmentation into a shapely Polygon or MultiPolygon.
+    Decode an RLE-format COCO annotation segmentation. RLE is self-describing (it embeds its
+    raster size), so no image dimensions are needed.
 
     Parameters
     ----------
     coco_annotation: dict
-        The segmentation to decode.
+        The COCO annotation (its 'segmentation' must be RLE).
     output_type: str
-        The desired output type. Can be 'polygon', 'bbox' or 'mask'.
-
-    Returns
-    -------
-    Polygon or MultiPolygon or box or np.ndarray
-        The decoded segmentation.
+        'polygon', 'bbox' or 'mask'.
     """
     segmentation = coco_annotation['segmentation']
+    if output_type == 'polygon':
+        return coco_rle_segmentation_to_polygon(segmentation)
+    elif output_type == 'bbox':
+        return _coco_bbox(coco_annotation, segmentation, coco_rle_segmentation_to_bbox)
+    elif output_type == 'mask':
+        return coco_rle_segmentation_to_mask(segmentation)
+    else:
+        raise ValueError(f"Output type '{output_type}' not supported. Must be 'polygon', 'bbox' or 'mask'.")
 
+
+def decode_coco_coordinates_segmentation(coco_annotation: dict, output_type: str,
+                                         image_height: int = None, image_width: int = None):
+    """
+    Decode a polygon-coordinates COCO annotation segmentation.
+
+    ``image_height``/``image_width`` are only needed for ``output_type='mask'`` (to rasterize the
+    polygon). COCO stores size on the image, not the annotation, so the caller must supply it.
+
+    Parameters
+    ----------
+    coco_annotation: dict
+        The COCO annotation (its 'segmentation' must be polygon coordinates).
+    output_type: str
+        'polygon', 'bbox' or 'mask'.
+    image_height, image_width: int
+        Raster size of the tile the polygon lives in. Required for 'mask'.
+    """
+    segmentation = coco_annotation['segmentation']
+    if output_type == 'polygon':
+        return coco_coordinates_segmentation_to_polygon(segmentation)
+    elif output_type == 'bbox':
+        return _coco_bbox(coco_annotation, segmentation, coco_coordinates_segmentation_to_bbox)
+    elif output_type == 'mask':
+        if image_height is None or image_width is None:
+            raise ValueError(
+                "Rasterizing a polygon-coordinates segmentation to a mask requires image_height "
+                "and image_width (COCO stores size on the image, not the annotation)."
+            )
+        polygon = coco_coordinates_segmentation_to_polygon(segmentation)
+        return polygon_to_mask(polygon, image_height, image_width)
+    else:
+        raise ValueError(f"Output type '{output_type}' not supported. Must be 'polygon', 'bbox' or 'mask'.")
+
+
+def decode_coco_segmentation(coco_annotation: dict, output_type: str,
+                             image_height: int, image_width: int):
+    """
+    Decode a COCO annotation segmentation into a shapely Polygon/MultiPolygon, box, or mask,
+    dispatching on RLE vs polygon-coordinates format.
+
+    ``image_height``/``image_width`` are required and used when rasterizing a polygon-coordinates
+    segmentation to a mask (COCO stores size on the image, not the annotation). They are ignored
+    for RLE annotations and for 'polygon'/'bbox' outputs; if you only ever decode RLE and have no
+    image size, call ``decode_coco_rle_segmentation`` directly.
+
+    Parameters
+    ----------
+    coco_annotation: dict
+        The COCO annotation to decode.
+    output_type: str
+        'polygon', 'bbox' or 'mask'.
+    image_height, image_width: int
+        Raster size of the tile the annotation lives in.
+    """
+    segmentation = coco_annotation['segmentation']
     if ('is_rle_format' in coco_annotation and coco_annotation['is_rle_format']) or isinstance(segmentation, dict):
-        # Compressed RLE format
-        if output_type == 'polygon':
-            return coco_rle_segmentation_to_polygon(segmentation)
-        elif output_type == 'bbox':
-            if 'bbox' in coco_annotation:
-                # Directly use the provided bbox
-                bbox_coco = coco_annotation['bbox']
-                bbox = box(*[bbox_coco[0], bbox_coco[1], bbox_coco[0] + bbox_coco[2], bbox_coco[1] + bbox_coco[3]])
-            else:
-                bbox = coco_rle_segmentation_to_bbox(segmentation)
-            return bbox
-        elif output_type == 'mask':
-            return coco_rle_segmentation_to_mask(segmentation)
-        else:
-            raise ValueError(f"Output type '{output_type}' not supported. Must be 'polygon', 'bbox' or 'mask'.")
+        return decode_coco_rle_segmentation(coco_annotation, output_type)
     elif ('is_rle_format' in coco_annotation and not coco_annotation['is_rle_format']) or isinstance(segmentation, list):
-        # Coordinates format
-        if output_type == 'polygon':
-            return coco_coordinates_segmentation_to_polygon(segmentation)
-        elif output_type == 'bbox':
-            if 'bbox' in coco_annotation:
-                # Directly use the provided bbox
-                bbox_coco = coco_annotation['bbox']
-                bbox = box(*[bbox_coco[0], bbox_coco[1], bbox_coco[0] + bbox_coco[2], bbox_coco[1] + bbox_coco[3]])
-            else:
-                bbox = coco_coordinates_segmentation_to_bbox(segmentation)
-            return bbox
-        elif output_type == 'mask':
-            polygon = coco_coordinates_segmentation_to_polygon(segmentation)
-            return polygon_to_mask(polygon, coco_annotation['height'], coco_annotation['width'])
-        else:
-            raise ValueError(f"Output type '{output_type}' not supported. Must be 'polygon', 'bbox' or 'mask'.")
+        return decode_coco_coordinates_segmentation(coco_annotation, output_type, image_height, image_width)
     else:
         raise NotImplementedError("Could not find the segmentation type (RLE vs polygon coordinates).")
 
@@ -1645,7 +1684,7 @@ def coco_to_geopackage(coco_json_path: str,
 
         polygons = []
         for annotation in tile_annotations:
-            polygon = decode_coco_segmentation(annotation, 'polygon')
+            polygon = decode_coco_segmentation(annotation, 'polygon', tile_data['height'], tile_data['width'])
             polygons.append(polygon)
 
         gdf = gpd.GeoDataFrame({
