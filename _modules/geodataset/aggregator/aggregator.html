@@ -649,15 +649,20 @@
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">coco_json_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
             <span class="n">coco_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
 
+        <span class="c1"># Image (tile) sizes, keyed by image id (COCO stores size on the image, not the annotation)</span>
+        <span class="n">image_id_to_size</span> <span class="o">=</span> <span class="p">{</span><span class="n">img</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]:</span> <span class="p">(</span><span class="n">img</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">],</span> <span class="n">img</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">])</span> <span class="k">for</span> <span class="n">img</span> <span class="ow">in</span> <span class="n">coco_data</span><span class="p">[</span><span class="s1">&#39;images&#39;</span><span class="p">]}</span>
+
         <span class="c1"># Reading the polygons</span>
         <span class="n">tile_ids_to_polygons</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="n">tile_ids_to_attributes</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">annotation</span> <span class="ow">in</span> <span class="n">coco_data</span><span class="p">[</span><span class="s1">&#39;annotations&#39;</span><span class="p">]:</span>
             <span class="n">image_id</span> <span class="o">=</span> <span class="n">annotation</span><span class="p">[</span><span class="s1">&#39;image_id&#39;</span><span class="p">]</span>
+            <span class="n">image_height</span><span class="p">,</span> <span class="n">image_width</span> <span class="o">=</span> <span class="n">image_id_to_size</span><span class="p">[</span><span class="n">image_id</span><span class="p">]</span>
 
             <span class="n">annotation_polygon</span> <span class="o">=</span> <span class="n">decode_coco_segmentation</span><span class="p">(</span>
                 <span class="n">annotation</span><span class="p">,</span>
-                <span class="n">polygon_type</span> <span class="k">if</span> <span class="n">polygon_type</span> <span class="o">==</span> <span class="s1">&#39;bbox&#39;</span> <span class="k">else</span> <span class="s1">&#39;polygon&#39;</span>   <span class="c1"># &#39;polygon&#39; for segmentation</span>
+                <span class="n">polygon_type</span> <span class="k">if</span> <span class="n">polygon_type</span> <span class="o">==</span> <span class="s1">&#39;bbox&#39;</span> <span class="k">else</span> <span class="s1">&#39;polygon&#39;</span><span class="p">,</span>   <span class="c1"># &#39;polygon&#39; for segmentation</span>
+                <span class="n">image_height</span><span class="p">,</span> <span class="n">image_width</span>
             <span class="p">)</span>
 
             <span class="n">attributes</span> <span class="o">=</span> <span class="p">{}</span>

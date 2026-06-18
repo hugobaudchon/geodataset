@@ -521,57 +521,96 @@
 
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">decode_coco_segmentation</span><span class="p">(</span><span class="n">coco_annotation</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">output_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_coco_bbox</span><span class="p">(</span><span class="n">coco_annotation</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">segmentation</span><span class="p">,</span> <span class="n">coords_to_bbox</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Bbox from the annotation&#39;s explicit &#39;bbox&#39; field if present, else derived from segmentation.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="s1">&#39;bbox&#39;</span> <span class="ow">in</span> <span class="n">coco_annotation</span><span class="p">:</span>
+        <span class="n">bbox_coco</span> <span class="o">=</span> <span class="n">coco_annotation</span><span class="p">[</span><span class="s1">&#39;bbox&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">box</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">bbox_coco</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">3</span><span class="p">]])</span>
+    <span class="k">return</span> <span class="n">coords_to_bbox</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">decode_coco_rle_segmentation</span><span class="p">(</span><span class="n">coco_annotation</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">output_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Decodes a COCO annotation segmentation into a shapely Polygon or MultiPolygon.</span>
+<span class="sd">    Decode an RLE-format COCO annotation segmentation. RLE is self-describing (it embeds its</span>
+<span class="sd">    raster size), so no image dimensions are needed.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    coco_annotation: dict</span>
-<span class="sd">        The segmentation to decode.</span>
+<span class="sd">        The COCO annotation (its &#39;segmentation&#39; must be RLE).</span>
 <span class="sd">    output_type: str</span>
-<span class="sd">        The desired output type. Can be &#39;polygon&#39;, &#39;bbox&#39; or &#39;mask&#39;.</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    Polygon or MultiPolygon or box or np.ndarray</span>
-<span class="sd">        The decoded segmentation.</span>
+<span class="sd">        &#39;polygon&#39;, &#39;bbox&#39; or &#39;mask&#39;.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">segmentation</span> <span class="o">=</span> <span class="n">coco_annotation</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">output_type</span> <span class="o">==</span> <span class="s1">&#39;polygon&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">coco_rle_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">output_type</span> <span class="o">==</span> <span class="s1">&#39;bbox&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_coco_bbox</span><span class="p">(</span><span class="n">coco_annotation</span><span class="p">,</span> <span class="n">segmentation</span><span class="p">,</span> <span class="n">coco_rle_segmentation_to_bbox</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">output_type</span> <span class="o">==</span> <span class="s1">&#39;mask&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">coco_rle_segmentation_to_mask</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Output type &#39;</span><span class="si">{</span><span class="n">output_type</span><span class="si">}</span><span class="s2">&#39; not supported. Must be &#39;polygon&#39;, &#39;bbox&#39; or &#39;mask&#39;.&quot;</span><span class="p">)</span>
 
+
+<span class="k">def</span><span class="w"> </span><span class="nf">decode_coco_coordinates_segmentation</span><span class="p">(</span><span class="n">coco_annotation</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">output_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                                         <span class="n">image_height</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">image_width</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decode a polygon-coordinates COCO annotation segmentation.</span>
+
+<span class="sd">    ``image_height``/``image_width`` are only needed for ``output_type=&#39;mask&#39;`` (to rasterize the</span>
+<span class="sd">    polygon). COCO stores size on the image, not the annotation, so the caller must supply it.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    coco_annotation: dict</span>
+<span class="sd">        The COCO annotation (its &#39;segmentation&#39; must be polygon coordinates).</span>
+<span class="sd">    output_type: str</span>
+<span class="sd">        &#39;polygon&#39;, &#39;bbox&#39; or &#39;mask&#39;.</span>
+<span class="sd">    image_height, image_width: int</span>
+<span class="sd">        Raster size of the tile the polygon lives in. Required for &#39;mask&#39;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">segmentation</span> <span class="o">=</span> <span class="n">coco_annotation</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">output_type</span> <span class="o">==</span> <span class="s1">&#39;polygon&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">coco_coordinates_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">output_type</span> <span class="o">==</span> <span class="s1">&#39;bbox&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_coco_bbox</span><span class="p">(</span><span class="n">coco_annotation</span><span class="p">,</span> <span class="n">segmentation</span><span class="p">,</span> <span class="n">coco_coordinates_segmentation_to_bbox</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">output_type</span> <span class="o">==</span> <span class="s1">&#39;mask&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">image_height</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">image_width</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Rasterizing a polygon-coordinates segmentation to a mask requires image_height &quot;</span>
+                <span class="s2">&quot;and image_width (COCO stores size on the image, not the annotation).&quot;</span>
+            <span class="p">)</span>
+        <span class="n">polygon</span> <span class="o">=</span> <span class="n">coco_coordinates_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">polygon_to_mask</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="n">image_height</span><span class="p">,</span> <span class="n">image_width</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Output type &#39;</span><span class="si">{</span><span class="n">output_type</span><span class="si">}</span><span class="s2">&#39; not supported. Must be &#39;polygon&#39;, &#39;bbox&#39; or &#39;mask&#39;.&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">decode_coco_segmentation</span><span class="p">(</span><span class="n">coco_annotation</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">output_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                             <span class="n">image_height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">image_width</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decode a COCO annotation segmentation into a shapely Polygon/MultiPolygon, box, or mask,</span>
+<span class="sd">    dispatching on RLE vs polygon-coordinates format.</span>
+
+<span class="sd">    ``image_height``/``image_width`` are required and used when rasterizing a polygon-coordinates</span>
+<span class="sd">    segmentation to a mask (COCO stores size on the image, not the annotation). They are ignored</span>
+<span class="sd">    for RLE annotations and for &#39;polygon&#39;/&#39;bbox&#39; outputs; if you only ever decode RLE and have no</span>
+<span class="sd">    image size, call ``decode_coco_rle_segmentation`` directly.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    coco_annotation: dict</span>
+<span class="sd">        The COCO annotation to decode.</span>
+<span class="sd">    output_type: str</span>
+<span class="sd">        &#39;polygon&#39;, &#39;bbox&#39; or &#39;mask&#39;.</span>
+<span class="sd">    image_height, image_width: int</span>
+<span class="sd">        Raster size of the tile the annotation lives in.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">segmentation</span> <span class="o">=</span> <span class="n">coco_annotation</span><span class="p">[</span><span class="s1">&#39;segmentation&#39;</span><span class="p">]</span>
     <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;is_rle_format&#39;</span> <span class="ow">in</span> <span class="n">coco_annotation</span> <span class="ow">and</span> <span class="n">coco_annotation</span><span class="p">[</span><span class="s1">&#39;is_rle_format&#39;</span><span class="p">])</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">segmentation</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-        <span class="c1"># Compressed RLE format</span>
-        <span class="k">if</span> <span class="n">output_type</span> <span class="o">==</span> <span class="s1">&#39;polygon&#39;</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">coco_rle_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">output_type</span> <span class="o">==</span> <span class="s1">&#39;bbox&#39;</span><span class="p">:</span>
-            <span class="k">if</span> <span class="s1">&#39;bbox&#39;</span> <span class="ow">in</span> <span class="n">coco_annotation</span><span class="p">:</span>
-                <span class="c1"># Directly use the provided bbox</span>
-                <span class="n">bbox_coco</span> <span class="o">=</span> <span class="n">coco_annotation</span><span class="p">[</span><span class="s1">&#39;bbox&#39;</span><span class="p">]</span>
-                <span class="n">bbox</span> <span class="o">=</span> <span class="n">box</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">bbox_coco</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">3</span><span class="p">]])</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">bbox</span> <span class="o">=</span> <span class="n">coco_rle_segmentation_to_bbox</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">bbox</span>
-        <span class="k">elif</span> <span class="n">output_type</span> <span class="o">==</span> <span class="s1">&#39;mask&#39;</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">coco_rle_segmentation_to_mask</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Output type &#39;</span><span class="si">{</span><span class="n">output_type</span><span class="si">}</span><span class="s2">&#39; not supported. Must be &#39;polygon&#39;, &#39;bbox&#39; or &#39;mask&#39;.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">decode_coco_rle_segmentation</span><span class="p">(</span><span class="n">coco_annotation</span><span class="p">,</span> <span class="n">output_type</span><span class="p">)</span>
     <span class="k">elif</span> <span class="p">(</span><span class="s1">&#39;is_rle_format&#39;</span> <span class="ow">in</span> <span class="n">coco_annotation</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">coco_annotation</span><span class="p">[</span><span class="s1">&#39;is_rle_format&#39;</span><span class="p">])</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">segmentation</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-        <span class="c1"># Coordinates format</span>
-        <span class="k">if</span> <span class="n">output_type</span> <span class="o">==</span> <span class="s1">&#39;polygon&#39;</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">coco_coordinates_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">output_type</span> <span class="o">==</span> <span class="s1">&#39;bbox&#39;</span><span class="p">:</span>
-            <span class="k">if</span> <span class="s1">&#39;bbox&#39;</span> <span class="ow">in</span> <span class="n">coco_annotation</span><span class="p">:</span>
-                <span class="c1"># Directly use the provided bbox</span>
-                <span class="n">bbox_coco</span> <span class="o">=</span> <span class="n">coco_annotation</span><span class="p">[</span><span class="s1">&#39;bbox&#39;</span><span class="p">]</span>
-                <span class="n">bbox</span> <span class="o">=</span> <span class="n">box</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">bbox_coco</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">bbox_coco</span><span class="p">[</span><span class="mi">3</span><span class="p">]])</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">bbox</span> <span class="o">=</span> <span class="n">coco_coordinates_segmentation_to_bbox</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">bbox</span>
-        <span class="k">elif</span> <span class="n">output_type</span> <span class="o">==</span> <span class="s1">&#39;mask&#39;</span><span class="p">:</span>
-            <span class="n">polygon</span> <span class="o">=</span> <span class="n">coco_coordinates_segmentation_to_polygon</span><span class="p">(</span><span class="n">segmentation</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">polygon_to_mask</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="n">coco_annotation</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">],</span> <span class="n">coco_annotation</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">])</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Output type &#39;</span><span class="si">{</span><span class="n">output_type</span><span class="si">}</span><span class="s2">&#39; not supported. Must be &#39;polygon&#39;, &#39;bbox&#39; or &#39;mask&#39;.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">decode_coco_coordinates_segmentation</span><span class="p">(</span><span class="n">coco_annotation</span><span class="p">,</span> <span class="n">output_type</span><span class="p">,</span> <span class="n">image_height</span><span class="p">,</span> <span class="n">image_width</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Could not find the segmentation type (RLE vs polygon coordinates).&quot;</span><span class="p">)</span>
 
@@ -1769,7 +1808,7 @@
 
         <span class="n">polygons</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">annotation</span> <span class="ow">in</span> <span class="n">tile_annotations</span><span class="p">:</span>
-            <span class="n">polygon</span> <span class="o">=</span> <span class="n">decode_coco_segmentation</span><span class="p">(</span><span class="n">annotation</span><span class="p">,</span> <span class="s1">&#39;polygon&#39;</span><span class="p">)</span>
+            <span class="n">polygon</span> <span class="o">=</span> <span class="n">decode_coco_segmentation</span><span class="p">(</span><span class="n">annotation</span><span class="p">,</span> <span class="s1">&#39;polygon&#39;</span><span class="p">,</span> <span class="n">tile_data</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">],</span> <span class="n">tile_data</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">])</span>
             <span class="n">polygons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span>
 
         <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">({</span>
