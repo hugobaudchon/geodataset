@@ -68,15 +68,16 @@ The class RasterTilerizer can tilerize a raster, without labels. The tiles are t
 
     tilerizer.generate_tiles()
 
-The class RasterTilerizerGDF can tilerize a raster, without labels, and return the tiles as boxes in a GeoDataFrame. It does not output anything to the disk.
+``generate_tiles`` also returns the tiles as a GeoDataFrame (with each tile's window metadata). Pass ``save_tiles_to_disk=False`` to skip writing the tile images to disk and only get the GeoDataFrame back.
 
 .. code-block:: python
 
     from pathlib import Path
-    from geodataset.tilerize import RasterTilerizerGDF
+    from geodataset.tilerize import RasterTilerizer
 
-    tilerizer = RasterTilerizerGDF(
+    tilerizer = RasterTilerizer(
         raster_path='/Data/raw/wwf_ecuador/RGB Orthomosaics/Carlos Vera Arteaga RGB.tif',
+        output_path='/Data/pre_processed/test',
         tile_size=1024,
         tile_overlap=0.5,
         aois_config=aoi_gen_config,
@@ -85,7 +86,7 @@ The class RasterTilerizerGDF can tilerize a raster, without labels, and return t
         ignore_black_white_alpha_tiles_threshold=0.8     # optional
     )
 
-    tiles_boxes_gdf = tilerizer.generate_tiles_gdf()
+    tiles_gdf = tilerizer.generate_tiles(save_tiles_to_disk=False)
 
 Labeled Raster
 ~~~~~~~~~~~~~~

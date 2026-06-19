@@ -1,4 +1,4 @@
-from .raster_tilerizer import RasterTilerizer, RasterTilerizerGDF
+from .raster_tilerizer import RasterTilerizer
 from .labeled_raster_tilerizer import LabeledRasterTilerizer
 from .raster_polygon_tilerizer import RasterPolygonTilerizer
 

@@ -525,103 +525,54 @@ class RasterTilerizer(BaseDiskRasterTilerizer):
                          temp_dir=temp_dir,
                          output_dtype=output_dtype)
 
-    def generate_tiles(self):
+    def generate_tiles(self, save_tiles_to_disk: bool = True):
         """
-        Generate the tiles and save them to the disk.
-        """
+        Generate the tiles and return them as a GeoDataFrame, including each tile's full window
+        metadata (``tile_metadata`` column: transform/crs/size, compatible with ``rasterio.open``).
 
+        If ``save_tiles_to_disk`` is True (default, the original behavior), the tile images, the AOI
+        tiles picture and the AOI geopackages are also written to disk, and a ``tile_path`` column is
+        added to the returned GeoDataFrame. If False, nothing is written and pixels are read on demand
+        from the source raster. No COCO is ever written.
+        """
         tiles = self._create_tiles()
-        self._get_tiles_per_aoi(tiles=tiles)
+        self._get_tiles_per_aoi(tiles=tiles)                   # assign tiles to AOIs (sets self.aois_tiles)
+        aois_tiles = self.aois_tiles
 
-        save_aois_tiles_picture(aois_tiles=self.aois_tiles,
-                                save_path=self.output_path / AoiTilesImageConvention.create_name(
-                                    product_name=self.raster.output_name,
-                                    ground_resolution=self.ground_resolution,
-                                    scale_factor=self.scale_factor
-                                ),
-                                tile_coordinate_step=self.tile_coordinate_step)
+        tile_path = None
+        if save_tiles_to_disk:
+            save_aois_tiles_picture(aois_tiles=aois_tiles,
+                                    save_path=self.output_path / AoiTilesImageConvention.create_name(
+                                        product_name=self.raster.output_name,
+                                        ground_resolution=self.ground_resolution,
+                                        scale_factor=self.scale_factor
+                                    ),
+                                    tile_coordinate_step=self.tile_coordinate_step)
 
-        [print(f'No tiles found for AOI {aoi}.') for aoi in self.aois_config.actual_names
-         if aoi not in self.aois_tiles or len(self.aois_tiles[aoi]) == 0]
+            [print(f'No tiles found for AOI {aoi}.') for aoi in self.aois_config.actual_names
+             if aoi not in aois_tiles or len(aois_tiles[aoi]) == 0]
 
-        for aoi in self.aois_tiles:
-            # Save the tile images
-            tiles_path_aoi = self.tiles_path / aoi
-            tiles_path_aoi.mkdir(parents=True, exist_ok=True)
+            tile_path = {}
+            for aoi in aois_tiles:
+                tiles_path_aoi = self.tiles_path / aoi
+                tiles_path_aoi.mkdir(parents=True, exist_ok=True)
+                for tile in tqdm(aois_tiles[aoi], desc=f"Saving tiles for AOI '{aoi}'"):
+                    tile.save(output_folder=tiles_path_aoi, output_dtype=self.output_dtype)
+                    tile_path[tile.tile_id] = str(tiles_path_aoi / tile.generate_name())
+            print(f"The tiles have been saved to {self.tiles_path}.")
 
-            for tile in tqdm(self.aois_tiles[aoi], desc=f"Saving tiles for AOI '{aoi}'"):
-                tile.save(output_folder=tiles_path_aoi, output_dtype=self.output_dtype)
+        flat = [(aoi, tile) for aoi in aois_tiles for tile in aois_tiles[aoi]]
+        data = {
+            'geometry': [tile.get_bbox() for _, tile in flat],
+            'tile_id': [tile.tile_id for _, tile in flat],
+            'col': [tile.col for _, tile in flat],
+            'row': [tile.row for _, tile in flat],
+            'aoi': [aoi for aoi, _ in flat],
+            'tile_metadata': [tile.metadata for _, tile in flat],
+        }
+        if tile_path is not None:
+            data['tile_path'] = [tile_path[tile.tile_id] for _, tile in flat]
 
-        print(f"The tiles have been saved to {self.tiles_path}.")
-
-
-class RasterTilerizerGDF(BaseRasterTilerizer):
-    """
-    A standard tilerizer for Raster data without annotations or labels. The generate_tiles_gdf method returns tiles extents as a GeoDataFrame.
-
-    Parameters
-    ----------
-    raster_path : str or pathlib.Path
-        Path to the raster (.tif, .png...).
-    tile_size : int
-        The size of the tiles in pixels (tile_size, tile_size).
-    tile_overlap : float
-        The overlap between the tiles (0 <= overlap < 1).
-    aois_config : :class:`~geodataset.aoi.AOIGeneratorConfig` or :class:`~geodataset.aoi.AOIFromPackageConfig` or None
-        An instance of AOIConfig to use, or None if all tiles should be kept in an DEFAULT_AOI_NAME AOI.
-    ground_resolution : float, optional
-        The ground resolution in meter per pixel desired when loading the raster.
-        Only one of ground_resolution and scale_factor can be set at the same time.
-    scale_factor : float, optional
-        Scale factor for rescaling the data (change pixel resolution).
-        Only one of ground_resolution and scale_factor can be set at the same time.
-    output_name_suffix : str, optional
-        Suffix to add to the output file names.
-    ignore_black_white_alpha_tiles_threshold : float, optional
-        Threshold ratio of black, white or transparent pixels in a tile to skip it. Default is 0.8.
-    temp_dir : str or pathlib.Path
-        Temporary directory to store the resampled Raster, if it is too big to fit in memory.
-    """
-    def __init__(self,
-                 raster_path: str or Path,
-                 tile_size: int,
-                 tile_overlap: float,
-                 aois_config: AOIConfig = None,
-                 ground_resolution: float = None,
-                 scale_factor: float = None,
-                 output_name_suffix: str = None,
-                 ignore_black_white_alpha_tiles_threshold: float = 0.8,
-                 temp_dir: str or Path = './tmp'):
-
-        super().__init__(raster_path=raster_path,
-                         tile_size=tile_size,
-                         tile_overlap=tile_overlap,
-                         aois_config=aois_config,
-                         ground_resolution=ground_resolution,
-                         scale_factor=scale_factor,
-                         output_name_suffix=output_name_suffix,
-                         ignore_black_white_alpha_tiles_threshold=ignore_black_white_alpha_tiles_threshold,
-                         temp_dir=temp_dir)
-
-    def generate_tiles_gdf(self):
-        """
-        Generate the tiles and return them as a GeoDataFrame.
-        """
-
-        tiles = self._create_tiles()
-        aois_tiles, _ = self._get_tiles_per_aoi(tiles=tiles)
-
-        tiles_gdf = GeoDataFrame(
-            {
-                'geometry': [tile.get_bbox() for aoi in aois_tiles for tile in aois_tiles[aoi]],
-                'id': [tile.tile_id for aoi in aois_tiles for tile in aois_tiles[aoi]],
-                'col': [tile.col for aoi in aois_tiles for tile in aois_tiles[aoi]],
-                'row': [tile.row for aoi in aois_tiles for tile in aois_tiles[aoi]],
-                'aoi': [aoi for aoi in aois_tiles for _ in aois_tiles[aoi]]
-            },
-            crs=None
-        )
-
-        return tiles_gdf
+        return GeoDataFrame(data, crs=None)
 
 

@@ -1,4 +1,5 @@
 import warnings
+from collections import defaultdict
 from pathlib import Path
 from typing import List, cast, Optional
 
@@ -448,6 +449,74 @@ class RasterPolygonTilerizer:
             compress=self.compress
         )
         return tiles_paths
+
+    def generate_tiles_gdf(self, save_tiles: bool = False):
+        """
+        Generate one tile per input polygon and return them as a GeoDataFrame (one row per polygon
+        tile), carrying each tile's window metadata (``tile_metadata``) and the original polygon
+        attributes (incl. any ``other_labels_attributes_column_names``). No COCO is ever written.
+
+        If ``save_tiles`` is True, the tile images are also written to disk and a ``tile_path`` column
+        is added; otherwise only the metadata is returned and pixels are read on demand.
+        """
+        aois_polygons, aois_gdf = self._generate_aois_polygons()
+
+        aoi_geometries = {
+            aoi_name: aois_gdf[aois_gdf['aoi'] == aoi_name]['geometry'].unary_union
+            for aoi_name in aois_gdf['aoi'].unique()
+        }
+
+        all_tiles = []
+        rows = []
+        for aoi, polygons in aois_polygons.items():
+            aoi_geom = aoi_geometries.get(aoi)
+            if aoi_geom is not None:
+                def _ratio(polygon):
+                    if polygon.area == 0:
+                        return 1.0
+                    try:
+                        return polygon.intersection(aoi_geom).area / polygon.area
+                    except Exception:
+                        p = polygon.buffer(0) if not polygon.is_valid else polygon
+                        a = aoi_geom.buffer(0) if not aoi_geom.is_valid else aoi_geom
+                        return p.intersection(a).area / p.area
+                polygons = polygons[polygons['geometry'].apply(_ratio) >= self.min_intersection_ratio - 1e-9]
+
+            for _, polygon_row in tqdm(polygons.iterrows(),
+                                       f"Generating polygon tiles for AOI {aoi}...",
+                                       total=len(polygons)):
+                polygon_tile, translated_polygon = self.raster.get_polygon_tile(
+                    polygon=polygon_row['geometry'],
+                    polygon_id=polygon_row[self.unique_polygon_id_column_name],
+                    polygon_aoi=aoi,
+                    tile_size=self.tile_size,
+                    use_variable_tile_size=self.use_variable_tile_size,
+                    variable_tile_size_pixel_buffer=self.variable_tile_size_pixel_buffer,
+                    min_tile_size=self.min_tile_size
+                )
+                row = polygon_row.to_dict()
+                row['geometry'] = translated_polygon
+                row['area'] = translated_polygon.area
+                row['aoi'] = aoi
+                row['tile_id'] = polygon_tile.tile_id
+                row['tile_metadata'] = polygon_tile.metadata
+                all_tiles.append(polygon_tile)
+                rows.append(row)
+
+        if save_tiles:
+            tiles_by_aoi = defaultdict(list)
+            for tile in all_tiles:
+                tiles_by_aoi[tile.aoi].append(tile)
+            path_by_tile_id = {}
+            for aoi, tiles in tiles_by_aoi.items():
+                self._apply_aoi_masks_to_batch(tiles, aoi, aois_gdf)
+                paths = self._save_tiles_batch(tiles, aoi=aoi)
+                for tile, path in zip(tiles, paths):
+                    path_by_tile_id[tile.tile_id] = str(path)
+            for row in rows:
+                row['tile_path'] = path_by_tile_id.get(row['tile_id'])
+
+        return gpd.GeoDataFrame(rows, geometry='geometry', crs=None)
 
     def generate_coco_dataset(self):
         aois_tiles_paths, aois_polygons = self._generate_aois_tiles_and_polygons()
