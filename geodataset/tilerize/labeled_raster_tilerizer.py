@@ -424,6 +424,43 @@ class LabeledRasterTilerizer(BaseDiskRasterTilerizer):
 
         return coco_paths
 
+    def generate_tiles_gdf(self, save_tiles: bool = False):
+        """Generate grid tiles + their associated labels (in tile-pixel coords) and return them as two
+        GeoDataFrames, ``(tiles_gdf, labels_gdf)`` — no COCO is written.
+
+        tiles_gdf : one row per tile — ``tile_id``, ``tile_metadata`` (+ ``tile_path`` if ``save_tiles``).
+        labels_gdf: one row per (tile, label) intersection — geometry in tile-pixel coords, ``tile_id``
+                    (-> tiles_gdf) plus the original label attributes (incl. any
+                    ``other_labels_attributes_column_names``).
+
+        ``save_tiles``: also write the tile images to disk and add a ``tile_path`` column; otherwise
+        only the window metadata is returned and pixels are read on demand.
+        """
+        self._generate_aois_tiles()
+        aois_tiles, aois_labels = self._get_tiles_and_labels_per_aoi()
+        self.aois_tiles = aois_tiles
+
+        tile_ids, metas, tile_paths = [], [], []
+        for aoi, tiles in aois_tiles.items():
+            folder = self.tiles_path / aoi
+            if save_tiles and tiles:
+                folder.mkdir(parents=True, exist_ok=True)
+            for tile in tiles:
+                tile_ids.append(tile.tile_id)
+                metas.append(tile.metadata)
+                if save_tiles:
+                    tile.save(output_folder=folder, output_dtype=self.output_dtype)
+                    tile_paths.append(str(folder / tile.generate_name()))
+        data = {'tile_id': tile_ids, 'tile_metadata': metas}
+        if save_tiles:
+            data['tile_path'] = tile_paths
+        tiles_gdf = gpd.GeoDataFrame(data, geometry=gpd.GeoSeries([None] * len(tile_ids)))
+
+        label_frames = [df for aoi in aois_labels for df in aois_labels[aoi]]
+        labels_gdf = (gpd.GeoDataFrame(pd.concat(label_frames, ignore_index=True))
+                      if label_frames else gpd.GeoDataFrame(columns=['tile_id', 'geometry'], geometry='geometry'))
+        return tiles_gdf, labels_gdf
+
     def generate_additional_coco_dataset(self,
                                          labels_gdf: gpd.GeoDataFrame,
                                          aoi_name_mapping: dict,
