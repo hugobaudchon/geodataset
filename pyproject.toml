@@ -65,6 +65,7 @@ Repository = "https://github.com/hugobaudchon/geodataset"
 Documentation = "https://hugobaudchon.github.io/geodataset/"
 
 [tool.setuptools]
+package-dir = {"" = "src"}
 packages = ["geodataset"]
 
 [tool.setuptools.package-data]
@@ -74,4 +75,4 @@ packages = ["geodataset"]
 version = {attr = "geodataset._version.__version__"}
 
 [tool.setuptools_scm]
-write_to = "geodataset/_version.py"
+write_to = "src/geodataset/_version.py"

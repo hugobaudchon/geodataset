@@ -1,5 +1,5 @@
 # setuptools-scm generated version file
-geodataset/_version.py
+src/geodataset/_version.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
